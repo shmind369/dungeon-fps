@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>簡易3D迷路</title>
+  <style>
+    body {
+      margin: 0;
+      background: black;
+      overflow: hidden;
+    }
+    canvas {
+      display: block;
+    }
+  </style>
+</head>
+<body>
+<canvas id="gameCanvas"></canvas>
+<script>
+  const canvas = document.getElementById('gameCanvas');
+  const ctx = canvas.getContext('2d');
+
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+
+  const map = [
+    [1,1,1,1,1,1,1,1],
+    [1,0,0,0,0,0,0,1],
+    [1,0,1,0,1,0,0,1],
+    [1,0,1,0,0,0,1,1],
+    [1,0,0,0,1,0,0,1],
+    [1,0,1,0,0,0,0,1],
+    [1,0,0,0,1,0,0,1],
+    [1,1,1,1,1,1,1,1],
+  ];
+  
+  const bullets = [];
+
+  const tileSize = 64;
+  const mapWidth = map[0].length;
+  const mapHeight = map.length;
+
+  let posX = 3.5, posY = 3.5; // プレイヤーの位置
+  let dir = 0; // 視点の角度（ラジアン）
+
+  const fov = Math.PI / 3; // 60度視野角
+  const numRays = canvas.width;
+  const maxDepth = 10;
+  
+  let enemyX = 5.5;
+  let enemyY = 3.5;
+  
+  let enemyColor = "red";
+  let enemyHitTimer = 0;
+  let enemyHP = 3;
+  
+  //tama
+  
+  function shoot() {
+  const bulletSpeed = 0.2;
+  bullets.push({
+    x: posX,
+    y: posY,
+    dx: Math.cos(dir) * bulletSpeed,
+    dy: Math.sin(dir) * bulletSpeed,
+    life: 50  // 寿命（フレーム数）
+  });
+}
+
+function updateBullets() {
+  for (let i = bullets.length - 1; i >= 0; i--) {
+    const b = bullets[i];
+    b.x += b.dx;
+    b.y += b.dy;
+    b.life--;
+    
+        // 弾と敵の距離を計算して当たり判定
+    const dx = b.x - enemyX;
+    const dy = b.y - enemyY;
+    const distToEnemy = Math.sqrt(dx * dx + dy * dy);
+    if (distToEnemy < 0.3) { // ← 命中判定（0.3マス以内）
+      bullets.splice(i, 1); // 弾を消す
+      enemyHP--;
+      enemyColor = "orange"; // 敵の色を変える
+      enemyHitTimer = 30; // 色変化持続時間（フレーム数）
+      
+      if(enemyHP <= 0){
+        enemyHP = 0;
+        enemyX = -1000;
+        enemyY = -1000;
+      }
+      continue;
+    }
+
+    // 壁に当たる or 寿命終了で削除
+    const mapX = Math.floor(b.x);
+    const mapY = Math.floor(b.y);
+    if (b.life <= 0 || map[mapY][mapX] !== 0) {
+      bullets.splice(i, 1);
+    }
+  }
+}
+
+//敵
+  function updateEnemy() {
+    
+    if(enemyHP > 0){
+      const dx = posX - enemyX;
+      const dy = posY - enemyY;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+        if (dist > 0.05) {
+          enemyX += (dx / dist) * 0.01; // ほんの少しだけ近づく
+          enemyY += (dy / dist) * 0.01;
+      }
+    }
+    
+    if(enemyHitTimer > 0){
+      enemyHitTimer--;
+      if(enemyHitTimer === 0){
+          enemyColor = "red";
+        }
+    }
+  }
+  
+  function drawEnemy() {
+  const dx = enemyX - posX;
+  const dy = enemyY - posY;
+  const distance = Math.sqrt(dx * dx + dy * dy);
+  const angleToEnemy = Math.atan2(dy, dx) - dir;
+  const halfFov = fov / 2;
+  
+  if (Math.abs(angleToEnemy) < halfFov) {
+    const screenX = (angleToEnemy + halfFov) / fov * canvas.width;
+    const size = Math.min(2000, 500 / distance); // 近いと大きく、遠いと小さく
+
+    ctx.fillStyle = enemyColor;
+    ctx.beginPath();
+    ctx.arc(screenX, canvas.height / 2, size / 2, 0, Math.PI * 2);
+    ctx.fill();
+  }
+}
+
+function drawBullets() {
+  bullets.forEach(b => {
+    const dx = b.x - posX;
+    const dy = b.y - posY;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+    const angleToBullet = Math.atan2(dy, dx) - dir;
+    const halfFov = fov / 2;
+
+    if (Math.abs(angleToBullet) < halfFov) {
+      const screenX = (angleToBullet + halfFov) / fov * canvas.width;
+      
+      const maxSize = 30;
+      const size = Math.max(2,maxSize/dist);
+     // const size = Math.min(30, 300 / dist);
+
+      ctx.fillStyle = "yellow";
+      ctx.beginPath();
+      ctx.arc(screenX, canvas.height / 2, size / 2, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  });
+}
+  
+
+  function castRays() {
+    for (let i = 0; i < numRays; i++) {
+      const rayAngle = (dir - fov / 2) + (i / numRays) * fov;
+      let dist = 0;
+      let hit = false;
+      let eyeX = Math.cos(rayAngle);
+      let eyeY = Math.sin(rayAngle);
+
+      while (!hit && dist < maxDepth) {
+        dist += 0.01;
+        let testX = Math.floor(posX + eyeX * dist);
+        let testY = Math.floor(posY + eyeY * dist);
+
+        if (testX < 0 || testY < 0 || testX >= mapWidth || testY >= mapHeight) {
+          hit = true;
+          dist = maxDepth;
+        } else if (map[testY][testX] > 0) {
+          hit = true;
+        }
+      }
+
+      // 距離に応じて壁の高さを調整（遠いほど小さく）
+      const wallHeight = Math.min(canvas.height, canvas.height / dist);
+      const shade = 255 - Math.min(255, dist * 50);
+      ctx.fillStyle = `rgb(${shade},${shade},${shade})`;
+      ctx.fillRect(i, (canvas.height - wallHeight) / 2, 1, wallHeight);
+    }
+  }
+
+  function render() {
+    ctx.fillStyle = "black";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    castRays();
+    drawEnemy();
+    drawBullets();
+    
+  }
+
+  function move(forward) {
+    const moveSpeed = forward ? 0.1 : -0.1;
+    const nextX = posX + Math.cos(dir) * moveSpeed;
+    const nextY = posY + Math.sin(dir) * moveSpeed;
+    if (map[Math.floor(nextY)][Math.floor(nextX)] === 0) {
+      posX = nextX;
+      posY = nextY;
+    }
+  }
+
+  function rotate(angle) {
+    dir += angle;
+  }
+  
+  document.addEventListener("keydown", (e) => {
+  switch(e.key) {
+    case "ArrowLeft": rotate(-0.05); break;
+    case "ArrowRight": rotate(0.05); break;
+    case "ArrowUp": move(true); break;
+    case "ArrowDown": move(false); break;
+    case " ": shoot(); break; // ← スペースキーで弾発射！
+  }
+});
+
+  document.addEventListener("keydown", (e) => {
+    switch(e.key) {
+      case "ArrowLeft":
+        rotate(-0.3);
+        break;
+      case "ArrowRight":
+        rotate(0.3);
+        break;
+      case "ArrowUp":
+        move(true);
+        break;
+      case "ArrowDown":
+        move(false);
+        break;
+    }
+    render();
+  });
+
+  render();
+  
+
+function gameLoop() {
+  updateEnemy();
+  updateBullets();
+  render();
+  requestAnimationFrame(gameLoop);
+  console.log("Enemy position:", enemyX.toFixed(2), enemyY.toFixed(2));
+
+}
+
+
+gameLoop(); // ← これを script の最後に書く！
+</script>
+
+</body>
+</html>
