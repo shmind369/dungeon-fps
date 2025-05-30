@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
-  <title>簡易3D迷路</title>
+  <title>2025年5月30日簡易3D迷路</title>
   <style>
     body {
       margin: 0;
@@ -203,7 +203,7 @@ function drawBullets() {
   }
 
   function move(forward) {
-    const moveSpeed = forward ? 0.1 : -0.1;
+    const moveSpeed = forward ? 0.04 : -0.02;
     const nextX = posX + Math.cos(dir) * moveSpeed;
     const nextY = posY + Math.sin(dir) * moveSpeed;
     if (map[Math.floor(nextY)][Math.floor(nextX)] === 0) {
@@ -225,6 +225,92 @@ function drawBullets() {
     case " ": shoot(); break; // ← スペースキーで弾発射！
   }
 });
+    
+    let isMovingForward = false;
+    let isMovingBackward = false;
+    let isTurningLeft = false;   // ←左回転フラグ
+    let isTurningRight = false;  // ←右回転フラグ
+    let touchStartY = null;
+    let touchStartX = null;
+    
+    // 🔧追加：タッチ開始時にY位置を記録
+  canvas.addEventListener("touchstart", (e) => {
+    if (e.touches.length === 1) {
+      touchStartY = e.touches[0].clientY;
+    }
+  }, { passive: true });
+  
+  // 🔧追加：タッチ移動中に一定距離上に動いたら前進フラグON
+  canvas.addEventListener("touchmove", (e) => {
+    if (touchStartY === null) return;
+  
+    const touchY = e.touches[0].clientY;
+    const dy = touchStartY - touchY;
+  
+    if (dy > 50) {
+      isMovingForward = true;
+      isMovingBackward = false;
+    }else if(dy < -50){
+      isMovingForward = false;
+      isMovingBackward = true;
+    }
+  }, { passive: true });
+  
+  // 🔧追加：タッチが終わったら前進フラグOFF＆リセット
+  canvas.addEventListener("touchend", (e) => {
+    isMovingForward = false;
+    isMovingBackward = false;
+    touchStartY = null;
+  }, { passive: true });
+  
+
+canvas.addEventListener("touchstart", (e) => {
+  if (e.touches.length === 1) {
+    touchStartY = e.touches[0].clientY;  // ←既存のY記録（前進用）
+    touchStartX = e.touches[0].clientX;  // ←🆕 左右回転用
+  }
+}, { passive: true });
+
+canvas.addEventListener("touchmove", (e) => {
+  if (touchStartY === null || touchStartX === null) return;
+
+  const touchY = e.touches[0].clientY;
+  const touchX = e.touches[0].clientX;
+
+  const dy = touchStartY - touchY;
+  const dx = touchX - touchStartX;
+
+  // 前進
+  if (dy > 50) {
+    isMovingForward = true;
+  }
+  
+  if (dx > 50) {
+    isTurningRight = true;      // 右スワイプ → 回転フラグON
+    isTurningLeft = false;
+  } else if (dx < -50) {
+    isTurningLeft = true;       // 左スワイプ → 回転フラグON
+    isTurningRight = false;
+  }
+
+  // 左右回転（一定距離動かしたら回転）
+  if (dx > 50) {
+    rotate(0.2);   // →右へ回転（右スワイプ）
+    touchStartX = touchX; // ←回転の連続判定用に更新
+  } else if (dx < -50) {
+    rotate(-0.2);  // ←左へ回転（左スワイプ）
+    touchStartX = touchX; // ←こちらも更新
+  }
+}, { passive: true });
+
+canvas.addEventListener("touchend", (e) => {
+  isMovingForward = false;
+  isTurningLeft = false;
+  isTurningRight = false;
+  touchStartY = null;
+  touchStartX = null;  // 🔧追加：X方向の記録もリセット
+}, { passive: true });
+ 
 
   document.addEventListener("keydown", (e) => {
     switch(e.key) {
@@ -248,11 +334,26 @@ function drawBullets() {
   
 
 function gameLoop() {
+  
+  
+  if(isMovingForward){
+    move(true);
+  }
+  
+  if(isMovingBackward){
+    move(false);
+  }
   updateEnemy();
   updateBullets();
+  if (isTurningLeft) {
+  rotate(-0.05); // ← 滑らか左回転
+  }
+  if (isTurningRight) {
+    rotate(0.05);  // → 滑らか右回転
+  }
   render();
   requestAnimationFrame(gameLoop);
-  console.log("Enemy position:", enemyX.toFixed(2), enemyY.toFixed(2));
+  //console.log("Enemy position:", enemyX.toFixed(2), enemyY.toFixed(2));
 
 }
 
