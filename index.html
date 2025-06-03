@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
-  <title>2025年5月30日簡易3D迷路</title>
+  <title>2025年6月3日ローグライクFPS</title>
   <style>
     body {
       margin: 0;
@@ -22,26 +22,72 @@
 
   canvas.width = window.innerWidth;
   canvas.height = window.innerHeight;
+  
+  function generateRandomMap(width, height) {
+  const newMap = [];
+  for (let y = 0; y < height; y++) {
+    const row = [];
+    for (let x = 0; x < width; x++) {
+      if (x === 0 || y === 0 || x === width - 1 || y === height - 1) {
+        row.push(1); // 外周は壁
+      } else {
+        row.push(Math.random() < 0.2 ? 1 : 0); // 20%で壁
+      }
+    }
+    newMap.push(row);
+  }
+  return newMap;
+}
 
+function findRandomEmptyTile(map) {
+  while (true) {
+    const x = Math.floor(Math.random() * map[0].length);
+    const y = Math.floor(Math.random() * map.length);
+    if (map[y][x] === 0) {
+      return { x: x + 0.5, y: y + 0.5 }; // 中心に置く
+    }
+  }
+}
+
+// 🔽 ここでマップとゴールを初期化
+let map = generateRandomMap(8, 8);
+let goal = findRandomEmptyTile(map);
+/*
   const map = [
     [1,1,1,1,1,1,1,1],
-    [1,0,0,0,0,0,0,1],
+    [1,0,0,0,0,0,1,1],
     [1,0,1,0,1,0,0,1],
-    [1,0,1,0,0,0,1,1],
+    [0,0,0,0,0,0,1,1],
     [1,0,0,0,1,0,0,1],
     [1,0,1,0,0,0,0,1],
     [1,0,0,0,1,0,0,1],
     [1,1,1,1,1,1,1,1],
   ];
+*/
   
   const bullets = [];
 
   const tileSize = 64;
   const mapWidth = map[0].length;
   const mapHeight = map.length;
+  
 
-  let posX = 3.5, posY = 3.5; // プレイヤーの位置
+const playerStart = findRandomEmptyTile(map);
+let posX = playerStart.x;
+let posY = playerStart.y;
+let angle = 0;
+
+  //let posX = 3.5, posY = 3.5; angle = 0;// プレイヤーの位置
   let dir = 0; // 視点の角度（ラジアン）
+  
+  const items = [
+    { x: 2.5, y: 2.5 }, // マップ上の位置（X, Y）
+    { x: 5.2, y: 3.7 }
+  ];
+
+/*
+  const goal = { x: 5.5, y: 3.5 }; //ゴール
+*/
 
   const fov = Math.PI / 3; // 60度視野角
   const numRays = canvas.width;
@@ -129,39 +175,96 @@ function updateBullets() {
   const angleToEnemy = Math.atan2(dy, dx) - dir;
   const halfFov = fov / 2;
   
-  if (Math.abs(angleToEnemy) < halfFov) {
-    const screenX = (angleToEnemy + halfFov) / fov * canvas.width;
-    const size = Math.min(2000, 500 / distance); // 近いと大きく、遠いと小さく
-
-    ctx.fillStyle = enemyColor;
-    ctx.beginPath();
-    ctx.arc(screenX, canvas.height / 2, size / 2, 0, Math.PI * 2);
-    ctx.fill();
-  }
-}
-
-function drawBullets() {
-  bullets.forEach(b => {
-    const dx = b.x - posX;
-    const dy = b.y - posY;
-    const dist = Math.sqrt(dx * dx + dy * dy);
-    const angleToBullet = Math.atan2(dy, dx) - dir;
-    const halfFov = fov / 2;
-
-    if (Math.abs(angleToBullet) < halfFov) {
-      const screenX = (angleToBullet + halfFov) / fov * canvas.width;
-      
-      const maxSize = 30;
-      const size = Math.max(2,maxSize/dist);
-     // const size = Math.min(30, 300 / dist);
-
-      ctx.fillStyle = "yellow";
+    if (Math.abs(angleToEnemy) < halfFov) {
+      const screenX = (angleToEnemy + halfFov) / fov * canvas.width;
+      const size = Math.min(2000, 500 / distance); // 近いと大きく、遠いと小さく
+  
+      ctx.fillStyle = enemyColor;
       ctx.beginPath();
       ctx.arc(screenX, canvas.height / 2, size / 2, 0, Math.PI * 2);
       ctx.fill();
     }
-  });
-}
+  }
+  
+  function drawItems() {
+    const halfFov = fov / 2;
+
+  items.forEach(item => {
+    const dx = item.x - posX;
+    const dy = item.y - posY;
+    const distance = Math.sqrt(dx * dx + dy * dy);
+    const angleToItem = Math.atan2(dy, dx) - dir;
+
+      if (Math.abs(angleToItem) < halfFov) {
+        const screenX = (angleToItem + halfFov) / fov * canvas.width;
+        const size = Math.max(5, 200 / distance); // 遠くは小さく、近くは大きく
+  
+        ctx.fillStyle = "gold";
+        ctx.beginPath();
+        ctx.arc(screenX, canvas.height / 2 + 50, size / 2, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    });
+  }
+
+  function drawBullets() {
+    bullets.forEach(b => {
+      const dx = b.x - posX;
+      const dy = b.y - posY;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      const angleToBullet = Math.atan2(dy, dx) - dir;
+      const halfFov = fov / 2;
+  
+      if (Math.abs(angleToBullet) < halfFov) {
+        const screenX = (angleToBullet + halfFov) / fov * canvas.width;
+        
+        const maxSize = 30;
+        const size = Math.max(2,maxSize/dist);
+       // const size = Math.min(30, 300 / dist);
+  
+        ctx.fillStyle = "yellow";
+        ctx.beginPath();
+        ctx.arc(screenX, canvas.height / 2, size / 2, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    });
+  }
+  
+  function drawGoal() {
+    const dx = goal.x - posX;
+    const dy = goal.y - posY;
+    const angleToGoal = Math.atan2(dy, dx) - angle;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+
+    const halfFov = fov / 2;
+    
+    if (Math.abs(angleToGoal) < halfFov) {
+      const screenX = (angleToGoal + halfFov) / fov * canvas.width;
+      const maxSize = 20;
+      const size = Math.max(4, maxSize / dist);
+  
+      ctx.beginPath();
+      ctx.fillStyle = "lime"; // ゴール色
+      ctx.arc(screenX, canvas.height / 2, size, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+  
+  let goalReached = false;
+  
+  function checkGoalReached() {
+    if(goalReached)return;
+    
+    const dx = goal.x - posX;
+    const dy = goal.y - posY;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+    
+    if (dist < 0.5) {
+      goalReached = true;
+      alert("CLEAR");
+      // または次の階層へ移行処理など
+    }
+  }
   
 
   function castRays() {
@@ -196,10 +299,12 @@ function drawBullets() {
   function render() {
     ctx.fillStyle = "black";
     ctx.fillRect(0, 0, canvas.width, canvas.height);
+    
     castRays();
     drawEnemy();
     drawBullets();
-    
+    drawItems();
+    drawGoal();
   }
 
   function move(forward) {
@@ -333,29 +438,31 @@ canvas.addEventListener("touchend", (e) => {
   render();
   
 
-function gameLoop() {
+  function gameLoop() {
+    
+    
+    if(isMovingForward){
+      move(true);
+    }
+    
+    if(isMovingBackward){
+      move(false);
+    }
+    updateEnemy();
+    updateBullets();
+    if (isTurningLeft) {
+    rotate(-0.05); // ← 滑らか左回転
+    }
+    if (isTurningRight) {
+      rotate(0.05);  // → 滑らか右回転
+    }
+    
+    checkGoalReached();
+    render();
+    requestAnimationFrame(gameLoop);
+    //console.log("Enemy position:", enemyX.toFixed(2), enemyY.toFixed(2));
   
-  
-  if(isMovingForward){
-    move(true);
   }
-  
-  if(isMovingBackward){
-    move(false);
-  }
-  updateEnemy();
-  updateBullets();
-  if (isTurningLeft) {
-  rotate(-0.05); // ← 滑らか左回転
-  }
-  if (isTurningRight) {
-    rotate(0.05);  // → 滑らか右回転
-  }
-  render();
-  requestAnimationFrame(gameLoop);
-  //console.log("Enemy position:", enemyX.toFixed(2), enemyY.toFixed(2));
-
-}
 
 
 gameLoop(); // ← これを script の最後に書く！
