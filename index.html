@@ -115,6 +115,8 @@
   let posX = start.x;
   let posY = start.y;
   
+  let floor = 1;
+  
   
   const bullets = [];
 
@@ -414,9 +416,9 @@
           explored[y][x] = false;
         }
       }
-  
+      floor++;
       // 🎉 効果音や演出もここに追加できる
-      console.log("🚪 次のエリアに遷移しました！");
+      console.log("エリアに遷移しました！");
     }
   }
   
@@ -490,6 +492,13 @@
     //checkGoalReached();
     
     drawMiniMap();
+    
+    ctx.fillStyle = "white";
+    ctx.font = "44px sans-serif";
+    ctx.fillText(`${floor}F`, 100, 40); // 左上に表示
+    
+    //console.log(posX);
+    
   }
 
   function move(forward) {
@@ -650,7 +659,8 @@
     //console.log("Enemy position:", enemyX.toFixed(2), enemyY.toFixed(2));
   
   }
-
+  console.log(goal);
+  console.log(posX);
 
   gameLoop(); // ← これを script の最後に書く！
   </script>
