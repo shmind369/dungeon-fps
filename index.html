@@ -38,22 +38,7 @@
     }
     return newMap;
   }
-  
-  function generateRandomMap(width, height) {
-    const newMap = [];
-    for (let y = 0; y < height; y++) {
-      const row = [];
-      for (let x = 0; x < width; x++) {
-        if (x === 0 || y === 0 || x === width - 1 || y === height - 1) {
-          row.push(1); // 外周は壁
-        } else {
-          row.push(Math.random() < 0.2 ? 1 : 0); // 20%で壁
-        }
-      }
-      newMap.push(row);
-    }
-    return newMap;
-  }
+
 
   function findRandomEmptyTile(map) {
     while (true) {
@@ -97,23 +82,24 @@
     }
   }
   
-  // 🔽 ここでマップとゴールを初期化
-  let map = generateRandomMap(8, 8);
-  let goal = findRandomEmptyTile(map);
-  
-  let explored = [];
-    for (let y = 0; y < map.length; y++) {
-      explored[y] = [];
-    for (let x = 0; x < map[0].length; x++) {
-      explored[y][x] = false; // まだ探索していない
+  // ここでマップとゴールを初期化
+    let map = generateRandomMap(16, 16);
+    let goal = findRandomEmptyTile(map);
+    
+    let explored = [];
+      for (let y = 0; y < map.length; y++) {
+        explored[y] = [];
+      for (let x = 0; x < map[0].length; x++) {
+        explored[y][x] = false; // まだ探索していない
+      }
     }
-  }
+    
+    const start = {x:1.5,y:1.5};
+    
+    carvePath(map,start,goal);
+    let posX = start.x;
+    let posY = start.y;
   
-  const start = {x:1.5,y:1.5};
-  
-  carvePath(map,start,goal);
-  let posX = start.x;
-  let posY = start.y;
   
   let floor = 1;
   
@@ -125,6 +111,13 @@
   const mapHeight = map.length;
  
   let angle = 0;
+  
+  
+  //アクションゲージ
+  let charging = false;
+  //let chargeTime = 0;
+  let chargeThreshold = 100; // 100フレームで満タン
+  //ここまで
 
   //let posX = 3.5, posY = 3.5; angle = 0;// プレイヤーの位置
   let dir = 0; // 視点の角度（ラジアン）
@@ -174,6 +167,9 @@
  
 }
   
+
+
+
   
  /*function drawMiniMap() {
   const scale = 10; // ミニマップの拡大率（例: 1マス10px）
@@ -292,11 +288,18 @@
     if (Math.abs(angleToEnemy) < halfFov) {
       const screenX = (angleToEnemy + halfFov) / fov * canvas.width;
       const size = Math.min(2000, 500 / distance); // 近いと大きく、遠いと小さく
-  
+
       ctx.fillStyle = enemyColor;
+      ctx.font = `${size}px sans-serif`; // フォントサイズ＝見た目の大きさ
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText("👿", screenX, canvas.height / 2);
+  
+      /*ctx.fillStyle = enemyColor;
       ctx.beginPath();
       ctx.arc(screenX, canvas.height / 2, size / 2, 0, Math.PI * 2);
       ctx.fill();
+      */
     }
   }
   
@@ -312,11 +315,19 @@
       if (Math.abs(angleToItem) < halfFov) {
         const screenX = (angleToItem + halfFov) / fov * canvas.width;
         const size = Math.max(5, 200 / distance); // 遠くは小さく、近くは大きく
-  
+        
         ctx.fillStyle = "gold";
+        ctx.font = `${size}px sans-serif`; // フォントサイズ＝見た目の大きさ
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillText("🍎️", screenX, canvas.height / 2);
+        
+        
+        /*ctx.fillStyle = "gold";
         ctx.beginPath();
         ctx.arc(screenX, canvas.height / 2 + 50, size / 2, 0, Math.PI * 2);
         ctx.fill();
+        */
       }
     });
   }
@@ -344,13 +355,89 @@
     });
   }
   
-  function drawGoal() {
-  const dx = goal.x - posX;
-  const dy = goal.y - posY;
-  const angleToGoal = Math.atan2(dy, dx) - dir;
-  const dist = Math.sqrt(dx * dx + dy * dy);
+  function drawChargeGauge() {
+    if(!isCharging || chargeThreshold === 0)return;
 
-  const halfFov = fov / 2;
+  const width = 100;
+  const height = 10;
+  const x = canvas.width / 2 - width / 2;
+  const y = canvas.height - 40;
+
+  const ratio = Math.min(1, chargeTime / chargeThreshold);
+
+  ctx.fillStyle = "gray";
+  ctx.fillRect(x, y, width, height);
+
+  ctx.fillStyle = "lime";
+  ctx.fillRect(x, y, width * ratio, height);
+}
+    
+   /* const gaugeWidth = 200;
+    const gaugeHeight = 20;
+    const x = (canvas.width - gaugeWidth) / 2;
+    const y = canvas.height - gaugeHeight - 30;
+  
+    // 背景
+    ctx.fillStyle = "#444";
+    ctx.fillRect(x, y, gaugeWidth, gaugeHeight);
+  
+    // ゲージ本体
+    const filledWidth = (chargeTime / chargeThreshold) * gaugeWidth;
+    ctx.fillStyle = "lime";
+    ctx.fillRect(x, y, filledWidth, gaugeHeight);
+  
+    // 枠線
+    ctx.strokeStyle = "white";
+    ctx.strokeRect(x, y, gaugeWidth, gaugeHeight);
+  }
+  */
+  
+  let nearbyItemIndex = -1;
+
+  function updateNearbyItem() {
+    nearbyItemIndex = -1; // 初期化
+  
+    items.forEach((item, index) => {
+      const dx = item.x - posX;
+      const dy = item.y - posY;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      if (dist < 0.5) { // 近ければ
+        nearbyItemIndex = index;
+      }
+    });
+  }
+
+  function checkNearbyItems() {
+    nearbyItemIndex = -1;
+    for (let i = 0; i < items.length; i++) {
+      const dx = items[i].x - posX;
+      const dy = items[i].y - posY;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      if (dist < 0.6) {
+        nearbyItemIndex = i; // 近くのアイテム番号
+        break;
+      }
+    }
+    //console.log("現在の nearbyItemIndex:", nearbyItemIndex);
+  }
+  
+  function drawPickupPrompt() {
+    if (nearbyItemIndex !== -1) {
+      ctx.fillStyle = "white";
+      ctx.font = "84px sans-serif";
+      ctx.fillText("【拾う】", canvas.width / 2 - 30, canvas.height - 80);
+    }
+  }
+  
+
+  
+  function drawGoal() {
+    const dx = goal.x - posX;
+    const dy = goal.y - posY;
+    const angleToGoal = Math.atan2(dy, dx) - dir;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+  
+    const halfFov = fov / 2;
 
     if (Math.abs(angleToGoal) < halfFov) {
       const screenX = (angleToGoal + halfFov) / fov * canvas.width;
@@ -378,48 +465,30 @@
   
       // ゴールが手前にあるときだけ描画
       if (dist < rayDist) {
-        const maxSize = 80;
+        const maxSize = 180;
         const size = Math.max(4, maxSize / dist);
-        ctx.beginPath();
+        
+        ctx.fillStyle = "lime";
+        ctx.font = `${size}px sans-serif`; // フォントサイズ＝見た目の大きさ
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillText("出", screenX, canvas.height / 2);
+        /*ctx.beginPath();
         ctx.fillStyle = "lime";
         ctx.arc(screenX, canvas.height / 2, size, 0, Math.PI * 2);
         ctx.fill();
+        */
       }
     }
   }
   
-  function checkGoalReached() {
+  let goalInRange = false;
+  
+  function updateGoalProximity() {
     const dx = goal.x - posX;
     const dy = goal.y - posY;
     const dist = Math.sqrt(dx * dx + dy * dy);
-    
-    if (dist < 0.5) {
-      // ゴールに到達したら次のエリアへ！
-  
-      // 🎯 新しいマップを生成
-      map = generateRandomMap(mapWidth, mapHeight);
-  
-      // 🎯 新しいゴールを設置
-      goal = findRandomEmptyTile(map);
-  
-      // 🎯 新しいスタート位置
-      const playerStart = findRandomEmptyTile(map);
-      carvePath(map, playerStart, goal);  // 通路を掘る
-      posX = playerStart.x;
-      posY = playerStart.y;
-  
-      // 🎯 探索状態もリセット
-      explored = [];
-      for (let y = 0; y < map.length; y++) {
-        explored[y] = [];
-        for (let x = 0; x < map[0].length; x++) {
-          explored[y][x] = false;
-        }
-      }
-      floor++;
-      // 🎉 効果音や演出もここに追加できる
-      console.log("エリアに遷移しました！");
-    }
+    goalInRange = dist < 0.5;
   }
   
   /*
@@ -443,6 +512,70 @@
       ctx.fill();
     }
   }*/
+  
+  
+  function checkGoalCharging() {
+    const dx = goal.x - posX;
+    const dy = goal.y - posY;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+  
+    const isInGoalArea = dist < 0.5;
+  
+    if (isInGoalArea && charging && !isCharging) {
+      startCharge(() => {
+        floor++;
+        console.log("🌟 次の階層へ！");
+        //initNextFloor(); // 必要ならここで階層遷移処理
+      }, 100); // 100フレーム（約1.6秒）など
+    }
+  }
+  /*
+  function checkGoalCharging() {
+    const dx = goal.x - posX;
+    const dy = goal.y - posY;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+
+    if (dist < 0.5 && charging) {
+      chargeTime++;
+      if (chargeTime >= chargeThreshold) {
+        //chargeTime++;
+
+        //alert("next floor");
+        floor++;
+        //initNextFloor(); // 遷移処理（関数名は適宜変更）
+        //chargeTime = 0;
+      }
+    } else {
+      //stopCharge(); // 状態リセット
+      //chargeTime = 0;
+    }
+  }
+  */
+  
+  /*
+  function checkGoalCharging() {
+    const dx = goal.x - posX;
+    const dy = goal.y - posY;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+  
+    const isInGoalArea = dist < 0.5;
+  
+    if (isInGoalArea && charging) {
+      chargeTime++;
+    } else{
+           
+     // stopCharge(); // 状態リセット
+      }
+      
+    
+  
+    // ゴールにいない or チャージしていないときはリセット
+    if (!isInGoalArea || !charging) {
+      chargeTime = 0;
+    }
+  */
+  
+  
   
   function normalizeAngle(angle) {
     return Math.atan2(Math.sin(angle), Math.cos(angle));
@@ -489,17 +622,51 @@
     drawBullets();
     drawItems();
     drawGoal();
-    //checkGoalReached();
-    
+    drawChargeGauge();
     drawMiniMap();
+    
+    drawPickupPrompt();
     
     ctx.fillStyle = "white";
     ctx.font = "44px sans-serif";
-    ctx.fillText(`${floor}F`, 100, 40); // 左上に表示
+    ctx.fillText(`${floor}F`, 200, 30); // 左上に表示
     
     //console.log(posX);
     
   }
+  
+  
+    let isCharging = false;
+  let chargeTime = 0;
+//let chargeThreshold = 60;
+let chargeCallback = null;
+
+function startCharge(callback, threshold = 60) {
+  if(isCharging){
+    console.log("スタートチャージ実行",{threshold});
+    return;
+  }
+    isCharging = true;
+    chargeTime = 0;
+    chargeCallback = callback;
+    chargeThreshold = threshold;
+}
+
+
+
+function updateCharge() {
+  if (isCharging && chargeCallback) {
+    chargeTime++;
+    console.log("チャージ進行中",chargeTime);
+    if (chargeTime >= chargeThreshold) {
+          console.log("チャージ完了",chargeThreshold);
+      chargeCallback(); // 成功時の処理を実行
+      stopCharge();     // 状態リセット
+    }
+  }else{
+    //console.log("チャージできない状態",{isCharging,chargeCallback});
+  }
+}
 
   function move(forward) {
     const moveSpeed = forward ? 0.04 : -0.02;
@@ -536,6 +703,7 @@
   canvas.addEventListener("touchstart", (e) => {
     if (e.touches.length === 1) {
       touchStartY = e.touches[0].clientY;
+      charging = true;
     }
   }, { passive: true });
   
@@ -560,6 +728,8 @@
     isMovingForward = false;
     isMovingBackward = false;
     touchStartY = null;
+    charging = null;
+    chargeTime = 0;
   }, { passive: true });
   
 
@@ -650,19 +820,57 @@
     if (isTurningRight) {
       rotate(0.05);  // → 滑らか右回転
     }
-    
-    checkGoalReached();
+    //initNextFloor();
+    updateGoalProximity
+    checkNearbyItems();
+    checkGoalCharging();
+    updateNearbyItem();
+    updateCharge();
     render();
     requestAnimationFrame(gameLoop);
+    
     
     explored[Math.floor(posY)][Math.floor(posX)] = true;
     //console.log("Enemy position:", enemyX.toFixed(2), enemyY.toFixed(2));
   
   }
-  console.log(goal);
-  console.log(posX);
+  
+ // console.log(`アイテム接近チェック: index=${nearbyItemIndex}, pos=(${posX.toFixed(2)}, ${posY.toFixed(2)})`);
 
-  gameLoop(); // ← これを script の最後に書く！
+  gameLoop();
+  
+  canvas.addEventListener("touchstart", () => {
+    console.log("タッチ開始",nearbyItemIndex);
+    if (nearbyItemIndex !== -1) {
+      startCharge(() => {
+        // アイテム取得処理
+        console.log("アイテム取得！");
+        items.splice(nearbyItemIndex, 1); // 消す
+        nearbyItemIndex = -1;
+      }, 60); // 1秒くらい
+    }
+
+  // ゴール処理
+    else if (goalInRange) {
+      startCharge(() => {
+        console.log("次の階層へ！");
+        floor++;
+        chargeTime = 0;
+        // ここに initNextFloor() があれば呼ぶ
+      }, 100); // 1.6秒くらい
+    }
+  }, { passive: true });
+  
+  canvas.addEventListener("touchend", () => {
+    stopCharge(); // タッチ離したら中断
+  }, { passive: true });
+  
+  function stopCharge() {
+  isCharging = false;
+  chargeTime = 0;
+  chargeCallback = null;
+}
+  
   </script>
   
   </body>
