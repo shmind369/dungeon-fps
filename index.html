@@ -23,6 +23,16 @@
   canvas.width = window.innerWidth;
   canvas.height = window.innerHeight;
   
+  let player = {
+    hp: 100,
+    maxHp: 100,
+    hunger: 100,
+    maxHunger: 100,
+    inventory: [],
+    effects: []  // 状態異常など
+  };
+  
+  let isGameOver = false;
   
   function generateRandomMap(width, height) {
   const newMap = [];
@@ -131,10 +141,10 @@
   */
   
     // 1. アイテム名を定義（5〜6種類）
-  const itemNames = ["🗡️青銅剣", "🍞パン", "🕯️松明", "🏹木の矢", "🔑鍵", "💊ポーション"];
+  const itemNames = ["🗡️青銅剣", "🍞パン", "🕯️松明", "🏹木の矢", "🔑鍵", "💊回復薬","💊鈍足の薬","💊俊足の薬"];
   
   // 2. アイテムごとにランダムな名前を割り当て（初期化時）
-  const items = Array.from({ length: 5 }, () => ({
+  const items = Array.from({ length: 10 }, () => ({
     x: Math.floor(Math.random() * 14) + 1.5,
     y: Math.floor(Math.random() * 14) + 1.5,
     name: itemNames[Math.floor(Math.random() * itemNames.length)]
@@ -180,7 +190,31 @@
  
 }
   
-
+  function drawStatusBars() {
+    const barWidth = 200;
+    const barHeight = 16;
+    const margin = 20;
+  
+    // HPバー
+    const hpRatio = player.hp / player.maxHp;
+    ctx.fillStyle = "orange";
+    ctx.fillRect(margin, canvas.height - barHeight * 2 - margin, barWidth * hpRatio, barHeight);
+    ctx.strokeStyle = "white";
+    ctx.strokeRect(margin, canvas.height - barHeight * 2 - margin, barWidth, barHeight);
+    ctx.fillStyle = "white";
+    ctx.font = "12px sans-serif";
+    ctx.fillText(`HP: ${player.hp}/${player.maxHp}`, margin + 5, canvas.height - barHeight * 2 - margin + 12);
+  
+    // 満腹度バー
+    const hungerRatio = player.hunger / player.maxHunger;
+    ctx.fillStyle = "green";
+    ctx.fillRect(margin, canvas.height - barHeight - margin, barWidth * hungerRatio, barHeight);
+    ctx.strokeStyle = "white";
+    ctx.strokeRect(margin, canvas.height - barHeight - margin, barWidth, barHeight);
+    ctx.fillStyle = "white";
+    ctx.font = "12px sans-serif";
+    ctx.fillText(`満腹度: ${player.hunger}/${player.maxHunger}`, margin + 5, canvas.height - barHeight - margin + 12);
+  }
 
 
   
@@ -277,11 +311,19 @@
       const dx = posX - enemyX;
       const dy = posY - enemyY;
       const dist = Math.sqrt(dx * dx + dy * dy);
+      
         if (dist > 0.05) {
           enemyX += (dx / dist) * 0.01; // ほんの少しだけ近づく
           enemyY += (dy / dist) * 0.01;
       }
+      
+        if(dist < 0.5){
+        player.hp -= 0.1;
+        if(player.hp < 0)player.hp = 0
+      }
     }
+    
+    
     
     if(enemyHitTimer > 0){
       enemyHitTimer--;
@@ -495,6 +537,19 @@
   }
 }
  
+ function drawGameOverScreen() {
+    ctx.fillStyle = "rgba(0, 0, 0, 0.7)";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+  
+    ctx.fillStyle = "red";
+    ctx.font = "64px sans-serif";
+    ctx.textAlign = "center";
+    ctx.fillText("GAME OVER", canvas.width / 2, canvas.height / 2);
+  
+    ctx.fillStyle = "white";
+    ctx.font = "24px sans-serif";
+    ctx.fillText("画面をタッチでリスタート", canvas.width / 2, canvas.height / 2 + 50);
+  }
   
   
 
@@ -723,8 +778,10 @@
     drawGoal();
     drawChargeGauge();
     drawMiniMap();
-    
+    drawStatusBars();
     drawPickupPrompt();
+    
+    if(isGameOver)drawGameOverScreen();
     
     ctx.fillStyle = "white";
     ctx.font = "44px sans-serif";
@@ -878,6 +935,13 @@ function updateCharge() {
     touchStartY = null;
     touchStartX = null;  // 🔧追加：X方向の記録もリセット
   }, { passive: true });
+  
+
+  canvas.addEventListener("touchstart", () => {
+    if (isGameOver) {
+      location.reload(); // リスタート
+    }
+  }, { passive: true });
  
 
   document.addEventListener("keydown", (e) => {
@@ -900,7 +964,8 @@ function updateCharge() {
 
   render();
   
-
+   let hungerTick = 0;
+ 
   function gameLoop() {
     
     
@@ -919,6 +984,24 @@ function updateCharge() {
     if (isTurningRight) {
       rotate(0.05);  // → 滑らか右回転
     }
+    
+
+
+
+
+    hungerTick++;
+    if (hungerTick % 240 === 0) { // 約4秒に1回
+      player.hunger -= 1;
+      if (player.hunger < 0) player.hunger = 0;
+    }
+  
+    // ⛔ 満腹度ゼロでHP減少（オプション）
+    if (player.hunger === 0) {
+      player.hp -= 0.05; // 少しずつHPも減る
+      if (player.hp < 0) player.hp = 0;
+    }
+  
+
     //initNextFloor();
     updateGoalProximity
     checkNearbyItems();
@@ -931,6 +1014,16 @@ function updateCharge() {
     
     explored[Math.floor(posY)][Math.floor(posX)] = true;
     //console.log("Enemy position:", enemyX.toFixed(2), enemyY.toFixed(2));
+    
+    if (player.hp <= 0) {
+      
+      isGameOver = true;
+      //alert("game over");
+      //location.reload(); // リロードで再スタート（仮の処理）
+      
+      
+      return;
+    }
   
   }
   
@@ -966,10 +1059,10 @@ function updateCharge() {
   }, { passive: true });
   
   function stopCharge() {
-  isCharging = false;
-  chargeTime = 0;
-  chargeCallback = null;
-}
+    isCharging = false;
+    chargeTime = 0;
+    chargeCallback = null;
+  }
   
   </script>
   
