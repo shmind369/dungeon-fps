@@ -23,6 +23,7 @@
   canvas.width = window.innerWidth;
   canvas.height = window.innerHeight;
   
+  
   function generateRandomMap(width, height) {
   const newMap = [];
     for (let y = 0; y < height; y++) {
@@ -122,10 +123,22 @@
   //let posX = 3.5, posY = 3.5; angle = 0;// プレイヤーの位置
   let dir = 0; // 視点の角度（ラジアン）
   
+  /*
   const items = [
     { x: 2.5, y: 2.5 }, // マップ上の位置（X, Y）
     { x: 5.2, y: 3.7 }
   ];
+  */
+  
+    // 1. アイテム名を定義（5〜6種類）
+  const itemNames = ["🗡️青銅剣", "🍞パン", "🕯️松明", "🏹木の矢", "🔑鍵", "💊ポーション"];
+  
+  // 2. アイテムごとにランダムな名前を割り当て（初期化時）
+  const items = Array.from({ length: 5 }, () => ({
+    x: Math.floor(Math.random() * 14) + 1.5,
+    y: Math.floor(Math.random() * 14) + 1.5,
+    name: itemNames[Math.floor(Math.random() * itemNames.length)]
+  }));
 
 /*
   const goal = { x: 5.5, y: 3.5 }; //ゴール
@@ -293,7 +306,7 @@
       ctx.font = `${size}px sans-serif`; // フォントサイズ＝見た目の大きさ
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
-      ctx.fillText("👿", screenX, canvas.height / 2);
+      ctx.fillText("敵", screenX, canvas.height / 2);
   
       /*ctx.fillStyle = enemyColor;
       ctx.beginPath();
@@ -302,6 +315,52 @@
       */
     }
   }
+  
+  function drawItems() {
+  const halfFov = fov / 2;
+
+  items.forEach(item => {
+    const dx = item.x - posX;
+    const dy = item.y - posY;
+    const distance = Math.sqrt(dx * dx + dy * dy);
+    const angleToItem = Math.atan2(dy, dx) - dir;
+
+    // レイキャスト（壁までの距離）を計算
+    let rayDist = 0;
+    let hit = false;
+    const rayAngle = normalizeAngle(dir + angleToItem);
+    const eyeX = Math.cos(rayAngle);
+    const eyeY = Math.sin(rayAngle);
+    while (!hit && rayDist < maxDepth) {
+      rayDist += 0.01;
+      const testX = Math.floor(posX + eyeX * rayDist);
+      const testY = Math.floor(posY + eyeY * rayDist);
+      if (
+        testX < 0 || testY < 0 ||
+        testX >= mapWidth || testY >= mapHeight
+      ) {
+        hit = true;
+        rayDist = maxDepth;
+      } else if (map[testY][testX] > 0) {
+        hit = true;
+      }
+    }
+
+    // アイテムが手前にある場合だけ描画
+    if (Math.abs(angleToItem) < halfFov && distance < rayDist) {
+      const screenX = (angleToItem + halfFov) / fov * canvas.width;
+      const size = Math.max(5, 200 / distance);
+
+      ctx.fillStyle = "gold";
+      ctx.font = `${size}px sans-serif`;
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText("物", screenX, canvas.height / 2);
+    }
+  });
+}
+  
+  /*
   
   function drawItems() {
     const halfFov = fov / 2;
@@ -320,17 +379,20 @@
         ctx.font = `${size}px sans-serif`; // フォントサイズ＝見た目の大きさ
         ctx.textAlign = "center";
         ctx.textBaseline = "middle";
-        ctx.fillText("🍎️", screenX, canvas.height / 2);
+        ctx.fillText("ITEM️", screenX, canvas.height / 2);
         
         
         /*ctx.fillStyle = "gold";
         ctx.beginPath();
         ctx.arc(screenX, canvas.height / 2 + 50, size / 2, 0, Math.PI * 2);
         ctx.fill();
-        */
+        
       }
     });
   }
+  
+  */
+  
 
   function drawBullets() {
     bullets.forEach(b => {
@@ -422,13 +484,20 @@
   }
   
   function drawPickupPrompt() {
-    if (nearbyItemIndex !== -1) {
-      ctx.fillStyle = "white";
-      ctx.font = "84px sans-serif";
-      ctx.fillText("【拾う】", canvas.width / 2 - 30, canvas.height - 80);
-    }
+  if (nearbyItemIndex !== -1) {
+    const item = items[nearbyItemIndex]; // アイテム情報を取得
+
+    ctx.fillStyle = "white";
+    ctx.font = "84px sans-serif";
+    ctx.textAlign = "center";
+    ctx.fillText("【拾う】", canvas.width / 2, canvas.height - 80);
+    ctx.fillText(`【${item.name}】`, canvas.width / 2, canvas.height - 580);
   }
+}
+ 
   
+  
+
 
   
   function drawGoal() {
@@ -472,7 +541,7 @@
         ctx.font = `${size}px sans-serif`; // フォントサイズ＝見た目の大きさ
         ctx.textAlign = "center";
         ctx.textBaseline = "middle";
-        ctx.fillText("出", screenX, canvas.height / 2);
+        ctx.fillText("◆", screenX, canvas.height / 2);
         /*ctx.beginPath();
         ctx.fillStyle = "lime";
         ctx.arc(screenX, canvas.height / 2, size, 0, Math.PI * 2);
@@ -525,10 +594,40 @@
       startCharge(() => {
         floor++;
         console.log("🌟 次の階層へ！");
-        //initNextFloor(); // 必要ならここで階層遷移処理
+        initNextFloor(); // 必要ならここで階層遷移処理
       }, 100); // 100フレーム（約1.6秒）など
     }
   }
+  
+  function initNextFloor() {
+  map = generateRandomMap(16, 16);
+  goal = findRandomEmptyTile(map);
+
+  explored = Array.from({ length: map.length }, () =>
+    Array.from({ length: map[0].length }, () => false)
+  );
+
+  posX = 1.5;
+  posY = 1.5;
+
+  carvePath(map, { x: posX, y: posY }, goal);
+
+  // アイテムのリセット（必要なら）
+  items.length = 0;
+  for (let i = 0; i < 5; i++) {
+    const tile = findRandomEmptyTile(map);
+    items.push({
+      x: tile.x,
+      y: tile.y,
+      name: itemNames[Math.floor(Math.random() * itemNames.length)]
+    });
+  }
+
+  // 敵の位置もリセットするならここで enemyX/Y を変更
+  enemyX = 5.5;
+  enemyY = 3.5;
+  enemyHP = 3;
+}
   /*
   function checkGoalCharging() {
     const dx = goal.x - posX;
@@ -657,9 +756,9 @@ function startCharge(callback, threshold = 60) {
 function updateCharge() {
   if (isCharging && chargeCallback) {
     chargeTime++;
-    console.log("チャージ進行中",chargeTime);
+    //console.log("チャージ進行中",chargeTime);
     if (chargeTime >= chargeThreshold) {
-          console.log("チャージ完了",chargeThreshold);
+          //console.log("チャージ完了",chargeThreshold);
       chargeCallback(); // 成功時の処理を実行
       stopCharge();     // 状態リセット
     }
@@ -840,7 +939,7 @@ function updateCharge() {
   gameLoop();
   
   canvas.addEventListener("touchstart", () => {
-    console.log("タッチ開始",nearbyItemIndex);
+    //console.log("タッチ開始",nearbyItemIndex);
     if (nearbyItemIndex !== -1) {
       startCharge(() => {
         // アイテム取得処理
@@ -856,6 +955,7 @@ function updateCharge() {
         console.log("次の階層へ！");
         floor++;
         chargeTime = 0;
+        //initNextFloor();
         // ここに initNextFloor() があれば呼ぶ
       }, 100); // 1.6秒くらい
     }
