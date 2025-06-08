@@ -2,7 +2,7 @@
   <html lang="ja">
   <head>
     <meta charset="UTF-8">
-    <title>6月4日ローグライクFPS</title>
+    <title>ローグライクFPS</title>
     <style>
       body {
         margin: 0;
@@ -17,11 +17,13 @@
   <body>
   <canvas id="gameCanvas"></canvas>
   <script>
+  
   const canvas = document.getElementById('gameCanvas');
   const ctx = canvas.getContext('2d');
 
   canvas.width = window.innerWidth;
   canvas.height = window.innerHeight;
+  
   
   let player = {
     hp: 100,
@@ -34,70 +36,20 @@
   
   let isGameOver = false;
   
-  function generateRandomMap(width, height) {
-  const newMap = [];
-    for (let y = 0; y < height; y++) {
-      const row = [];
-      for (let x = 0; x < width; x++) {
-        if (x === 0 || y === 0 || x === width - 1 || y === height - 1) {
-          row.push(1); // 外周は壁
-        } else {
-          row.push(Math.random() < 0.2 ? 1 : 0); // 20%で壁
-        }
-      }
-      newMap.push(row);
-    }
-    return newMap;
-  }
 
-
-  function findRandomEmptyTile(map) {
-    while (true) {
-      const x = Math.floor(Math.random() * map[0].length);
-      const y = Math.floor(Math.random() * map.length);
-      if (map[y][x] === 0) {
-        return { x: x + 0.5, y: y + 0.5 }; // 中心に置く
-      }
-    }
-  }
-  
-  //
-  function carvePath(map, start, goal) {
-    let x = Math.floor(start.x);
-    let y = Math.floor(start.y);
-    const gx = Math.floor(goal.x);
-    const gy = Math.floor(goal.y);
-  
-    while (x !== gx || y !== gy) {
-      map[y][x] = 0; // 道を掘る
-  
-      if (Math.random() < 0.5 && x !== gx) {
-        x += gx > x ? 1 : -1;
-      } else if (y !== gy) {
-        y += gy > y ? 1 : -1;
-      }
-    }
-  }
   
   //const start = { x: 1, y: 1 };
   //const goal = findRandomEmptyTile(map);
   //carvePath(map, start, goal);
 
-  function findRandomEmptyTile(map) {
-    while (true) {
-      const x = Math.floor(Math.random() * map[0].length);
-      const y = Math.floor(Math.random() * map.length);
-      if (map[y][x] === 0) {
-        return { x: x + 0.5, y: y + 0.5 }; // 中心に置く
-      }
-    }
-  }
+
   
   // ここでマップとゴールを初期化
-    let map = generateRandomMap(16, 16);
-    let goal = findRandomEmptyTile(map);
+  let map = generateRandomMap(16, 16);
+  let goal = findRandomEmptyTile(map);
     
-    let explored = [];
+  let explored = [];
+  
       for (let y = 0; y < map.length; y++) {
         explored[y] = [];
       for (let x = 0; x < map[0].length; x++) {
@@ -139,9 +91,13 @@
     { x: 5.2, y: 3.7 }
   ];
   */
+  const inventory = [];
   
+
     // 1. アイテム名を定義（5〜6種類）
   const itemNames = ["🗡️青銅剣", "🍞パン", "🕯️松明", "🏹木の矢", "🔑鍵", "💊回復薬","💊鈍足の薬","💊俊足の薬"];
+  
+  
   
   // 2. アイテムごとにランダムな名前を割り当て（初期化時）
   const items = Array.from({ length: 10 }, () => ({
@@ -150,6 +106,7 @@
     name: itemNames[Math.floor(Math.random() * itemNames.length)]
   }));
 
+  
 /*
   const goal = { x: 5.5, y: 3.5 }; //ゴール
 */
@@ -164,6 +121,53 @@
   let enemyColor = "red";
   let enemyHitTimer = 0;
   let enemyHP = 3;
+  
+    function generateRandomMap(width, height) {
+  const newMap = [];
+    for (let y = 0; y < height; y++) {
+      const row = [];
+      for (let x = 0; x < width; x++) {
+        if (x === 0 || y === 0 || x === width - 1 || y === height - 1) {
+          row.push(1); // 外周は壁
+        } else {
+          row.push(Math.random() < 0.2 ? 1 : 0); // 20%で壁
+        }
+      }
+      newMap.push(row);
+    }
+    return newMap;
+  }
+
+
+  function findRandomEmptyTile(map) {
+    while (true) {
+      const x = Math.floor(Math.random() * map[0].length);
+      const y = Math.floor(Math.random() * map.length);
+      if (map[y][x] === 0) {
+        return { x: x + 0.5, y: y + 0.5 }; // 中心に置く
+      }
+    }
+  }
+  
+
+  
+  
+  function carvePath(map, start, goal) {
+    let x = Math.floor(start.x);
+    let y = Math.floor(start.y);
+    const gx = Math.floor(goal.x);
+    const gy = Math.floor(goal.y);
+  
+    while (x !== gx || y !== gy) {
+      map[y][x] = 0; // 道を掘る
+  
+      if (Math.random() < 0.5 && x !== gx) {
+        x += gx > x ? 1 : -1;
+      } else if (y !== gy) {
+        y += gy > y ? 1 : -1;
+      }
+    }
+  }
   
   function drawMiniMap() {
   const scale = 10;
@@ -216,8 +220,68 @@
     ctx.fillText(`満腹度: ${player.hunger}/${player.maxHunger}`, margin + 5, canvas.height - barHeight - margin + 12);
   }
 
+  function drawInventory() {
+    
+  const padding = 20;            // 右端・上端からの余白
+  const lineHeight = 24;         // 行間
+  const fontSize = 20;
 
+  const x = canvas.width - 200;  // ← 常に右端（画面幅から200px分左へ）
+  let y = padding + fontSize;    // 上端から余白を取って開始位置
+
+  ctx.fillStyle = "white";
+  ctx.font = `${fontSize}px sans-serif`;
+  ctx.textAlign = "left";
+  ctx.textBaseline = "top";
+
+  ctx.fillText("🎒 ITEM", x, y);
+  y += lineHeight;
+
+  player.inventory.forEach((item, index) => {
+    const itemText = item?.name || "(不明なアイテム)";
+    ctx.fillText(`- ${itemText}`, x, y + index * lineHeight);
+  });
+}
+    /*const x = 10;
+    let y = 100;
   
+    ctx.fillStyle = "white";
+    ctx.font = "16px sans-serif";
+    ctx.fillText("🎒 アイテム", x, y);
+    y += 20;
+  
+    player.inventory.forEach((item, index) => {
+      if (item && item.name) {
+        ctx.fillText(`- ${item.name}`, canvas.width / 2, canvas.height / 2 + index * 20);
+        //ctx.fillText(`- ${item.name}`, x, y + index * 20);
+      } else {
+        ctx.fillText(`- (不明なアイテム)`, x, y + index * 20);
+      }
+    });
+  }
+  */
+    /*
+    player.inventory.forEach((item, i) => {
+      if (item && item.name) {
+        ctx.fillText(item.name, 100, 100 + i * 30);
+      } else {
+        console.warn(`inventory[${i}] が不正です:`, item);
+      }
+      */
+    
+    /*const startX = canvas.width - 150;
+    const startY = canvas.height - 20 - inventory.length * 30;
+  
+    ctx.fillStyle = "white";
+    ctx.font = "20px sans-serif";
+    ctx.textAlign = "left";
+  
+    inventory.forEach((item, index) => {
+      ctx.fillText(`${item.name}`, startX, startY + index * 30);
+      
+    });
+    }
+    */
  /*function drawMiniMap() {
   const scale = 10; // ミニマップの拡大率（例: 1マス10px）
   const mapWidthPx = map[0].length * scale;
@@ -257,8 +321,76 @@
   }
 }*/
   
-  //tama
   
+  const enemyBullets = [];
+  
+  let enemyShootCooldown = 0;
+
+  function enemyShootAtPlayer() {
+    if (enemyHP <= 0) return;
+  
+    if (enemyShootCooldown <= 0) {
+      const dx = posX - enemyX;
+      const dy = posY - enemyY;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      const speed = 0.05;
+  
+      enemyBullets.push({
+        x: enemyX,
+        y: enemyY,
+        dx: dx / dist * speed,
+        dy: dy / dist * speed,
+        life: 100
+      });
+  
+      enemyShootCooldown = 120; // 2秒に1回撃つ（60fpsなら120フレーム）
+    } else {
+      enemyShootCooldown--;
+    }
+  }
+  
+  function updateEnemyBullets() {
+    for (let i = enemyBullets.length - 1; i >= 0; i--) {
+      const b = enemyBullets[i];
+      b.x += b.dx;
+      b.y += b.dy;
+      b.life--;
+  
+      // 壁で消える
+      if (map[Math.floor(b.y)][Math.floor(b.x)] !== 0 || b.life <= 0) {
+        enemyBullets.splice(i, 1);
+        continue;
+      }
+  
+      // プレイヤーへの当たり判定
+      const dx = b.x - posX;
+      const dy = b.y - posY;
+      if (Math.sqrt(dx * dx + dy * dy) < 0.4) {
+        player.hp -= 25;  // 被弾でダメージ
+        enemyBullets.splice(i, 1);
+      }
+    }
+  }
+  
+  function drawEnemyBullets() {
+    enemyBullets.forEach(b => {
+      const dx = b.x - posX;
+      const dy = b.y - posY;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      const angleToBullet = Math.atan2(dy, dx) - dir;
+      const halfFov = fov / 2;
+  
+      if (Math.abs(angleToBullet) < halfFov) {
+        const screenX = (angleToBullet + halfFov) / fov * canvas.width;
+        const size = Math.max(2, 30 / dist);
+        ctx.fillStyle = "magenta";
+        ctx.beginPath();
+        ctx.arc(screenX, canvas.height / 2, size, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    });
+  }
+  //弾
   function shoot() {
   const bulletSpeed = 0.2;
     bullets.push({
@@ -266,7 +398,7 @@
       y: posY,
       dx: Math.cos(dir) * bulletSpeed,
       dy: Math.sin(dir) * bulletSpeed,
-      life: 50  // 寿命（フレーム数）
+      life: 10  // 寿命（フレーム数）
     });
   }
 
@@ -306,32 +438,34 @@
 
 //敵
   function updateEnemy() {
-    
-    if(enemyHP > 0){
-      const dx = posX - enemyX;
-      const dy = posY - enemyY;
-      const dist = Math.sqrt(dx * dx + dy * dy);
-      
-        if (dist > 0.05) {
-          enemyX += (dx / dist) * 0.01; // ほんの少しだけ近づく
-          enemyY += (dy / dist) * 0.01;
-      }
-      
-        if(dist < 0.5){
-        player.hp -= 0.1;
-        if(player.hp < 0)player.hp = 0
-      }
-    }
-    
-    
-    
-    if(enemyHitTimer > 0){
-      enemyHitTimer--;
-      if(enemyHitTimer === 0){
-          enemyColor = "red";
-        }
+  if (enemyHP <= 0) return;
+
+  const dx = posX - enemyX;
+  const dy = posY - enemyY;
+  const dist = Math.sqrt(dx * dx + dy * dy);
+
+  if (dist > 0.05) {
+    const step = 0.01;
+    const nextX = enemyX + (dx / dist) * step;
+    const nextY = enemyY + (dy / dist) * step;
+
+    const tileX = Math.floor(nextX);
+    const tileY = Math.floor(nextY);
+
+    // 壁じゃない場合のみ移動させる
+    if (map[tileY][tileX] === 0) {
+      enemyX = nextX;
+      enemyY = nextY;
     }
   }
+
+  if (enemyHitTimer > 0) {
+    enemyHitTimer--;
+    if (enemyHitTimer === 0) {
+      enemyColor = "red";
+    }
+  }
+}
   
   function drawEnemy() {
   const dx = enemyX - posX;
@@ -450,7 +584,6 @@
         const maxSize = 30;
         const size = Math.max(2,maxSize/dist);
        // const size = Math.min(30, 300 / dist);
-  
         ctx.fillStyle = "yellow";
         ctx.beginPath();
         ctx.arc(screenX, canvas.height / 2, size / 2, 0, Math.PI * 2);
@@ -780,6 +913,8 @@
     drawMiniMap();
     drawStatusBars();
     drawPickupPrompt();
+    drawEnemyBullets();
+    //drawInventory();
     
     if(isGameOver)drawGameOverScreen();
     
@@ -788,7 +923,7 @@
     ctx.fillText(`${floor}F`, 200, 30); // 左上に表示
     
     //console.log(posX);
-    
+    drawInventory();
   }
   
   
@@ -797,7 +932,17 @@
 //let chargeThreshold = 60;
 let chargeCallback = null;
 
+
+//2025/06/08アイテム
+  startCharge(() => {
+    const item = items[nearbyItemIndex];
+    inventory.push(item); // 所持品に追加
+    items.splice(nearbyItemIndex, 1); // マップ上から削除
+    nearbyItemIndex = -1;
+  }, 60);
+
 function startCharge(callback, threshold = 60) {
+  
   if(isCharging){
     console.log("スタートチャージ実行",{threshold});
     return;
@@ -984,7 +1129,7 @@ function updateCharge() {
     if (isTurningRight) {
       rotate(0.05);  // → 滑らか右回転
     }
-    
+    //console.log(enemyY);
 
 
 
@@ -1008,6 +1153,8 @@ function updateCharge() {
     checkGoalCharging();
     updateNearbyItem();
     updateCharge();
+    enemyShootAtPlayer();
+    updateEnemyBullets();
     render();
     requestAnimationFrame(gameLoop);
     
@@ -1037,7 +1184,9 @@ function updateCharge() {
       startCharge(() => {
         // アイテム取得処理
         console.log("アイテム取得！");
+        player.inventory.push(items[nearbyItemIndex]);
         items.splice(nearbyItemIndex, 1); // 消す
+        console.log("🎒現在のインベントリ：", player.inventory);
         nearbyItemIndex = -1;
       }, 60); // 1秒くらい
     }
