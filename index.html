@@ -13,8 +13,10 @@
         display: block;
       }
     </style>
+   
   </head>
   <body>
+ 
   <canvas id="gameCanvas"></canvas>
   <script>
   
@@ -35,6 +37,8 @@
   };
   
   let isGameOver = false;
+  
+  let selectedInventoryIndex = 0; //選択中インデックス(仮)
   
 
   
@@ -63,11 +67,13 @@
     let posX = start.x;
     let posY = start.y;
   
-  
+  //フロアの調整
   let floor = 1;
   
   
   const bullets = [];
+  
+  
 
   const tileSize = 64;
   const mapWidth = map[0].length;
@@ -93,6 +99,20 @@
   */
   const inventory = [];
   
+  //let movementEnabled = true;
+  
+  let isDraggingItem = false;
+  
+  /*
+  
+  const toggleBtn = document.getElementById("toggleMoveBtn");
+  toggleBtn.addEventListener("click", () => {
+    movementEnabled = !movementEnabled;
+    toggleBtn.textContent = movementEnabled ? "移動OFF" : "移動ON";
+  });*/
+  
+  
+  
 
     // 1. アイテム名を定義（5〜6種類）
   const itemNames = ["🗡️青銅剣", "🍞パン", "🕯️松明", "🏹木の矢", "🔑鍵", "💊回復薬","💊鈍足の薬","💊俊足の薬"];
@@ -105,7 +125,10 @@
     y: Math.floor(Math.random() * 14) + 1.5,
     name: itemNames[Math.floor(Math.random() * itemNames.length)]
   }));
-
+  
+  let draggingItem = false;
+  let dragX = 0;
+  let dragY = 0;
   
 /*
   const goal = { x: 5.5, y: 3.5 }; //ゴール
@@ -240,8 +263,39 @@
   player.inventory.forEach((item, index) => {
     const itemText = item?.name || "(不明なアイテム)";
     ctx.fillText(`- ${itemText}`, x, y + index * lineHeight);
+      if (item && item.name) {
+      ctx.fillStyle = index === selectedInventoryIndex ? "yellow" : "white";
+      ctx.fillText(`- ${item.name}`, x, y + index * 20);
+    }
   });
 }
+
+  function drawSelectedItem() {
+    if (player.inventory.length > 0) {
+      const selectedItem = player.inventory[selectedInventoryIndex];
+      if (selectedItem && selectedItem.name) {
+        ctx.fillStyle = "white";
+        ctx.font = "28px sans-serif";
+        ctx.textAlign = "center";
+        ctx.fillText(`🎯 ${selectedItem.name}`, canvas.width / 2, canvas.height - 40);
+      }
+    }
+  }
+  
+  function drawDraggedItem() {
+    if (draggingItem) {
+      const item = player.inventory[selectedInventoryIndex];
+      if (!item) return;
+  
+      ctx.fillStyle = "yellow";
+      ctx.font = "28px sans-serif";
+      ctx.fillText(item.name, dragX, dragY);
+    }
+  }
+
+ 
+  
+
     /*const x = 10;
     let y = 100;
   
@@ -899,6 +953,16 @@
       ctx.fillRect(i, (canvas.height - wallHeight) / 2, 1, wallHeight);
     }
   }
+  
+  function drawUseBox() {
+    const size = 50; // 正方形のサイズ
+    const x = canvas.width - size - 20; // 右から20px内側
+    const y = canvas.height / 2 - size / 2; // 縦中央に配置
+  
+    ctx.strokeStyle = "white";
+    ctx.lineWidth = 2;
+    ctx.strokeRect(x, y, size, size);
+  }
 
   function render() {
     ctx.fillStyle = "black";
@@ -915,6 +979,9 @@
     drawPickupPrompt();
     drawEnemyBullets();
     //drawInventory();
+    drawSelectedItem();
+    drawUseBox();
+    drawDraggedItem();
     
     if(isGameOver)drawGameOverScreen();
     
@@ -983,6 +1050,8 @@ function updateCharge() {
     dir += angle;
   }
   
+
+  
   document.addEventListener("keydown", (e) => {
     switch(e.key) {
       case "ArrowLeft": rotate(-0.05); break;
@@ -1032,6 +1101,7 @@ function updateCharge() {
     charging = null;
     chargeTime = 0;
   }, { passive: true });
+  
   
 
   canvas.addEventListener("touchstart", (e) => {
@@ -1112,7 +1182,13 @@ function updateCharge() {
    let hungerTick = 0;
  
   function gameLoop() {
-    
+    if (!isDraggingItem) {
+      if (isMovingForward) move(true);
+      if (isMovingBackward) move(false);
+      if (isTurningLeft) rotate(-0.05);
+      if (isTurningRight) rotate(0.05);
+    }
+        
     
     if(isMovingForward){
       move(true);
@@ -1159,6 +1235,8 @@ function updateCharge() {
     requestAnimationFrame(gameLoop);
     
     
+    
+    
     explored[Math.floor(posY)][Math.floor(posX)] = true;
     //console.log("Enemy position:", enemyX.toFixed(2), enemyY.toFixed(2));
     
@@ -1174,7 +1252,41 @@ function updateCharge() {
   
   }
   
- // console.log(`アイテム接近チェック: index=${nearbyItemIndex}, pos=(${posX.toFixed(2)}, ${posY.toFixed(2)})`);
+  let inventoryTouchStartY = null;
+
+  canvas.addEventListener("touchstart", (e) => {
+    if (e.touches.length === 1) {
+      inventoryTouchStartY = e.touches[0].clientY;
+    }
+  }, { passive: true });
+  
+  canvas.addEventListener("touchend", (e) => {
+    if (inventoryTouchStartY === null) return;
+    const endY = e.changedTouches[0].clientY;
+    const diffY = endY - inventoryTouchStartY;
+  
+    if (Math.abs(diffY) > 50) {
+      if (diffY > 0) {
+        // ↓下スワイプ：次のアイテム
+        selectedInventoryIndex++;
+      } else {
+        console.log("↑上スワイプ：前のアイテム");
+        selectedInventoryIndex--;
+      }
+  
+      // インデックスをループさせる
+      const len = player.inventory.length;
+      if (len > 0) {
+        selectedInventoryIndex = (selectedInventoryIndex + len) % len;
+      } else {
+        selectedInventoryIndex = 0;
+      }
+    }
+  
+    inventoryTouchStartY = null;
+  }, { passive: true });
+    
+   // console.log(`アイテム接近チェック: index=${nearbyItemIndex}, pos=(${posX.toFixed(2)}, ${posY.toFixed(2)})`);
 
   gameLoop();
   
@@ -1190,8 +1302,7 @@ function updateCharge() {
         nearbyItemIndex = -1;
       }, 60); // 1秒くらい
     }
-
-  // ゴール処理
+      // ゴール処理
     else if (goalInRange) {
       startCharge(() => {
         console.log("次の階層へ！");
@@ -1202,6 +1313,9 @@ function updateCharge() {
       }, 100); // 1.6秒くらい
     }
   }, { passive: true });
+
+  
+
   
   canvas.addEventListener("touchend", () => {
     stopCharge(); // タッチ離したら中断
@@ -1212,6 +1326,59 @@ function updateCharge() {
     chargeTime = 0;
     chargeCallback = null;
   }
+  
+  //アイテムドラッグ
+  canvas.addEventListener("touchstart", (e) => {
+  const touch = e.touches[0];
+  const item = player.inventory[selectedInventoryIndex];
+  if (!item) return;
+
+  // 選択中アイテムの表示位置あたりをタッチしたらドラッグ開始
+  const textX = canvas.width / 2 - 40;
+  const textY = canvas.height - 60;
+  const dist = Math.hypot(touch.clientX - textX, touch.clientY - textY);
+
+  if (dist < 50) { // 適当に50px以内なら
+    draggingItem = true;
+    dragX = touch.clientX;
+    dragY = touch.clientY;
+    console.log("ドラッグ中");
+  }
+}, { passive: true });
+
+canvas.addEventListener("touchmove", (e) => {
+  if (draggingItem) {
+    const touch = e.touches[0];
+    dragX = touch.clientX;
+    dragY = touch.clientY;
+  }
+}, { passive: true });
+
+canvas.addEventListener("touchend", (e) => {
+  if (draggingItem) {
+    const dropX = canvas.width - 70;
+    const dropY = canvas.height / 2 - 25;
+    const dist = Math.hypot(dragX - dropX, dragY - dropY);
+
+    if (dist < 50) {
+      console.log("✅ 使用スロットにドロップされました！");
+      // TODO: ここでアイテム使用処理を入れる
+    }
+
+    draggingItem = false;
+  }
+}, { passive: true });
+
+  canvas.addEventListener("touchstart", (e) => {
+  // 仮に選択されたアイテムがあればドラッグ開始とする
+  if (selectedInventoryIndex !== null && player.inventory[selectedInventoryIndex]) {
+    isDraggingItem = true;
+  }
+});
+
+canvas.addEventListener("touchend", () => {
+  isDraggingItem = false;
+});
   
   </script>
   
