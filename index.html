@@ -19,6 +19,7 @@
  
   <canvas id="gameCanvas"></canvas>
   <script>
+  //
   
   const canvas = document.getElementById('gameCanvas');
   const ctx = canvas.getContext('2d');
@@ -39,13 +40,6 @@
   let isGameOver = false;
   
   let selectedInventoryIndex = 0; //選択中インデックス(仮)
-  
-
-  
-  //const start = { x: 1, y: 1 };
-  //const goal = findRandomEmptyTile(map);
-  //carvePath(map, start, goal);
-
 
   
   // ここでマップとゴールを初期化
@@ -91,32 +85,15 @@
   //let posX = 3.5, posY = 3.5; angle = 0;// プレイヤーの位置
   let dir = 0; // 視点の角度（ラジアン）
   
-  /*
-  const items = [
-    { x: 2.5, y: 2.5 }, // マップ上の位置（X, Y）
-    { x: 5.2, y: 3.7 }
-  ];
-  */
+
   const inventory = [];
   
-  //let movementEnabled = true;
   
   let isDraggingItem = false;
-  
-  /*
-  
-  const toggleBtn = document.getElementById("toggleMoveBtn");
-  toggleBtn.addEventListener("click", () => {
-    movementEnabled = !movementEnabled;
-    toggleBtn.textContent = movementEnabled ? "移動OFF" : "移動ON";
-  });*/
-  
-  
   
 
     // 1. アイテム名を定義（5〜6種類）
   const itemNames = ["🗡️青銅剣", "🍞パン", "🕯️松明", "🏹木の矢", "🔑鍵", "💊回復薬","💊鈍足の薬","💊俊足の薬"];
-  
   
   
   // 2. アイテムごとにランダムな名前を割り当て（初期化時）
@@ -130,16 +107,15 @@
   let dragX = 0;
   let dragY = 0;
   
-/*
-  const goal = { x: 5.5, y: 3.5 }; //ゴール
-*/
-
   const fov = Math.PI / 3; // 60度視野角
-  const numRays = canvas.width;
+  //const numRays = canvas.width;
+  // 例: レイ本数を制限
+  const numRays = Math.min(1024, canvas.width); // 画質落ちるけど軽くなる
+  
   const maxDepth = 10;
   
   let enemyX = 5.5;
-  let enemyY = 3.5;
+  let enemyY = 1.5;
   
   let enemyColor = "red";
   let enemyHitTimer = 0;
@@ -247,7 +223,7 @@
     
   const padding = 20;            // 右端・上端からの余白
   const lineHeight = 24;         // 行間
-  const fontSize = 20;
+  const fontSize = 40;
 
   const x = canvas.width - 200;  // ← 常に右端（画面幅から200px分左へ）
   let y = padding + fontSize;    // 上端から余白を取って開始位置
@@ -293,88 +269,6 @@
     }
   }
 
- 
-  
-
-    /*const x = 10;
-    let y = 100;
-  
-    ctx.fillStyle = "white";
-    ctx.font = "16px sans-serif";
-    ctx.fillText("🎒 アイテム", x, y);
-    y += 20;
-  
-    player.inventory.forEach((item, index) => {
-      if (item && item.name) {
-        ctx.fillText(`- ${item.name}`, canvas.width / 2, canvas.height / 2 + index * 20);
-        //ctx.fillText(`- ${item.name}`, x, y + index * 20);
-      } else {
-        ctx.fillText(`- (不明なアイテム)`, x, y + index * 20);
-      }
-    });
-  }
-  */
-    /*
-    player.inventory.forEach((item, i) => {
-      if (item && item.name) {
-        ctx.fillText(item.name, 100, 100 + i * 30);
-      } else {
-        console.warn(`inventory[${i}] が不正です:`, item);
-      }
-      */
-    
-    /*const startX = canvas.width - 150;
-    const startY = canvas.height - 20 - inventory.length * 30;
-  
-    ctx.fillStyle = "white";
-    ctx.font = "20px sans-serif";
-    ctx.textAlign = "left";
-  
-    inventory.forEach((item, index) => {
-      ctx.fillText(`${item.name}`, startX, startY + index * 30);
-      
-    });
-    }
-    */
- /*function drawMiniMap() {
-  const scale = 10; // ミニマップの拡大率（例: 1マス10px）
-  const mapWidthPx = map[0].length * scale;
-  const mapHeightPx = map.length * scale;
-
-  // 🔧 背景を白で塗る
-  ctx.fillStyle = "white";
-  ctx.fillRect(0, 0, mapWidthPx, mapHeightPx);
-
-  // マップ描画
-  for (let y = 0; y < map.length; y++) {
-    for (let x = 0; x < map[0].length; x++) {
-      if (!explored[y][x]) continue; // 未探索なら描画しない
-
-      if (map[y][x] === 1) {
-        ctx.fillStyle = "gray"; // 壁
-      } else {
-        ctx.fillStyle = "black"; // 通路
-      }
-      ctx.fillRect(x * scale, y * scale, scale, scale);
-    }
-  }
-
-  // 🔵 プレイヤー位置表示
-  ctx.fillStyle = "blue";
-  ctx.fillRect(Math.floor(posX * scale), Math.floor(posY * scale), scale, scale);
-
-
-  // ゴール表示（見える位置にあるなら）
-  const gx = Math.floor(goal.x);
-  const gy = Math.floor(goal.y);
-  if (explored[gy][gx]) {
-    ctx.fillStyle = "lime";
-    ctx.beginPath();
-    ctx.arc(offsetX + goal.x * scale, offsetY + goal.y * scale, scale / 3, 0, Math.PI * 2);
-    ctx.fill();
-  }
-}*/
-  
   
   const enemyBullets = [];
   
@@ -538,11 +432,6 @@
       ctx.textBaseline = "middle";
       ctx.fillText("敵", screenX, canvas.height / 2);
   
-      /*ctx.fillStyle = enemyColor;
-      ctx.beginPath();
-      ctx.arc(screenX, canvas.height / 2, size / 2, 0, Math.PI * 2);
-      ctx.fill();
-      */
     }
   }
   
@@ -589,39 +478,7 @@
     }
   });
 }
-  
-  /*
-  
-  function drawItems() {
-    const halfFov = fov / 2;
 
-  items.forEach(item => {
-    const dx = item.x - posX;
-    const dy = item.y - posY;
-    const distance = Math.sqrt(dx * dx + dy * dy);
-    const angleToItem = Math.atan2(dy, dx) - dir;
-
-      if (Math.abs(angleToItem) < halfFov) {
-        const screenX = (angleToItem + halfFov) / fov * canvas.width;
-        const size = Math.max(5, 200 / distance); // 遠くは小さく、近くは大きく
-        
-        ctx.fillStyle = "gold";
-        ctx.font = `${size}px sans-serif`; // フォントサイズ＝見た目の大きさ
-        ctx.textAlign = "center";
-        ctx.textBaseline = "middle";
-        ctx.fillText("ITEM️", screenX, canvas.height / 2);
-        
-        
-        /*ctx.fillStyle = "gold";
-        ctx.beginPath();
-        ctx.arc(screenX, canvas.height / 2 + 50, size / 2, 0, Math.PI * 2);
-        ctx.fill();
-        
-      }
-    });
-  }
-  
-  */
   
 
   function drawBullets() {
@@ -663,25 +520,7 @@
   ctx.fillRect(x, y, width * ratio, height);
 }
     
-   /* const gaugeWidth = 200;
-    const gaugeHeight = 20;
-    const x = (canvas.width - gaugeWidth) / 2;
-    const y = canvas.height - gaugeHeight - 30;
-  
-    // 背景
-    ctx.fillStyle = "#444";
-    ctx.fillRect(x, y, gaugeWidth, gaugeHeight);
-  
-    // ゲージ本体
-    const filledWidth = (chargeTime / chargeThreshold) * gaugeWidth;
-    ctx.fillStyle = "lime";
-    ctx.fillRect(x, y, filledWidth, gaugeHeight);
-  
-    // 枠線
-    ctx.strokeStyle = "white";
-    ctx.strokeRect(x, y, gaugeWidth, gaugeHeight);
-  }
-  */
+
   
   let nearbyItemIndex = -1;
 
@@ -709,7 +548,6 @@
         break;
       }
     }
-    //console.log("現在の nearbyItemIndex:", nearbyItemIndex);
   }
   
   function drawPickupPrompt() {
@@ -784,11 +622,7 @@
         ctx.textAlign = "center";
         ctx.textBaseline = "middle";
         ctx.fillText("階", screenX, canvas.height / 2);
-        /*ctx.beginPath();
-        ctx.fillStyle = "lime";
-        ctx.arc(screenX, canvas.height / 2, size, 0, Math.PI * 2);
-        ctx.fill();
-        */
+
       }
     }
   }
@@ -802,28 +636,6 @@
     goalInRange = dist < 0.5;
   }
   
-  /*
-  function drawGoal() {
-    const dx = goal.x - posX;
-    const dy = goal.y - posY;
-    const angleToGoal = normalizeAngle(Math.atan2(dy, dx) - dir);
-    //const angleToGoal = Math.atan2(dy, dx) - angle;
-    const dist = Math.sqrt(dx * dx + dy * dy);
-
-    const halfFov = fov / 2;
-    
-    if (Math.abs(angleToGoal) < halfFov) {
-      const screenX = (angleToGoal + halfFov) / fov * canvas.width;
-      const maxSize = 180;
-      const size = Math.max(4, maxSize / dist);
-  
-      ctx.beginPath();
-      ctx.fillStyle = "lime"; // ゴール色
-      ctx.arc(screenX, canvas.height / 2, size, 0, Math.PI * 2);
-      ctx.fill();
-    }
-  }*/
-  
   
   function checkGoalCharging() {
     const dx = goal.x - posX;
@@ -835,7 +647,7 @@
     if (isInGoalArea && charging && !isCharging) {
       startCharge(() => {
         floor++;
-        console.log("🌟 次の階層へ！");
+        console.log("次の階層へ！");
         initNextFloor(); // 必要ならここで階層遷移処理
       }, 100); // 100フレーム（約1.6秒）など
     }
@@ -870,52 +682,6 @@
   enemyY = 3.5;
   enemyHP = 3;
 }
-  /*
-  function checkGoalCharging() {
-    const dx = goal.x - posX;
-    const dy = goal.y - posY;
-    const dist = Math.sqrt(dx * dx + dy * dy);
-
-    if (dist < 0.5 && charging) {
-      chargeTime++;
-      if (chargeTime >= chargeThreshold) {
-        //chargeTime++;
-
-        //alert("next floor");
-        floor++;
-        //initNextFloor(); // 遷移処理（関数名は適宜変更）
-        //chargeTime = 0;
-      }
-    } else {
-      //stopCharge(); // 状態リセット
-      //chargeTime = 0;
-    }
-  }
-  */
-  
-  /*
-  function checkGoalCharging() {
-    const dx = goal.x - posX;
-    const dy = goal.y - posY;
-    const dist = Math.sqrt(dx * dx + dy * dy);
-  
-    const isInGoalArea = dist < 0.5;
-  
-    if (isInGoalArea && charging) {
-      chargeTime++;
-    } else{
-           
-     // stopCharge(); // 状態リセット
-      }
-      
-    
-  
-    // ゴールにいない or チャージしていないときはリセット
-    if (!isInGoalArea || !charging) {
-      chargeTime = 0;
-    }
-  */
-  
   
   
   function normalizeAngle(angle) {
@@ -989,14 +755,12 @@
     ctx.font = "44px sans-serif";
     ctx.fillText(`${floor}F`, 200, 30); // 左上に表示
     
-    //console.log(posX);
     drawInventory();
   }
   
   
     let isCharging = false;
   let chargeTime = 0;
-//let chargeThreshold = 60;
 let chargeCallback = null;
 
 
@@ -1006,6 +770,7 @@ let chargeCallback = null;
     inventory.push(item); // 所持品に追加
     items.splice(nearbyItemIndex, 1); // マップ上から削除
     nearbyItemIndex = -1;
+    isDraggingItem = false;
   }, 60);
 
 function startCharge(callback, threshold = 60) {
@@ -1069,6 +834,27 @@ function updateCharge() {
     let touchStartY = null;
     let touchStartX = null;
     
+
+  //2025/06/10↓
+canvas.addEventListener("touchstart", (e) => {
+  const touch = e.touches[0];
+  touchStartY = touch.clientY;
+  touchStartX = touch.clientX;
+
+  // キャンバスの位置を正確に取得
+  const rect = canvas.getBoundingClientRect();
+  const yInCanvas = touch.clientY - rect.top;  // タッチ位置（キャンバスに対しての位置）
+  const canvasDisplayHeight = rect.height;    // キャンバスの表示高さ
+
+  // スワイプ禁止エリア（画面下部200px以内）に入ったらスワイプ禁止
+  isSwipeAllowed = yInCanvas < canvasDisplayHeight - 200;  // 下200pxはスワイプ禁止
+
+  // ログでデバッグ
+  console.log("キャンバスY:", yInCanvas, "キャンバス高さ:", canvasDisplayHeight, "スワイプ許可:", isSwipeAllowed);
+}, { passive: true });
+    
+  //2025/06/10↑
+    
     // 🔧追加：タッチ開始時にY位置を記録
   canvas.addEventListener("touchstart", (e) => {
     if (e.touches.length === 1) {
@@ -1101,6 +887,8 @@ function updateCharge() {
     charging = null;
     chargeTime = 0;
   }, { passive: true });
+  
+  
   
   
 
@@ -1182,6 +970,7 @@ function updateCharge() {
    let hungerTick = 0;
  
   function gameLoop() {
+    //console.log("isDraggingItem:", isDraggingItem);
     if (!isDraggingItem) {
       if (isMovingForward) move(true);
       if (isMovingBackward) move(false);
@@ -1189,25 +978,6 @@ function updateCharge() {
       if (isTurningRight) rotate(0.05);
     }
         
-    
-    if(isMovingForward){
-      move(true);
-    }
-    
-    if(isMovingBackward){
-      move(false);
-    }
-    updateEnemy();
-    updateBullets();
-    if (isTurningLeft) {
-    rotate(-0.05); // ← 滑らか左回転
-    }
-    if (isTurningRight) {
-      rotate(0.05);  // → 滑らか右回転
-    }
-    //console.log(enemyY);
-
-
 
 
     hungerTick++;
@@ -1216,7 +986,7 @@ function updateCharge() {
       if (player.hunger < 0) player.hunger = 0;
     }
   
-    // ⛔ 満腹度ゼロでHP減少（オプション）
+    // 腹度ゼロでHP減少（オプション）
     if (player.hunger === 0) {
       player.hp -= 0.05; // 少しずつHPも減る
       if (player.hp < 0) player.hp = 0;
@@ -1243,9 +1013,7 @@ function updateCharge() {
     if (player.hp <= 0) {
       
       isGameOver = true;
-      //alert("game over");
-      //location.reload(); // リロードで再スタート（仮の処理）
-      
+
       
       return;
     }
@@ -1253,6 +1021,51 @@ function updateCharge() {
   }
   
   let inventoryTouchStartY = null;
+let isInventorySwipeAllowed = false;
+
+canvas.addEventListener("touchstart", (e) => {
+  if (e.touches.length === 1) {
+    const touch = e.touches[0];
+    inventoryTouchStartY = touch.clientY;
+
+    // 表示上のY座標を取得
+    const rect = canvas.getBoundingClientRect();
+    const yInCanvas = touch.clientY - rect.top;
+
+    // 画面下200pxはスワイプ禁止
+    isInventorySwipeAllowed = yInCanvas < canvas.height - 200;
+  }
+}, { passive: true });
+
+canvas.addEventListener("touchend", (e) => {
+  if (!isInventorySwipeAllowed || inventoryTouchStartY === null) return;
+
+  const endY = e.changedTouches[0].clientY;
+  const diffY = endY - inventoryTouchStartY;
+
+  if (Math.abs(diffY) > 50) {
+    if (diffY > 0) {
+      selectedInventoryIndex++;
+    } else {
+      console.log("↑上スワイプ：前のアイテム");
+      selectedInventoryIndex--;
+    }
+
+    // ループ処理
+    const len = player.inventory.length;
+    if (len > 0) {
+      selectedInventoryIndex = (selectedInventoryIndex + len) % len;
+    } else {
+      selectedInventoryIndex = 0;
+    }
+  }
+
+  inventoryTouchStartY = null;
+  isInventorySwipeAllowed = false;
+}, { passive: true });
+  
+  
+  //let inventoryTouchStartY = null;
 
   canvas.addEventListener("touchstart", (e) => {
     if (e.touches.length === 1) {
@@ -1285,10 +1098,8 @@ function updateCharge() {
   
     inventoryTouchStartY = null;
   }, { passive: true });
-    
-   // console.log(`アイテム接近チェック: index=${nearbyItemIndex}, pos=(${posX.toFixed(2)}, ${posY.toFixed(2)})`);
+  
 
-  gameLoop();
   
   canvas.addEventListener("touchstart", () => {
     //console.log("タッチ開始",nearbyItemIndex);
@@ -1325,6 +1136,7 @@ function updateCharge() {
     isCharging = false;
     chargeTime = 0;
     chargeCallback = null;
+    isDraggingItem = false;
   }
   
   //アイテムドラッグ
@@ -1372,14 +1184,16 @@ canvas.addEventListener("touchend", (e) => {
   canvas.addEventListener("touchstart", (e) => {
   // 仮に選択されたアイテムがあればドラッグ開始とする
   if (selectedInventoryIndex !== null && player.inventory[selectedInventoryIndex]) {
-    isDraggingItem = true;
+    isDraggingItem = false;
   }
 });
 
 canvas.addEventListener("touchend", () => {
   isDraggingItem = false;
+  stopCharge();
 });
   
+  gameLoop();
   </script>
   
   </body>
