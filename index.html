@@ -1,4 +1,4 @@
-  <!DOCTYPE html>
+<!DOCTYPE html>
   <html lang="ja">
   <head>
     <meta charset="UTF-8">
@@ -20,7 +20,6 @@
   <canvas id="gameCanvas"></canvas>
   <script>
   //
-  
   const canvas = document.getElementById('gameCanvas');
   const ctx = canvas.getContext('2d');
 
@@ -36,6 +35,8 @@
     inventory: [],
     effects: []  // 状態異常など
   };
+  
+
   
   let isGameOver = false;
   
@@ -88,9 +89,7 @@
 
   const inventory = [];
   
-  
-  let isDraggingItem = false;
-  
+    
 
     // 1. アイテム名を定義（5〜6種類）
   const itemNames = ["🗡️青銅剣", "🍞パン", "🕯️松明", "🏹木の矢", "🔑鍵", "💊回復薬","💊鈍足の薬","💊俊足の薬"];
@@ -103,9 +102,6 @@
     name: itemNames[Math.floor(Math.random() * itemNames.length)]
   }));
   
-  let draggingItem = false;
-  let dragX = 0;
-  let dragY = 0;
   
   const fov = Math.PI / 3; // 60度視野角
   //const numRays = canvas.width;
@@ -381,6 +377,23 @@
         if (b.life <= 0 || map[mapY][mapX] !== 0) {
           bullets.splice(i, 1);
         }
+    }
+  }
+  
+  let hungerTick = 0;
+  
+  function playerHunger(){
+
+      hungerTick++;
+    if (hungerTick % 240 === 0) { // 約4秒に1回
+      player.hunger -= 1;
+      if (player.hunger < 0) player.hunger = 0;
+    }
+  
+    // 腹度ゼロでHP減少（オプション）
+    if (player.hunger === 0) {
+      player.hp -= 0.05; // 少しずつHPも減る
+      if (player.hp < 0) player.hp = 0;
     }
   }
 
@@ -721,7 +734,7 @@
   }
   
   function drawUseBox() {
-    const size = 50; // 正方形のサイズ
+    const size = 100; // 正方形のサイズ
     const x = canvas.width - size - 20; // 右から20px内側
     const y = canvas.height / 2 - size / 2; // 縦中央に配置
   
@@ -759,9 +772,9 @@
   }
   
   
-    let isCharging = false;
+  let isCharging = false;
   let chargeTime = 0;
-let chargeCallback = null;
+  let chargeCallback = null;
 
 
 //2025/06/08アイテム
@@ -773,33 +786,39 @@ let chargeCallback = null;
     isDraggingItem = false;
   }, 60);
 
-function startCharge(callback, threshold = 60) {
-  
-  if(isCharging){
-    console.log("スタートチャージ実行",{threshold});
-    return;
-  }
-    isCharging = true;
-    chargeTime = 0;
-    chargeCallback = callback;
-    chargeThreshold = threshold;
-}
-
-
-
-function updateCharge() {
-  if (isCharging && chargeCallback) {
-    chargeTime++;
-    //console.log("チャージ進行中",chargeTime);
-    if (chargeTime >= chargeThreshold) {
-          //console.log("チャージ完了",chargeThreshold);
-      chargeCallback(); // 成功時の処理を実行
-      stopCharge();     // 状態リセット
+  function startCharge(callback, threshold = 60) {
+    
+    if(isCharging){
+      console.log("スタートチャージ実行",{threshold});
+      return;
     }
-  }else{
-    //console.log("チャージできない状態",{isCharging,chargeCallback});
+      isCharging = true;
+      chargeTime = 0;
+      chargeCallback = callback;
+      chargeThreshold = threshold;
   }
-}
+  
+  function stopCharge() {
+    isCharging = false;
+    chargeTime = 0;
+    chargeCallback = null;
+    isDraggingItem = false;
+  }
+
+
+  function updateCharge() {
+    if (isCharging && chargeCallback) {
+      chargeTime++;
+      //console.log("チャージ進行中",chargeTime);
+      if (chargeTime >= chargeThreshold) {
+            //console.log("チャージ完了",chargeThreshold);
+        chargeCallback(); // 成功時の処理を実行
+        stopCharge();     // 状態リセット
+      }
+    }else{
+      //console.log("チャージできない状態",{isCharging,chargeCallback});
+    }
+  }
 
   function move(forward) {
     const moveSpeed = forward ? 0.04 : -0.02;
@@ -815,7 +834,62 @@ function updateCharge() {
     dir += angle;
   }
   
+  function gameLoop() {
+    
+    
+    //console.log("isDraggingItem:", isDraggingItem);
+    if (!isDraggingItem) {
+      if (isMovingForward) move(true);
+      if (isMovingBackward) move(false);
+      if (isTurningLeft) rotate(-0.05);
+      if (isTurningRight) rotate(0.05);
+    }
+        
+    //initNextFloor();
+    updateGoalProximity
+    checkNearbyItems();
+    checkGoalCharging();
+    updateNearbyItem();
+    updateCharge();
+    enemyShootAtPlayer();
+    updateEnemyBullets();
+    playerHunger();
+    render();
+    requestAnimationFrame(gameLoop);
+    
+    
+    //console.log(player.hunger);
+    
+    explored[Math.floor(posY)][Math.floor(posX)] = true;
+    //console.log("Enemy position:", enemyX.toFixed(2), enemyY.toFixed(2));
+    
+    if (player.hp <= 0) {
+      
+      isGameOver = true;
 
+      
+      return;
+    }
+  
+  }
+  
+   document.addEventListener("keydown", (e) => {
+    switch(e.key) {
+      case "ArrowLeft":
+        rotate(-0.3);
+        break;
+      case "ArrowRight":
+        rotate(0.3);
+        break;
+      case "ArrowUp":
+        move(true);
+        break;
+      case "ArrowDown":
+        move(false);
+        break;
+    }
+    render();
+  });
   
   document.addEventListener("keydown", (e) => {
     switch(e.key) {
@@ -834,35 +908,174 @@ function updateCharge() {
     let touchStartY = null;
     let touchStartX = null;
     
+    let draggingItem = false;
+    let dragX = 0;
+    let dragY = 0;
+    
+    let inventoryTouchStartY = null;
+    let isInventorySwipeAllowed = false;
+    
+    let isDraggingItem = false;
+    let isSwipeAllowed = false;
+    
+
+    
 
   //2025/06/10↓
-canvas.addEventListener("touchstart", (e) => {
-  const touch = e.touches[0];
-  touchStartY = touch.clientY;
-  touchStartX = touch.clientX;
-
-  // キャンバスの位置を正確に取得
-  const rect = canvas.getBoundingClientRect();
-  const yInCanvas = touch.clientY - rect.top;  // タッチ位置（キャンバスに対しての位置）
-  const canvasDisplayHeight = rect.height;    // キャンバスの表示高さ
-
-  // スワイプ禁止エリア（画面下部200px以内）に入ったらスワイプ禁止
-  isSwipeAllowed = yInCanvas < canvasDisplayHeight - 200;  // 下200pxはスワイプ禁止
-
-  // ログでデバッグ
-  console.log("キャンバスY:", yInCanvas, "キャンバス高さ:", canvasDisplayHeight, "スワイプ許可:", isSwipeAllowed);
-}, { passive: true });
-    
-  //2025/06/10↑
-    
-    // 🔧追加：タッチ開始時にY位置を記録
   canvas.addEventListener("touchstart", (e) => {
+    const touch = e.touches[0];
+    // キャンバスの位置を正確に取得
+    const rect = canvas.getBoundingClientRect();
+    const yInCanvas = touch.clientY - rect.top;
+    const canvasDisplayHeight = rect.height;    // キャンバスの表示高さ
+    
+    touchStartY = touch.clientY;
+    touchStartX = touch.clientX;
+    isInventorySwipeAllowed = yInCanvas < canvas.height - 200;
+  
+      // ドラッグ対象のアイテムかどうかチェック
+    const item = player.inventory[selectedInventoryIndex];
+      if (item) {
+        const textX = canvas.width / 2 - 40;
+        const textY = canvas.height - 60;
+        const dist = Math.hypot(touch.clientX - textX, touch.clientY - textY);
+        if (dist < 50) {
+          isDraggingItem = true;
+          dragX = touch.clientX;
+          dragY = touch.clientY;
+        }
+    }
+    
+    // アイテム取得 or ゴールチャージ
+    if (!isDraggingItem) {
+      if (nearbyItemIndex !== -1) {
+        startCharge(() => {
+          player.inventory.push(items[nearbyItemIndex]);
+          items.splice(nearbyItemIndex, 1);
+          nearbyItemIndex = -1;
+        }, 60);
+      } else if (goalInRange) {
+        startCharge(() => {
+          floor++;
+        }, 100);
+      }
+    }
+    
+     if (e.touches.length === 1) {
+      touchStartY = e.touches[0].clientY;  // ←既存のY記録（前進用）
+      touchStartX = e.touches[0].clientX;  // ←🆕 左右回転用
+    }
+    
     if (e.touches.length === 1) {
       touchStartY = e.touches[0].clientY;
       charging = true;
     }
+    
+    if (e.touches.length === 1) {
+    inventoryTouchStartY = touch.clientY;
+    }
+    
+    if (e.touches.length === 1) {
+      inventoryTouchStartY = e.touches[0].clientY;
+    }
+    
+    //console.log("タッチ開始",nearbyItemIndex);
+    if (nearbyItemIndex !== -1) {
+      startCharge(() => {
+        // アイテム取得処理
+        console.log("アイテム取得！");
+        player.inventory.push(items[nearbyItemIndex]);
+        items.splice(nearbyItemIndex, 1); // 消す
+        console.log("🎒現在のインベントリ：", player.inventory);
+        nearbyItemIndex = -1;
+      }, 60); // 1秒くらい
+    }
+      // ゴール処理
+    else if (goalInRange) {
+      startCharge(() => {
+        console.log("次の階層へ！");
+        floor++;
+        chargeTime = 0;
+        //initNextFloor();
+        // ここに initNextFloor() があれば呼ぶ
+      }, 100); // 1.6秒くらい
+    }
+    
+  
+  //const item = player.inventory[selectedInventoryIndex];
+  if (!item) return;
+
+  // 選択中アイテムの表示位置あたりをタッチしたらドラッグ開始
+  const textX = canvas.width / 2 - 40;
+  const textY = canvas.height - 60;
+  const dist = Math.hypot(touch.clientX - textX, touch.clientY - textY);
+
+  if (dist < 50) { // 適当に50px以内なら
+    draggingItem = true;
+    dragX = touch.clientX;
+    dragY = touch.clientY;
+    console.log("ドラッグ中");
+  }
+    
+  if (selectedInventoryIndex !== null && player.inventory[selectedInventoryIndex]) {
+    isDraggingItem = false;
+  }
+    
+    if (isGameOver) {
+      location.reload(); // リスタート
+    }
+    
+    // ゲームオーバー時の再スタート
+    if (isGameOver) {
+        location.reload();
+    }
   }, { passive: true });
   
+    
+  //2025/06/10↑
+    
+  canvas.addEventListener("touchmove", (e) => {
+  const touch = e.touches[0];
+  const touchY = touch.clientY;
+  const touchX = touch.clientX;
+
+  // --- アイテムドラッグ処理 ---
+  if (draggingItem) {
+    dragX = touchX;
+    dragY = touchY;
+    return; // ドラッグ中は他の操作を無効にする（必要なら残す）
+  }
+
+  // --- スワイプ操作処理 ---
+  if (touchStartY === null || touchStartX === null) return;
+
+  const dy = touchStartY - touchY;
+  const dx = touchX - touchStartX;
+
+  // 前後移動判定
+  if (dy > 50) {
+    isMovingForward = true;
+    isMovingBackward = false;
+  } else if (dy < -50) {
+    isMovingForward = false;
+    isMovingBackward = true;
+  }
+
+  // 回転フラグ判定
+  if (dx > 50) {
+    isTurningRight = true;
+    isTurningLeft = false;
+    rotate(0.2); // 回転
+    touchStartX = touchX; // 連続回転のため更新
+  } else if (dx < -50) {
+    isTurningLeft = true;
+    isTurningRight = false;
+    rotate(-0.2); // 回転
+    touchStartX = touchX; // 連続回転のため更新
+  }
+}, { passive: true });
+
+  /*
   // 🔧追加：タッチ移動中に一定距離上に動いたら前進フラグON
   canvas.addEventListener("touchmove", (e) => {
     if (touchStartY === null) return;
@@ -879,25 +1092,18 @@ canvas.addEventListener("touchstart", (e) => {
     }
   }, { passive: true });
   
-  // 🔧追加：タッチが終わったら前進フラグOFF＆リセット
-  canvas.addEventListener("touchend", (e) => {
-    isMovingForward = false;
-    isMovingBackward = false;
-    touchStartY = null;
-    charging = null;
-    chargeTime = 0;
-  }, { passive: true });
+  
+canvas.addEventListener("touchmove", (e) => {
+  if (draggingItem) {
+    const touch = e.touches[0];
+    dragX = touch.clientX;
+    dragY = touch.clientY;
+  }
+}, { passive: true });
   
   
   
   
-
-  canvas.addEventListener("touchstart", (e) => {
-    if (e.touches.length === 1) {
-      touchStartY = e.touches[0].clientY;  // ←既存のY記録（前進用）
-      touchStartX = e.touches[0].clientX;  // ←🆕 左右回転用
-    }
-  }, { passive: true });
   
   canvas.addEventListener("touchmove", (e) => {
     if (touchStartY === null || touchStartX === null) return;
@@ -930,7 +1136,65 @@ canvas.addEventListener("touchstart", (e) => {
       touchStartX = touchX; // ←こちらも更新
     }
   }, { passive: true });
+  */
 
+  
+  //↓タッチエンド処理
+  
+  canvas.addEventListener("touchend", (e) => {
+  // --- フラグ初期化 ---
+  isMovingForward = false;
+  isMovingBackward = false;
+  isTurningLeft = false;
+  isTurningRight = false;
+  touchStartY = null;
+  touchStartX = null;
+  charging = null;
+  chargeTime = 0;
+
+  // --- チャージ中断処理 ---
+  stopCharge();
+
+  // --- ドラッグ終了判定 ---
+  if (draggingItem) {
+    const dropX = canvas.width - 70;
+    const dropY = canvas.height / 2 - 25;
+    const dist = Math.hypot(dragX - dropX, dragY - dropY);
+    if (dist < 50) {
+      console.log("✅ 使用スロットにドロップされました！");
+      // TODO: アイテム使用処理をここに追加
+    }
+    draggingItem = false;
+  }
+
+  // --- インベントリスワイプ処理 ---
+  if (inventoryTouchStartY !== null && isInventorySwipeAllowed) {
+    const endY = e.changedTouches[0].clientY;
+    const diffY = endY - inventoryTouchStartY;
+
+    if (Math.abs(diffY) > 50) {
+      if (diffY > 0) {
+        selectedInventoryIndex++;
+      } else {
+        selectedInventoryIndex--;
+      }
+
+      // インデックスをループさせる
+      const len = player.inventory.length;
+      if (len > 0) {
+        selectedInventoryIndex = (selectedInventoryIndex + len) % len;
+      } else {
+        selectedInventoryIndex = 0;
+      }
+    }
+  }
+
+  inventoryTouchStartY = null;
+  isInventorySwipeAllowed = false;
+  isDraggingItem = false;
+}, { passive: true });
+  
+/*
   canvas.addEventListener("touchend", (e) => {
     isMovingForward = false;
     isTurningLeft = false;
@@ -939,103 +1203,16 @@ canvas.addEventListener("touchstart", (e) => {
     touchStartX = null;  // 🔧追加：X方向の記録もリセット
   }, { passive: true });
   
-
-  canvas.addEventListener("touchstart", () => {
-    if (isGameOver) {
-      location.reload(); // リスタート
-    }
+ // 🔧追加：タッチが終わったら前進フラグOFF＆リセット
+  
+  
+  canvas.addEventListener("touchend", (e) => {
+    isMovingForward = false;
+    isMovingBackward = false;
+    touchStartY = null;
+    charging = null;
+    chargeTime = 0;
   }, { passive: true });
- 
-
-  document.addEventListener("keydown", (e) => {
-    switch(e.key) {
-      case "ArrowLeft":
-        rotate(-0.3);
-        break;
-      case "ArrowRight":
-        rotate(0.3);
-        break;
-      case "ArrowUp":
-        move(true);
-        break;
-      case "ArrowDown":
-        move(false);
-        break;
-    }
-    render();
-  });
-
-  render();
-  
-   let hungerTick = 0;
- 
-  function gameLoop() {
-    //console.log("isDraggingItem:", isDraggingItem);
-    if (!isDraggingItem) {
-      if (isMovingForward) move(true);
-      if (isMovingBackward) move(false);
-      if (isTurningLeft) rotate(-0.05);
-      if (isTurningRight) rotate(0.05);
-    }
-        
-
-
-    hungerTick++;
-    if (hungerTick % 240 === 0) { // 約4秒に1回
-      player.hunger -= 1;
-      if (player.hunger < 0) player.hunger = 0;
-    }
-  
-    // 腹度ゼロでHP減少（オプション）
-    if (player.hunger === 0) {
-      player.hp -= 0.05; // 少しずつHPも減る
-      if (player.hp < 0) player.hp = 0;
-    }
-  
-
-    //initNextFloor();
-    updateGoalProximity
-    checkNearbyItems();
-    checkGoalCharging();
-    updateNearbyItem();
-    updateCharge();
-    enemyShootAtPlayer();
-    updateEnemyBullets();
-    render();
-    requestAnimationFrame(gameLoop);
-    
-    
-    
-    
-    explored[Math.floor(posY)][Math.floor(posX)] = true;
-    //console.log("Enemy position:", enemyX.toFixed(2), enemyY.toFixed(2));
-    
-    if (player.hp <= 0) {
-      
-      isGameOver = true;
-
-      
-      return;
-    }
-  
-  }
-  
-  let inventoryTouchStartY = null;
-let isInventorySwipeAllowed = false;
-
-canvas.addEventListener("touchstart", (e) => {
-  if (e.touches.length === 1) {
-    const touch = e.touches[0];
-    inventoryTouchStartY = touch.clientY;
-
-    // 表示上のY座標を取得
-    const rect = canvas.getBoundingClientRect();
-    const yInCanvas = touch.clientY - rect.top;
-
-    // 画面下200pxはスワイプ禁止
-    isInventorySwipeAllowed = yInCanvas < canvas.height - 200;
-  }
-}, { passive: true });
 
 canvas.addEventListener("touchend", (e) => {
   if (!isInventorySwipeAllowed || inventoryTouchStartY === null) return;
@@ -1067,11 +1244,6 @@ canvas.addEventListener("touchend", (e) => {
   
   //let inventoryTouchStartY = null;
 
-  canvas.addEventListener("touchstart", (e) => {
-    if (e.touches.length === 1) {
-      inventoryTouchStartY = e.touches[0].clientY;
-    }
-  }, { passive: true });
   
   canvas.addEventListener("touchend", (e) => {
     if (inventoryTouchStartY === null) return;
@@ -1101,29 +1273,6 @@ canvas.addEventListener("touchend", (e) => {
   
 
   
-  canvas.addEventListener("touchstart", () => {
-    //console.log("タッチ開始",nearbyItemIndex);
-    if (nearbyItemIndex !== -1) {
-      startCharge(() => {
-        // アイテム取得処理
-        console.log("アイテム取得！");
-        player.inventory.push(items[nearbyItemIndex]);
-        items.splice(nearbyItemIndex, 1); // 消す
-        console.log("🎒現在のインベントリ：", player.inventory);
-        nearbyItemIndex = -1;
-      }, 60); // 1秒くらい
-    }
-      // ゴール処理
-    else if (goalInRange) {
-      startCharge(() => {
-        console.log("次の階層へ！");
-        floor++;
-        chargeTime = 0;
-        //initNextFloor();
-        // ここに initNextFloor() があれば呼ぶ
-      }, 100); // 1.6秒くらい
-    }
-  }, { passive: true });
 
   
 
@@ -1132,39 +1281,10 @@ canvas.addEventListener("touchend", (e) => {
     stopCharge(); // タッチ離したら中断
   }, { passive: true });
   
-  function stopCharge() {
-    isCharging = false;
-    chargeTime = 0;
-    chargeCallback = null;
-    isDraggingItem = false;
-  }
   
-  //アイテムドラッグ
-  canvas.addEventListener("touchstart", (e) => {
-  const touch = e.touches[0];
-  const item = player.inventory[selectedInventoryIndex];
-  if (!item) return;
 
-  // 選択中アイテムの表示位置あたりをタッチしたらドラッグ開始
-  const textX = canvas.width / 2 - 40;
-  const textY = canvas.height - 60;
-  const dist = Math.hypot(touch.clientX - textX, touch.clientY - textY);
 
-  if (dist < 50) { // 適当に50px以内なら
-    draggingItem = true;
-    dragX = touch.clientX;
-    dragY = touch.clientY;
-    console.log("ドラッグ中");
-  }
-}, { passive: true });
 
-canvas.addEventListener("touchmove", (e) => {
-  if (draggingItem) {
-    const touch = e.touches[0];
-    dragX = touch.clientX;
-    dragY = touch.clientY;
-  }
-}, { passive: true });
 
 canvas.addEventListener("touchend", (e) => {
   if (draggingItem) {
@@ -1181,17 +1301,13 @@ canvas.addEventListener("touchend", (e) => {
   }
 }, { passive: true });
 
-  canvas.addEventListener("touchstart", (e) => {
-  // 仮に選択されたアイテムがあればドラッグ開始とする
-  if (selectedInventoryIndex !== null && player.inventory[selectedInventoryIndex]) {
-    isDraggingItem = false;
-  }
-});
+  
 
 canvas.addEventListener("touchend", () => {
   isDraggingItem = false;
   stopCharge();
-});
+});*/
+
   
   gameLoop();
   </script>
