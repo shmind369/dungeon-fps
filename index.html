@@ -36,6 +36,42 @@
     effects: []  // 状態異常など
   };
   
+  let lastAttackTime = 0;
+  const attackCooldown = 500; // ミリ秒
+  const attackRange = 50;     // 距離（ピクセル）
+  const attackDamage = 1;     // 与えるダメージ
+  
+  let isPunching = false;
+  let punchTimer = 0;
+
+  function performAttack() {
+    isPunching = true;
+    punchTimer = 0;
+    // 攻撃処理（敵との距離チェックなど）もここに追加可
+  }
+  
+  function drawPunchEffect() {
+    if (!isPunching) return;
+  
+    const maxRadius = 50;
+    const progress = punchTimer / 10; // 10フレームで消える
+    const radius = maxRadius * (1 - progress);
+    const alpha = 1 - progress;
+  
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.beginPath();
+    ctx.arc(canvas.width / 2, canvas.height / 2, radius, 0, Math.PI * 2);
+    ctx.fillStyle = "white";
+    ctx.fill();
+    ctx.restore();
+  
+    punchTimer++;
+    if (punchTimer > 10) {
+      isPunching = false;
+    }
+  }
+    
 
   
   let isGameOver = false;
@@ -77,6 +113,7 @@
   let angle = 0;
   
   
+  
   //アクションゲージ
   let charging = false;
   //let chargeTime = 0;
@@ -88,6 +125,11 @@
   
 
   const inventory = [];
+  
+  let enemies = []; // 👈 まず空で定義（グローバルで）
+
+  // 例：敵を1体追加
+  enemies.push({ x: 100, y: 100, hp: 10 });
   
     
 
@@ -520,7 +562,39 @@
     }
   });
 }
-
+  
+  function performAttack() {
+    isPunching = true;
+    punchTimer = 0;
+    console.log("👊 攻撃した！");
+  
+    enemies.forEach(enemy => {
+      const dx = enemy.x - posX;
+      const dy = enemy.y - posY;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+  
+      // プレイヤーの向きを考慮して前方かつ近距離
+      const angleToEnemy = Math.atan2(dy, dx);
+      const diffAngle = Math.abs(normalizeAngle(angleToEnemy - angle));
+  
+      if (dist < attackRange && diffAngle < Math.PI / 4) {
+        enemy.hp -= attackDamage;
+        console.log("🎯 敵に命中！残HP:", enemy.hp);
+  
+        // 倒れたら削除など
+        if (enemy.hp <= 0) {
+          console.log("💀 敵撃破！");
+          // ここはお好みで: enemy.alive = false;
+        }
+      }
+    });
+  }
+  
+  function normalizeAngle(radian) {
+    while (radian < -Math.PI) radian += Math.PI * 2;
+    while (radian > Math.PI) radian -= Math.PI * 2;
+    return radian;
+  }
   
 
   function drawBullets() {
@@ -891,6 +965,8 @@
     updateEnemyBullets();
     playerHunger();
     render();
+    drawPunchEffect();
+
     requestAnimationFrame(gameLoop);
     
     
@@ -957,9 +1033,12 @@
     
     
     canvas.addEventListener("touchstart", (e) => {
+      
   const touch = e.touches[0];
   const rect = canvas.getBoundingClientRect();
   const yInCanvas = touch.clientY - rect.top;
+  
+  
 
   touchStartY = touch.clientY;
   touchStartX = touch.clientX;
@@ -970,6 +1049,9 @@
   const textX = canvas.width / 2 - 40;
   const textY = canvas.height - 60;
   const dist = Math.hypot(touch.clientX - textX, touch.clientY - textY);
+  
+
+
 
   // 🎒 ドラッグ開始判定
   if (item && dist < 100) {
@@ -981,9 +1063,18 @@
     render(); // 即描画
     return;
   }
+  
+  // 攻撃処理（ドラッグじゃない、かつチャージしてないとき）
+  if (!isDraggingItem && !charging) {
+    const now = Date.now();
+    if (now - lastAttackTime > attackCooldown) {
+      lastAttackTime = now;
+    }
+  }
 
   // 🟢 アイテム取得 or ゴールチャージ
   if (nearbyItemIndex !== -1) {
+    
     startCharge(() => {
       player.inventory.push(items[nearbyItemIndex]);
       items.splice(nearbyItemIndex, 1);
@@ -995,6 +1086,7 @@
     }, 100);
   }
 
+  //performAttack();
   // 🎮 ゲームオーバー時のリスタート
   if (isGameOver) location.reload();
 
@@ -1007,7 +1099,7 @@
     const touch = e.touches[0];
     dragX = touch.clientX;
     dragY = touch.clientY;
-    console.log("ドラッグ中",dragX,dragY,isDraggingItem);
+    //console.log("ドラッグ中",dragX,dragY,isDraggingItem);
     return; // ドラッグ中は他処理無視
   }
 
@@ -1042,24 +1134,25 @@
   }
 }, { passive: true });
 
+const TAP_THRESHOLD = 10;
 
 canvas.addEventListener("touchend", (e) => {
   console.log("touchend発生");
-  console.log("typeof isDraggingItem:", typeof isDraggingItem);
 
-  // --- 🧪 位置記録（debug）
-  if (e.changedTouches.length > 0) {
-    const test = e.changedTouches[0];
-    console.log("🧪 最終タッチ位置:", test.clientX, test.clientY);
-  }
+  const touchEndX = e.changedTouches[0].clientX;
+  const touchEndY = e.changedTouches[0].clientY;
+  const dx = touchEndX - touchStartX;
+  const dy = touchEndY - touchStartY;
+  const distance = Math.hypot(dx, dy);
+  
+  let tapHandled = false;
 
   // --- ✅ ドロップ処理 ---
-  if (wasDraggingItem) {  // 👈 ここを先にチェック！
+  if (wasDraggingItem) {
     console.log("🟢 ドロップ処理にはいりました");
 
-    const touch = e.changedTouches[0];
-    const x = touch.clientX;
-    const y = touch.clientY;
+    const x = touchEndX;
+    const y = touchEndY;
     const w = canvas.width / 2;
     const h = canvas.height / 2;
 
@@ -1091,15 +1184,36 @@ canvas.addEventListener("touchend", (e) => {
       }
     }
 
-    // フラグリセット
     isDraggingItem = false;
     wasDraggingItem = false;
     showDropTargets = false;
+    tapHandled = true;
 
-    return; // ✅ 他の処理は無視してここで終了
+    return; // ← 他の処理に行かせない！
   }
 
-  // --- 共通リセット（ドロップ処理の後） ---
+  // 👊 ドラッグじゃなかったら「タップ判定」
+  if (distance < TAP_THRESHOLD) {
+    performAttack(); // ← パンチ発動！
+  }
+
+
+  // --- インベントリスワイプ処理 ---
+  if (inventoryTouchStartY !== null && isInventorySwipeAllowed) {
+    const endY = e.changedTouches[0].clientY;
+    const diffY = endY - inventoryTouchStartY;
+
+    if (Math.abs(diffY) > 50) {
+      selectedInventoryIndex += diffY > 0 ? 1 : -1;
+      const len = player.inventory.length;
+      selectedInventoryIndex = len > 0 ? (selectedInventoryIndex + len) % len : 0;
+    }
+  }
+
+  inventoryTouchStartY = null;
+  isInventorySwipeAllowed = false;
+  
+   // --- 共通リセット（ドロップ後にする）
   isMovingForward = false;
   isMovingBackward = false;
   isTurningLeft = false;
@@ -1107,107 +1221,9 @@ canvas.addEventListener("touchend", (e) => {
   touchStartY = null;
   touchStartX = null;
   stopCharge();
-
-  // --- 🌀 インベントリスワイプ処理 ---
-  if (inventoryTouchStartY !== null && isInventorySwipeAllowed) {
-    const endY = e.changedTouches[0].clientY;
-    const diffY = endY - inventoryTouchStartY;
-
-    if (Math.abs(diffY) > 50) {
-      selectedInventoryIndex += diffY > 0 ? 1 : -1;
-      const len = player.inventory.length;
-      selectedInventoryIndex = len > 0 ? (selectedInventoryIndex + len) % len : 0;
-    }
-  }
-
-  inventoryTouchStartY = null;
-  isInventorySwipeAllowed = false;
 });
- /*
- 
- canvas.addEventListener("touchend", (e) => {
-  console.log("touchend発生");
-  console.log("typeof isDraggingItem:", typeof isDraggingItem);
-
-    // 🟡 位置記録（debug）
-  if (e.changedTouches.length > 0) {
-    const test = e.changedTouches[0];
-    console.log("🧪 最終タッチ位置:", test.clientX, test.clientY);
-  }
-
-  // --- 共通リセット ---
-    isMovingForward = false;
-  isMovingBackward = false;
-  isTurningLeft = false;
-  isTurningRight = false;
-  touchStartY = null;
-  touchStartX = null;
-  stopCharge();
-
-  console.log("isDraggingItem:", isDraggingItem);
 
 
-  // --- ✅ ドロップ処理 ---
-  if(isDraggingItem) {
-    console.log("🟢 ドロップ処理にはいりました");
-
-    const touch = e.changedTouches[0]; // ← 確実に取得
-    const x = touch.clientX;
-    const y = touch.clientY;
-    const w = canvas.width / 2;
-    const h = canvas.height / 2;
-
-    let action = null;
-    if (x < w && y < h) action = "throw";
-    else if (x >= w && y < h) action = null;
-    else if (x < w && y >= h) action = "drop";
-    else if (x >= w && y >= h) action = "use";
-
-    console.log("📍 最終位置:", x, y, "➡️ Action:", action);
-
-    const item = player.inventory[selectedInventoryIndex];
-    if (item) {
-      switch (action) {
-        case "throw":
-          console.log("💥 投げた！");
-          break;
-        case "drop":
-          console.log("📦 地面に置いた！");
-          items.push({ x: posX, y: posY, name: item.name });
-          player.inventory.splice(selectedInventoryIndex, 1);
-          break;
-        case "use":
-          console.log("✅ 使用した！");
-          break;
-        default:
-          console.log("👆 何もしないエリアにドロップされました");
-          break;
-      }
-    }
-    
-
-    // フラグリセット
-    isDraggingItem = false;
-    showDropTargets = false;
-    return; // 👈 これ大事！ここで終了
-  }
-
-  // --- 🌀 インベントリスワイプ処理 ---
-  if (inventoryTouchStartY !== null && isInventorySwipeAllowed) {
-    const endY = e.changedTouches[0].clientY;
-    const diffY = endY - inventoryTouchStartY;
-
-    if (Math.abs(diffY) > 50) {
-      selectedInventoryIndex += diffY > 0 ? 1 : -1;
-      const len = player.inventory.length;
-      selectedInventoryIndex = len > 0 ? (selectedInventoryIndex + len) % len : 0;
-    }
-  }
-
-  inventoryTouchStartY = null;
-  isInventorySwipeAllowed = false;
-}, { passive: true });
-*/
 
   
   gameLoop();
