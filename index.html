@@ -10,7 +10,6 @@
         margin: 0;
         background: black;
         overflow: hidden;
-        touch-action: none;
       }
       canvas {
         display: block;
@@ -1061,7 +1060,7 @@
     rotate(-0.2);
     touchStartX = touchX;
   }
-}, { passive: false });
+}, { passive: true });
 
 const TAP_THRESHOLD = 10;
 
