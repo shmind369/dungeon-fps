@@ -22,7 +22,7 @@
   <canvas id="gameCanvas"></canvas>
   <script>
   
-  //
+  
   const canvas = document.getElementById('gameCanvas');
   const ctx = canvas.getContext('2d');
   const TILE_SIZE = 32;
@@ -908,33 +908,9 @@
   
   }
   
-   document.addEventListener("keydown", (e) => {
-    switch(e.key) {
-      case "ArrowLeft":
-        rotate(-0.3);
-        break;
-      case "ArrowRight":
-        rotate(0.3);
-        break;
-      case "ArrowUp":
-        move(true);
-        break;
-      case "ArrowDown":
-        move(false);
-        break;
-    }
-    render();
-  });
   
-  document.addEventListener("keydown", (e) => {
-    switch(e.key) {
-      case "ArrowLeft": rotate(-0.05); break;
-      case "ArrowRight": rotate(0.05); break;
-      case "ArrowUp": move(true); break;
-      case "ArrowDown": move(false); break;
-      case " ": shoot(); break; // ← スペースキーで弾発射！
-    }
-  });
+  
+  
     
     let isMovingForward = false;
     let isMovingBackward = false;
