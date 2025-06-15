@@ -32,10 +32,7 @@
   canvas.width = window.innerWidth;
   canvas.height = window.innerHeight;
   
-  canvas.addEventListener("touchmove", (e) => {
-  e.preventDefault(); // スクロール防止
-  // ここに移動や回転処理を書く
-}, { passive: false }); // 👈 これが超重要！
+  
   
   
   let player = {
