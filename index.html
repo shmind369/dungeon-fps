@@ -2,7 +2,7 @@
   <html lang="ja">
   <head>
     <meta charset="UTF-8">
-   <!-- <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">-->
+    <!--<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">-->
    
     <title>ローグライクFPS</title>
     <style>
@@ -10,6 +10,7 @@
         margin: 0;
         background: black;
         overflow: hidden;
+        touch-action: none;
       }
       canvas {
         display: block;
@@ -22,17 +23,24 @@
   <canvas id="gameCanvas"></canvas>
   <script>
   
-  
+  //
   const canvas = document.getElementById('gameCanvas');
   const ctx = canvas.getContext('2d');
   const TILE_SIZE = 32;
-  const zombieImage = new Image();
-    zombieImage.src = "img/Zombie.png";
+  
+ 
 
   canvas.width = window.innerWidth;
   canvas.height = window.innerHeight;
   
-  
+ /*
+ canvas.addEventListener("touchmove", (e) => {
+  e.preventDefault(); // スクロール防止
+  // ここに移動や回転処理を書く
+}, { passive: false }); // 👈 これが超重要！*/
+
+ const zombieImage = new Image();
+    zombieImage.src = "img/Zombie.png";
   
   
   let player = {
@@ -53,6 +61,8 @@
   let punchTimer = 0;
   
   let enemies = []; // グローバルで定義
+  
+  let gameCount = 0;
   
  
   
@@ -796,6 +806,19 @@
     ctx.fillStyle = "white";
     ctx.font = "44px sans-serif";
     ctx.fillText(`${floor}F`, 200, 30); // 左上に表示
+    
+  
+
+  // ⑤ フロア表示やゲームオーバーなど
+  ctx.fillStyle = "white";
+  ctx.font = "44px sans-serif";
+  ctx.fillText(`${floor}F`, 200, 30);
+
+  // ✅ 追加：ゲームカウント表示
+  ctx.font = "20px sans-serif";
+  ctx.fillText(`Count: ${gameCount}`, canvas.width - 150, 30);
+
+  
   
     if (isGameOver) drawGameOverScreen();
     
@@ -868,6 +891,8 @@
   
   function gameLoop() {
     
+    gameCount++;
+    
     for (const enemy of enemies) {
       enemy.update(posX, posY); // プレイヤー位置を渡す
       enemy.draw(ctx);
@@ -908,9 +933,33 @@
   
   }
   
+   document.addEventListener("keydown", (e) => {
+    switch(e.key) {
+      case "ArrowLeft":
+        rotate(-0.3);
+        break;
+      case "ArrowRight":
+        rotate(0.3);
+        break;
+      case "ArrowUp":
+        move(true);
+        break;
+      case "ArrowDown":
+        move(false);
+        break;
+    }
+    render();
+  });
   
-  
-  
+  document.addEventListener("keydown", (e) => {
+    switch(e.key) {
+      case "ArrowLeft": rotate(-0.05); break;
+      case "ArrowRight": rotate(0.05); break;
+      case "ArrowUp": move(true); break;
+      case "ArrowDown": move(false); break;
+      case " ": shoot(); break; // ← スペースキーで弾発射！
+    }
+  });
     
     let isMovingForward = false;
     let isMovingBackward = false;
@@ -1033,7 +1082,7 @@
     rotate(-0.2);
     touchStartX = touchX;
   }
-}, { passive: true });
+}, { passive: false });
 
 const TAP_THRESHOLD = 10;
 
@@ -1132,3 +1181,8 @@ canvas.addEventListener("touchend", (e) => {
   
   </body>
   </html>
+
+
+
+  
+
