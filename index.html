@@ -39,8 +39,11 @@
   // ここに移動や回転処理を書く
 }, { passive: false }); // 👈 これが超重要！*/
 
- const zombieImage = new Image();
+  const zombieImage = new Image();
     zombieImage.src = "Zombie.png";
+    
+  const punchImage = new Image();
+    punchImage.src = "Punch.png";
   
   
   let player = {
@@ -54,7 +57,7 @@
   
   let lastAttackTime = 0;
   const attackCooldown = 500; // ミリ秒
-  const attackRange = 50;     // 距離（ピクセル）
+  const attackRange = 1.5;     // 距離（ピクセル）
   const attackDamage = 1;     // 与えるダメージ
   
   let isPunching = false;
@@ -66,27 +69,6 @@
   
  
   
-  function drawPunchEffect() {
-    if (!isPunching) return;
-  
-    const maxRadius = 50;
-    const progress = punchTimer / 10; // 10フレームで消える
-    const radius = maxRadius * (1 - progress);
-    const alpha = 1 - progress;
-  
-    ctx.save();
-    ctx.globalAlpha = alpha;
-    ctx.beginPath();
-    ctx.arc(canvas.width / 2, canvas.height / 2, radius, 0, Math.PI * 2);
-    ctx.fillStyle = "white";
-    ctx.fill();
-    ctx.restore();
-  
-    punchTimer++;
-    if (punchTimer > 10) {
-      isPunching = false;
-    }
-  }
     
 
   
@@ -169,29 +151,41 @@
   
 
   // ✅ ① Enemy クラスを先に定義
-  class Enemy {
-    constructor(x, y, hp = 3, speed = 0.02) {
-      this.x = x;
-      this.y = y;
-      this.hp = hp;
-      this.speed = speed;
-      this.isAlive = true;
-    }
-
-    update(playerX, playerY) {
-      if (!this.isAlive) return;
-      const dx = playerX - this.x;
-      const dy = playerY - this.y;
-      const dist = Math.hypot(dx, dy);
-      if (dist > 0.1) {
-        this.x += (dx / dist) * this.speed;
-        this.y += (dy / dist) * this.speed;
-      }
-    }
-
-    takeDamage(amount) {
-      this.hp -= amount;
-      if (this.hp <= 0) this.isAlive = false;
+        class Enemy {
+        constructor(x, y, hp = 3, speed = 0.02) {
+          this.x = x;
+          this.y = y;
+          this.hp = hp;
+          this.speed = speed;
+          this.isAlive = true;
+        }
+      
+        update(playerX, playerY) {
+          if (!this.isAlive) return;
+          
+          const dx = playerX - this.x;
+          const dy = playerY - this.y;
+          const distance = Math.hypot(dx, dy);
+          if (distance === 0) return;
+      
+          const nx = this.x + (dx / distance) * this.speed;
+          const ny = this.y + (dy / distance) * this.speed;
+      
+          const tileX = Math.floor(nx);
+          const tileY = Math.floor(ny);
+          if (map[tileY][tileX] === 0) {
+            this.x = nx;
+            this.y = ny;
+          }
+        }
+      
+        takeDamage(dmg) {
+          this.hp -= dmg;
+          if (this.hp <= 0) this.isAlive = false;
+        }
+      
+    updateHitEffect(){
+      if(this.hitTimer > 0) this.hitTimer--;
     }
   }
 
@@ -203,7 +197,6 @@
 
   update(playerX, playerY) {
     super.update(playerX, playerY);
-    // ゾンビ固有のロジックがあればここに
   }
 
   draw(ctx) {
@@ -211,10 +204,15 @@
     const px = this.x * TILE_SIZE;
     const py = this.y * TILE_SIZE;
     const size = TILE_SIZE;
+
+    if (this.hitTimer > 0) {
+      ctx.filter = "brightness(200%) sepia(1) hue-rotate(-50deg)";
+    }
     ctx.drawImage(zombieImage, px - size / 2, py - size / 2, size, size);
+    ctx.filter = "none";
   }
 
-  // 👇 このメソッドを追加
+  // ✅ drawFromRaycastView をメソッドとして正しく定義
   drawFromRaycastView(ctx) {
     if (!this.isAlive) return;
 
@@ -226,18 +224,25 @@
     const halfFov = fov / 2;
     if (Math.abs(angleToEnemy) > halfFov) return;
 
+    // 遮蔽チェック
+    const steps = Math.floor(distance * 10);
+    for (let i = 1; i < steps; i++) {
+      const t = i / steps;
+      const checkX = posX + dx * t;
+      const checkY = posY + dy * t;
+      if (map[Math.floor(checkY)][Math.floor(checkX)] === 1) return;
+    }
+
     const screenX = (angleToEnemy + halfFov) / fov * canvas.width;
     const size = Math.min(1000, 300 / distance);
-
-    if (zombieImage.complete) {
-      ctx.drawImage(zombieImage, screenX - size / 2, canvas.height / 2 - size / 2, size, size);
-    }
+    ctx.drawImage(zombieImage, screenX - size / 2, canvas.height / 2 - size / 2, size, size);
   }
 }
 
-    enemies.push(new ZombieEnemy(5.5, 5.5));
+    enemies.push(new ZombieEnemy(5.5, 1.5));
 
- 
+   
+    
   
     function generateRandomMap(width, height) {
   const newMap = [];
@@ -304,11 +309,16 @@
     }
   }
 
-  // プレイヤーの位置（青）
+  // 🟦 プレイヤーの位置（青）
   ctx.fillStyle = "blue";
   ctx.fillRect(Math.floor(posX * scale), Math.floor(posY * scale), scale, scale);
-  
- 
+
+  // 🟥 敵の位置（赤）
+  ctx.fillStyle = "red";
+  enemies.forEach(enemy => {
+    if (!enemy.isAlive) return;
+    ctx.fillRect(Math.floor(enemy.x * scale), Math.floor(enemy.y * scale), scale, scale);
+  });
 }
   
   function drawStatusBars() {
@@ -490,10 +500,45 @@
   });
 }
   
+  
+//プレイヤーパンチ↓
+  function drawPunchEffect() {
+  if (!isPunching || !punchImage.complete) return;
+
+  const progress = punchTimer / 100; // アニメーション進行度（0〜1）
+  const alpha = 1 - progress;
+  const scale = 0.6 + 0.3 * progress; // 少しずつ大きく
+
+  const imgWidth = punchImage.width * scale;
+  const imgHeight = punchImage.height * scale;
+  
+  const offsetX = 200;
+  const offsetY = 200;
+
+
+
+  const x = canvas.width / 2 - imgWidth / 2 + offsetX;
+  const y = canvas.height / 2 - imgHeight / 2 + offsetY;
+  
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  ctx.drawImage(punchImage, x, y, imgWidth, imgHeight);
+  ctx.restore();
+
+  punchTimer++;
+  if (punchTimer > 7) {
+    isPunching = false;
+  }
+}
+  
   function performAttack() {
     isPunching = true;
     punchTimer = 0;
     console.log("👊 攻撃した！");
+    
+    enemies.forEach((enemy, i) => {
+  console.log(`敵${i}: x=${enemy.x.toFixed(2)}, y=${enemy.y.toFixed(2)}`);
+});
   
     enemies.forEach(enemy => {
       const dx = enemy.x - posX;
@@ -503,10 +548,14 @@
       // プレイヤーの向きを考慮して前方かつ近距離
       const angleToEnemy = Math.atan2(dy, dx);
       const diffAngle = Math.abs(normalizeAngle(angleToEnemy - angle));
+      
+
+
   
       if (dist < attackRange && diffAngle < Math.PI / 4) {
-        enemy.hp -= attackDamage;
+        enemy.takeDamage(attackDamage);
         console.log("🎯 敵に命中！残HP:", enemy.hp);
+        
   
         // 倒れたら削除など
         if (enemy.hp <= 0) {
@@ -516,11 +565,12 @@
       }
     });
   }
+  //パンチ↑
   
-  function normalizeAngle(radian) {
-    while (radian < -Math.PI) radian += Math.PI * 2;
-    while (radian > Math.PI) radian -= Math.PI * 2;
-    return radian;
+  function normalizeAngle(angle) {
+    while (angle < -Math.PI) angle += Math.PI * 2;
+    while (angle > Math.PI) angle -= Math.PI * 2;
+    return angle;
   }
   
 
@@ -895,6 +945,7 @@
     
     for (const enemy of enemies) {
       enemy.update(posX, posY); // プレイヤー位置を渡す
+      console.log(enemy.update(posX, posY));
       enemy.draw(ctx);
     }
     //console.log("プレイヤー:", posX, posY);
@@ -916,6 +967,13 @@
     render();
     drawPunchEffect();
     
+    for (const enemy of enemies) {
+      if (enemy.isAlive) {
+        enemy.draw(ctx);
+        enemy.updateHitEffect();// ✅ enemy はループ変数として定義されている
+        enemy.drawFromRaycastView(ctx);
+      }
+    }
 
     requestAnimationFrame(gameLoop);
     
@@ -1144,7 +1202,7 @@ canvas.addEventListener("touchend", (e) => {
 
   // 👊 ドラッグじゃなかったら「タップ判定」
   if (distance < TAP_THRESHOLD) {
-    //performAttack(); // ← パンチ発動！
+    performAttack(); // ← パンチ発動！
   }
 
 
