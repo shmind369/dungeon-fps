@@ -270,12 +270,12 @@
     const offsetY = 60;
     
     if(this.hitTimer > 0){
-      ctx.filter = "brightness(150%)sepia(1)hue-rotate(-50deg)";
+      ctx.globalAlpha = 0.1;
 
     }
 
     ctx.drawImage(zombieImage, screenX - size / 2, canvas.height / 2 - size / 2+offsetY, size, size);
-    ctx.filter = "none";
+    ctx.globalAlpha = 1.0;
     ctx.restore();
   }
 }
