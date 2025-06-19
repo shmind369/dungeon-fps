@@ -555,15 +555,15 @@ function drawMiniEnemy(enemy) {
   const imgWidth = punchImage.width * scale;
   const imgHeight = punchImage.height * scale;
 
-  const offsetX = 0;
-  const offsetY = 30;
+  const offsetX = 65;
+  const offsetY = 100;
 
   const x = canvas.width / 2 - imgWidth / 2 + offsetX;
   const y = canvas.height / 2 - imgHeight / 2 + offsetY;
 
   ctx.save();
   ctx.globalAlpha = alpha;
-  ctx.drawImage(punchImage, x, y, imgWidth, imgHeight);
+  ctx.drawImage(punchImage, x, y, imgWidth+offsetX, imgHeight+offsetY);
   ctx.restore();
 
   punchTimer++;
