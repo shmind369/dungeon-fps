@@ -56,6 +56,9 @@
     effects: []  // 状態異常など
   };
   
+  let shakeTimer = 0;
+  let shakeIntensity = 20;
+  
   let   lastAttackTime = 0;
   const attackCooldown = 500; // ミリ秒
   const attackRange = 1;     // 距離（ピクセル）
@@ -155,6 +158,7 @@
           this.speed = speed;
           this.isAlive = true;
           this.attackCooldown = 0;
+          this.hitTimer = 0;
         }
       
       update(playerX, playerY) {
@@ -188,11 +192,13 @@
           attackPlayer() {
             player.hp -= 10;
             player.hp = Math.max(player.hp,0);
-            console.log("🧟 敵の攻撃！プレイヤーのHP:", player.hp);
+            console.log("敵の攻撃！プレイヤーのHP:", player.hp);
+            shakeTimer = 10;
           }
       
         takeDamage(dmg) {
           this.hp -= dmg;
+          this.hitTimer = 10;
           if (this.hp <= 0) this.isAlive = false;
         }
       
@@ -212,6 +218,8 @@
     super.update(playerX, playerY);
   }
 
+  /*
+  
   draw(ctx) {
     if (!this.isAlive) return;
     const px = this.x * TILE_SIZE;
@@ -225,6 +233,7 @@
     //ctx.drawImage(zombieImage, px - size / 2, py - size / 2, size, size);
     ctx.filter = "none";
   }
+  */
 
   // ✅ ここが重要
   drawFromRaycastView(ctx) {
@@ -259,8 +268,14 @@
     const size = Math.min(1000, baseSize / distance);
     
     const offsetY = 60;
+    
+    if(this.hitTimer > 0){
+      ctx.filter = "brightness(150%)sepia(1)hue-rotate(-50deg)";
+
+    }
 
     ctx.drawImage(zombieImage, screenX - size / 2, canvas.height / 2 - size / 2+offsetY, size, size);
+    ctx.filter = "none";
     ctx.restore();
   }
 }
@@ -322,7 +337,6 @@
   const mapWidthPx = map[0].length * scale;
   const mapHeightPx = map.length * scale;
 
-  // 🔧 背景を白に塗る（左上に描画）
   ctx.fillStyle = "white";
   ctx.fillRect(0, 0, mapWidthPx, mapHeightPx);
 
@@ -339,30 +353,22 @@
   ctx.fillStyle = "blue";
   ctx.fillRect(Math.floor(posX * scale), Math.floor(posY * scale), scale, scale);
 
-  // 🟥 敵の位置（赤）
-  ctx.fillStyle = "red";
+  /*
   
-  enemies.forEach(enemy => {
-    if(enemy.isAlive)return;
-    const dx = enemy.x - posX;
-    const dy = enemy.y - posY;
-    const angleToEnemy = Math.atan2(dy,dx);
-    const diff = Math.abs(normalizeAngle(angleToEnemy - angle));
-    
-  const fov = Math.PI / 3; // 60度視野角
-    if(diff < fov / 2){
-      drawMiniEnemy(enemy);
-    }
-   
-  });
+  //敵の位置
+  ctx.fillStyle = "red";
+    enemies.forEach(enemy => {
+      if (!enemy.isAlive) return;
+      ctx.fillRect(Math.floor(enemy.x * scale), Math.floor(enemy.y * scale), scale, scale);
+    });*/
 }
 
 
-function drawMiniEnemy(enemy) {
+/*function drawMiniEnemy(enemy) {
   const scale = 10;
   ctx.fillStyle = "red";
   ctx.fillRect(Math.floor(enemy.x * scale), Math.floor(enemy.y * scale), scale, scale);
-}
+}*/
   
   function drawStatusBars() {
     const barWidth = 200;
@@ -493,11 +499,6 @@ function drawMiniEnemy(enemy) {
   }
 
 
-
-
-
-
-  
   
   function drawItems() {
   const halfFov = fov / 2;
@@ -858,14 +859,14 @@ function drawMiniEnemy(enemy) {
   function getDirectionName(angle) {
     const angleDeg = (angle * 180 / Math.PI + 360) % 360;
   
-    if (angleDeg >= 22.5 && angleDeg < 67.5) return "南東";
-    if (angleDeg >= 67.5 && angleDeg < 112.5) return "南";
-    if (angleDeg >= 112.5 && angleDeg < 157.5) return "南西";
-    if (angleDeg >= 157.5 && angleDeg < 202.5) return "西";
-    if (angleDeg >= 202.5 && angleDeg < 247.5) return "北西";
-    if (angleDeg >= 247.5 && angleDeg < 292.5) return "北";
-    if (angleDeg >= 292.5 && angleDeg < 337.5) return "北東";
-    return "東";
+    //if (angleDeg >= 22.5 && angleDeg < 67.5) return "南東↘";
+    if (angleDeg >= 67.5 && angleDeg < 112.5) return "S↓";
+    //if (angleDeg >= 112.5 && angleDeg < 157.5) return "南西↙";
+    if (angleDeg >= 157.5 && angleDeg < 202.5) return "W←";
+    //if (angleDeg >= 202.5 && angleDeg < 247.5) return "北西↖";
+    if (angleDeg >= 247.5 && angleDeg < 292.5) return "N↑";
+    //if (angleDeg >= 292.5 && angleDeg < 337.5) return "北東↗";
+    return "E→";
   }
   
   function drawDirectionHUD() {
@@ -876,6 +877,19 @@ function drawMiniEnemy(enemy) {
   }
 
   function render() {
+    
+  ctx.save();
+
+  // ✅ スクリーンシェイク処理
+  if (shakeTimer > 0) {
+    const dx = (Math.random() - 0.5) * shakeIntensity;
+    const dy = (Math.random() - 0.5) * shakeIntensity;
+    ctx.translate(dx, dy);
+    shakeTimer--;
+  }
+
+  
+
 
   // ① 背景
     ctx.fillStyle = "black";
@@ -891,18 +905,20 @@ function drawMiniEnemy(enemy) {
     
     for (const enemy of enemies) {
       if (enemy.isAlive) {
-        enemy.draw(ctx);
         enemy.updateHitEffect();// ✅ enemy はループ変数として定義されている
         enemy.drawFromRaycastView(ctx);
       }
     }
     
     [...enemies].sort((a, b) => b.distanceToPlayer - a.distanceToPlayer).forEach(enemy => {
-      enemy.draw(ctx);
     });
 
-
-     
+    enemies.forEach(enemy => {
+      if (enemy.isAlive) {
+        
+        enemy.updateHitEffect(); // ✅ 個別のenemyに対して呼ぶ
+      }
+    });
     //drawBullets();
     drawGoal();
     
@@ -1069,13 +1085,22 @@ function drawMiniEnemy(enemy) {
     
     explored[Math.floor(posY)][Math.floor(posX)] = true;
     
+          ctx.restore(); // ← 必ず最後に戻す
+
+    
+
+    
     if (player.hp <= 0) {
+      
+
       
       isGameOver = true;
 
       
       return;
     }
+    
+
   
   }
   
