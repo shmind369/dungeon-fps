@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <!--<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">-->
    
-    <title>2025/06/19ローグライクFPS</title>
+    <title>ローグライクFPS</title>
     <style>
       body {
         margin: 0;
@@ -57,7 +57,7 @@
   };
   
   let shakeTimer = 0;
-  let shakeIntensity = 20;
+  let shakeIntensity = 50;
   
   let   lastAttackTime = 0;
   const attackCooldown = 500; // ミリ秒
@@ -108,6 +108,8 @@
   const mapHeight = map.length;
  
   let angle = 0;
+  
+  let warningTimer = 0;
   
   
   
@@ -193,7 +195,7 @@
             player.hp -= 10;
             player.hp = Math.max(player.hp,0);
             console.log("敵の攻撃！プレイヤーのHP:", player.hp);
-            shakeTimer = 10;
+            shakeTimer = 20;
           }
       
         takeDamage(dmg) {
@@ -216,6 +218,30 @@
 
   update(playerX, playerY) {
     super.update(playerX, playerY);
+    
+    const dx = playerX - this.x;
+    const dy = playerY - this.y;
+    const dist = Math.hypot(dx, dy);
+    const speed = this.speed;
+  
+    const nextX = this.x + dx / dist * speed;
+    const nextY = this.y + dy / dist * speed;
+  
+    if (map[Math.floor(nextY)][Math.floor(nextX)] === 0) {
+      this.x = nextX;
+      this.y = nextY;
+    } else {
+      // 壁にぶつかったとき：斜め移動 or 横移動で回避を試みる
+      const tryX = this.x + Math.sign(dx) * speed;
+      const tryY = this.y + Math.sign(dy) * speed;
+  
+      if (map[Math.floor(this.y)][Math.floor(tryX)] === 0) {
+        this.x = tryX;
+      } else if (map[Math.floor(tryY)][Math.floor(this.x)] === 0) {
+        this.y = tryY;
+      }
+    }
+
   }
 
   /*
@@ -246,6 +272,7 @@
     const distance = Math.sqrt(dx * dx + dy * dy);
     const angleToEnemy = Math.atan2(dy, dx) - angle;
     const halfFov = fov / 2;
+   
 
     if (Math.abs(angleToEnemy) > halfFov) {
       ctx.restore(); return;
@@ -262,16 +289,17 @@
       }
     }
 
-    const baseSize = 500;
+    const baseSize = 1000;
 
     const screenX = (angleToEnemy + halfFov) / fov * canvas.width;
-    const size = Math.min(1000, baseSize / distance);
+    const size = Math.min(1500, baseSize / (distance+0.2));
     
-    const offsetY = 60;
+    const offsetY = 80;
+
     
     if(this.hitTimer > 0){
       ctx.globalAlpha = 0.1;
-
+       
     }
 
     ctx.drawImage(zombieImage, screenX - size / 2, canvas.height / 2 - size / 2+offsetY, size, size);
@@ -875,6 +903,25 @@
     ctx.fillStyle = "White";
     ctx.fillText(`${direction}`, 10, 200);
   }
+  
+  function drawEnemyWarning(angleToEnemy) {
+    const blink = Math.floor(warningTimer / 30) % 2 === 0;
+    if (!blink) return;
+  
+    ctx.save();
+    ctx.fillStyle = "red";
+    ctx.font = "60px sans-serif";
+    ctx.textAlign = "center";
+  
+    const normalized = normalizeAngle(angleToEnemy - angle);
+    if (normalized < 0) {
+      ctx.fillText("◀️", 80, canvas.height / 2);
+    } else {
+      ctx.fillText("▶️", canvas.width - 80, canvas.height / 2);
+    }
+  
+    ctx.restore();
+  }
 
   function render() {
     
@@ -904,11 +951,27 @@
     
     
     for (const enemy of enemies) {
-      if (enemy.isAlive) {
-        enemy.updateHitEffect();// ✅ enemy はループ変数として定義されている
-        enemy.drawFromRaycastView(ctx);
-      }
+  if (enemy.isAlive) {
+    //enemy.draw(ctx);
+    enemy.updateHitEffect();
+    enemy.drawFromRaycastView(ctx);
+
+    // ▼ プレイヤーと敵の角度と距離を計算
+    const dx = enemy.x - posX;
+    const dy = enemy.y - posY;
+    const distance = Math.hypot(dx, dy);
+    const angleToEnemy = Math.atan2(dy, dx);
+    const diff = Math.abs(normalizeAngle(angleToEnemy - angle));
+
+    // ▼ 条件を満たせば警告を表示
+    const isNearby = distance < 1.5;
+    const isOutsideFov = diff > fov / 2;
+
+    if (isNearby && isOutsideFov) {
+      drawEnemyWarning(angleToEnemy);
     }
+  }
+}
     
     [...enemies].sort((a, b) => b.distanceToPlayer - a.distanceToPlayer).forEach(enemy => {
     });
@@ -1007,7 +1070,54 @@
     }else{
     }
   }
+  
+ function move(forward) {
+  const moveSpeed = forward ? 0.04 : -0.02;
+  const nextX = posX + Math.cos(angle) * moveSpeed;
+  const nextY = posY + Math.sin(angle) * moveSpeed;
 
+  // 壁チェック
+  if (map[Math.floor(nextY)][Math.floor(nextX)] !== 0) return;
+
+  // 敵との衝突チェック
+  let blocked = false;
+
+  for (const enemy of enemies) {
+    if (!enemy.isAlive) continue;
+    const dx = enemy.x - nextX;
+    const dy = enemy.y - nextY;
+    const dist = Math.hypot(dx, dy);
+
+    const angleToEnemy = Math.atan2(dy, dx);
+    const diffAngle = Math.abs(normalizeAngle(angleToEnemy - angle));
+    const frontAngleThreshold = Math.PI / 2;
+
+    // ✅ 前方の敵のみブロック（背後はブロックしない）
+    if (dist < 0.4 && diffAngle < frontAngleThreshold) {
+      blocked = true;
+      break;
+    }
+  }
+
+  if (blocked) {
+    if (!forward) {
+      // ✅ 後退時はスピードそのまま、壁衝突だけチェックして移動許可
+      const escapeX = posX + Math.cos(angle) * moveSpeed;
+      const escapeY = posY + Math.sin(angle) * moveSpeed;
+      if (map[Math.floor(escapeY)][Math.floor(escapeX)] === 0) {
+        posX = escapeX;
+        posY = escapeY;
+      }
+    }
+    return;
+  }
+
+  // ✅ 正常移動
+  posX = nextX;
+  posY = nextY;
+}
+  
+  /*
   function move(forward) {
     const moveSpeed = forward ? 0.04 : -0.02;
     const nextX = posX + Math.cos(angle) * moveSpeed;
@@ -1024,25 +1134,24 @@
       const dist = Math.hypot(dx, dy);
       if (dist < 0.4) return; // ✋ 近すぎるので移動をキャンセル
   }
-
-  // ③ OKなら移動
+ // ③ OKなら移動
   posX = nextX;
   posY = nextY;
-}
+}*/
 
-  /*function rotate(deltaAngle) {
-    angle += deltaAngle;
-    angle =  (angle + Math.PI * 2)%(Math.PI*2);
-  }
-  */
+
   function rotate(deltaAngle) {
     angle += deltaAngle;
     angle =  normalizeAngle(angle);
   }
   
   
+  
+  
   function gameLoop() {
     //console.log(ctx);
+    warningTimer ++;
+    
     ctx.clearRect(0,0,canvas.width,canvas.height);
     
     getDirectionName();
