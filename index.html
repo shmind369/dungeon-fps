@@ -27,6 +27,7 @@
   const canvas = document.getElementById('gameCanvas');
   const ctx = canvas.getContext('2d');
   const TILE_SIZE = 32;
+  const fov = Math.PI / 3;
   
  
 
@@ -57,7 +58,7 @@
   
   let   lastAttackTime = 0;
   const attackCooldown = 500; // ミリ秒
-  const attackRange = 0.5;     // 距離（ピクセル）
+  const attackRange = 1;     // 距離（ピクセル）
   const attackDamage = 1;     // 与えるダメージ
   
   let isPunching = false;
@@ -66,11 +67,6 @@
   let enemies = []; // グローバルで定義
   
   let gameCount = 0;
-  
- 
-  
-    
-
   
   let isGameOver = false;
   
@@ -119,7 +115,7 @@
   //ここまで
 
   //let posX = 3.5, posY = 3.5; angle = 0;// プレイヤーの位置
-  let dir = 0; // 視点の角度（ラジアン）
+  //let dir = 0; // 視点の角度（ラジアン）
   
 
   const inventory = [];
@@ -142,7 +138,7 @@
   }));
   
   
-  const fov = Math.PI / 3; // 60度視野角
+ 
   //const numRays = canvas.width;
   // 例: レイ本数を制限
   const numRays = Math.min(1024, canvas.width); // 画質落ちるけど軽くなる
@@ -191,6 +187,7 @@
           }
           attackPlayer() {
             player.hp -= 10;
+            player.hp = Math.max(player.hp,0);
             console.log("🧟 敵の攻撃！プレイヤーのHP:", player.hp);
           }
       
@@ -225,7 +222,7 @@
       ctx.filter = "brightness(200%) sepia(1) hue-rotate(-50deg)";
     }
 
-    ctx.drawImage(zombieImage, px - size / 2, py - size / 2, size, size);
+    //ctx.drawImage(zombieImage, px - size / 2, py - size / 2, size, size);
     ctx.filter = "none";
   }
 
@@ -238,7 +235,7 @@
     const dx = this.x - posX;
     const dy = this.y - posY;
     const distance = Math.sqrt(dx * dx + dy * dy);
-    const angleToEnemy = Math.atan2(dy, dx) - dir;
+    const angleToEnemy = Math.atan2(dy, dx) - angle;
     const halfFov = fov / 2;
 
     if (Math.abs(angleToEnemy) > halfFov) {
@@ -256,8 +253,10 @@
       }
     }
 
+    const baseSize = 500;
+
     const screenX = (angleToEnemy + halfFov) / fov * canvas.width;
-    const size = Math.min(1000, 300 / distance);
+    const size = Math.min(1000, baseSize / distance);
     
     const offsetY = 60;
 
@@ -266,9 +265,7 @@
   }
 }
 
-
-
-    enemies.push(new ZombieEnemy(5.5, 1.5));
+  enemies.push(new ZombieEnemy(5.5, 1.5));
 
    
     
@@ -344,10 +341,27 @@
 
   // 🟥 敵の位置（赤）
   ctx.fillStyle = "red";
+  
   enemies.forEach(enemy => {
-    if (!enemy.isAlive) return;
-    ctx.fillRect(Math.floor(enemy.x * scale), Math.floor(enemy.y * scale), scale, scale);
+    if(enemy.isAlive)return;
+    const dx = enemy.x - posX;
+    const dy = enemy.y - posY;
+    const angleToEnemy = Math.atan2(dy,dx);
+    const diff = Math.abs(normalizeAngle(angleToEnemy - angle));
+    
+  const fov = Math.PI / 3; // 60度視野角
+    if(diff < fov / 2){
+      drawMiniEnemy(enemy);
+    }
+   
   });
+}
+
+
+function drawMiniEnemy(enemy) {
+  const scale = 10;
+  ctx.fillStyle = "red";
+  ctx.fillRect(Math.floor(enemy.x * scale), Math.floor(enemy.y * scale), scale, scale);
 }
   
   function drawStatusBars() {
@@ -492,12 +506,12 @@
     const dx = item.x - posX;
     const dy = item.y - posY;
     const distance = Math.sqrt(dx * dx + dy * dy);
-    const angleToItem = Math.atan2(dy, dx) - dir;
+    const angleToItem = Math.atan2(dy, dx) - angle;
 
     // レイキャスト（壁までの距離）を計算
     let rayDist = 0;
     let hit = false;
-    const rayAngle = normalizeAngle(dir + angleToItem);
+    const rayAngle = normalizeAngle(angle + angleToItem);
     const eyeX = Math.cos(rayAngle);
     const eyeY = Math.sin(rayAngle);
     while (!hit && rayDist < maxDepth) {
@@ -557,46 +571,39 @@
 }
   
   function performAttack() {
-    isPunching = true;
-    punchTimer = 0;
-    console.log("👊 攻撃した！");
-    
-    enemies.forEach((enemy, i) => {
-  console.log(`敵${i}: x=${enemy.x.toFixed(2)}, y=${enemy.y.toFixed(2)}`);
-});
-  
-    enemies.forEach(enemy => {
-      const dx = enemy.x - posX;
-      const dy = enemy.y - posY;
-      const dist = Math.sqrt(dx * dx + dy * dy);
-  
-      // プレイヤーの向きを考慮して前方かつ近距離
-      const angleToEnemy = Math.atan2(dy, dx);
-      const diffAngle = Math.abs(normalizeAngle(angleToEnemy - angle));
-      
+   
+  isPunching = true;
+  punchTimer = 0;
+  //console.log("👊 攻撃した！");
 
+  enemies.forEach((enemy, i) => {
+    const dx = enemy.x - posX;
+    const dy = enemy.y - posY;
+    const dist = Math.sqrt(dx * dx + dy * dy);
 
-  
-      if (dist < attackRange && diffAngle < Math.PI / 4) {
-        enemy.takeDamage(attackDamage);
-        console.log("🎯 敵に命中！残HP:", enemy.hp);
-        
-  
-        // 倒れたら削除など
-        if (enemy.hp <= 0) {
-          console.log("💀 敵撃破！");
-          // ここはお好みで: enemy.alive = false;
-        }
+    const angleToEnemy = Math.atan2(dy, dx);
+    const diffAngle = Math.abs(normalizeAngle(angleToEnemy - angle));
+
+    console.log(`敵${i} x=${enemy.x.toFixed(2)} y=${enemy.y.toFixed(2)} 距離=${dist.toFixed(2)} 角度差=${(diffAngle * 180 / Math.PI).toFixed(1)}°`);
+
+    // 前方±45度（90度）＆攻撃範囲内
+    if (dist < attackRange && diffAngle < Math.PI / 4) {
+      enemy.takeDamage(attackDamage);
+      console.log(`🎯 敵${i}に命中！残HP: ${enemy.hp}`);
+
+      if (enemy.hp <= 0) {
+        console.log(`💀 敵${i} 撃破！`);
+        // 敵を消す場合はここに処理を入れてください
       }
-    });
-  }
+    }
+  });
+}
+
   //パンチ↑
   
   function normalizeAngle(angle) {
-    while (angle < -Math.PI) angle += Math.PI * 2;
-    while (angle > Math.PI) angle -= Math.PI * 2;
-    return angle;
-  }
+    return Math.atan2(Math.sin(angle), Math.cos(angle));
+}
   
 
   function drawBullets() {
@@ -604,7 +611,7 @@
       const dx = b.x - posX;
       const dy = b.y - posY;
       const dist = Math.sqrt(dx * dx + dy * dy);
-      const angleToBullet = Math.atan2(dy, dx) - dir;
+      const angleToBullet = Math.atan2(dy, dx) - angle;
       const halfFov = fov / 2;
   
       if (Math.abs(angleToBullet) < halfFov) {
@@ -701,7 +708,7 @@
   function drawGoal() {
     const dx = goal.x - posX;
     const dy = goal.y - posY;
-    const angleToGoal = Math.atan2(dy, dx) - dir;
+    const angleToGoal = Math.atan2(dy, dx) - angle;
     const dist = Math.sqrt(dx * dx + dy * dy);
   
     const halfFov = fov / 2;
@@ -710,7 +717,7 @@
       const screenX = (angleToGoal + halfFov) / fov * canvas.width;
   
       //：その方向の壁との距離を取得
-      let rayAngle = normalizeAngle(dir + angleToGoal);
+      let rayAngle = normalizeAngle(angle+ angleToGoal);
       let eyeX = Math.cos(rayAngle);
       let eyeY = Math.sin(rayAngle);
       let rayDist = 0;
@@ -811,7 +818,7 @@
 
   function castRays() {
     for (let i = 0; i < numRays; i++) {
-      const rayAngle = (dir - fov / 2) + (i / numRays) * fov;
+      const rayAngle = (angle - fov / 2) + (i / numRays) * fov;
       let dist = 0;
       let hit = false;
       let eyeX = Math.cos(rayAngle);
@@ -847,6 +854,26 @@
     ctx.lineWidth = 2;
     ctx.strokeRect(x, y, size, size);
   }
+  
+  function getDirectionName(angle) {
+    const angleDeg = (angle * 180 / Math.PI + 360) % 360;
+  
+    if (angleDeg >= 22.5 && angleDeg < 67.5) return "南東";
+    if (angleDeg >= 67.5 && angleDeg < 112.5) return "南";
+    if (angleDeg >= 112.5 && angleDeg < 157.5) return "南西";
+    if (angleDeg >= 157.5 && angleDeg < 202.5) return "西";
+    if (angleDeg >= 202.5 && angleDeg < 247.5) return "北西";
+    if (angleDeg >= 247.5 && angleDeg < 292.5) return "北";
+    if (angleDeg >= 292.5 && angleDeg < 337.5) return "北東";
+    return "東";
+  }
+  
+  function drawDirectionHUD() {
+    const direction = getDirectionName(angle); // angleはグローバル変数と仮定
+    ctx.font = "80px sans-serif";
+    ctx.fillStyle = "White";
+    ctx.fillText(`${direction}`, 10, 200);
+  }
 
   function render() {
 
@@ -869,6 +896,10 @@
         enemy.drawFromRaycastView(ctx);
       }
     }
+    
+    [...enemies].sort((a, b) => b.distanceToPlayer - a.distanceToPlayer).forEach(enemy => {
+      enemy.draw(ctx);
+    });
 
 
      
@@ -891,7 +922,8 @@
     drawUseBox();     // ←特別な枠（使うエリア）
     drawFullDropZones();     // ←4分割のドロップ領域
 
-
+    // ③ UI的要素の最後あたりに追加するとよい
+    drawDirectionHUD();
   
     // ⑤ フロア表示やゲームオーバーなど
     ctx.fillStyle = "white";
@@ -900,10 +932,6 @@
     
   
 
-  // ⑤ フロア表示やゲームオーバーなど
-  ctx.fillStyle = "white";
-  ctx.font = "44px sans-serif";
-  ctx.fillText(`${floor}F`, 200, 30);
 
   // ✅ 追加：ゲームカウント表示
   ctx.font = "20px sans-serif";
@@ -912,16 +940,6 @@
   
   
     if (isGameOver) drawGameOverScreen();
-    
-    
-           
-      
-
-    
-    
-
-
-
 
   }
 
@@ -976,27 +994,55 @@
 
   function move(forward) {
     const moveSpeed = forward ? 0.04 : -0.02;
-    const nextX = posX + Math.cos(dir) * moveSpeed;
-    const nextY = posY + Math.sin(dir) * moveSpeed;
-    if (map[Math.floor(nextY)][Math.floor(nextX)] === 0) {
-      posX = nextX;
-      posY = nextY;
-    }
+    const nextX = posX + Math.cos(angle) * moveSpeed;
+    const nextY = posY + Math.sin(angle) * moveSpeed;
+  
+    // ① 壁チェック
+    if (map[Math.floor(nextY)][Math.floor(nextX)] !== 0) return;
+  
+    // ② 敵との衝突チェック
+    for (const enemy of enemies) {
+      if (!enemy.isAlive) continue;
+      const dx = enemy.x - nextX;
+      const dy = enemy.y - nextY;
+      const dist = Math.hypot(dx, dy);
+      if (dist < 0.4) return; // ✋ 近すぎるので移動をキャンセル
   }
 
-  function rotate(angle) {
-    dir += angle;
+  // ③ OKなら移動
+  posX = nextX;
+  posY = nextY;
+}
+
+  /*function rotate(deltaAngle) {
+    angle += deltaAngle;
+    angle =  (angle + Math.PI * 2)%(Math.PI*2);
+  }
+  */
+  function rotate(deltaAngle) {
+    angle += deltaAngle;
+    angle =  normalizeAngle(angle);
   }
   
+  
   function gameLoop() {
+    //console.log(ctx);
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+    
+    getDirectionName();
+    
     
     gameCount++;
+    
+    
     
     for (const enemy of enemies) {
       enemy.update(posX, posY); // プレイヤー位置を渡す
       //console.log(enemy.update(posX, posY));
-      enemy.draw(ctx);
+      //enemy.draw(ctx);
     }
+    
+    
     //console.log("プレイヤー:", posX, posY);
     
     if (!isDraggingItem) {
@@ -1187,7 +1233,19 @@
 const TAP_THRESHOLD = 10;
 
 canvas.addEventListener("touchend", (e) => {
-  console.log("touchend発生");
+  //console.log("touchend発生");
+  const angleDeg = angle * 180 / Math.PI;
+console.log(`🧭 プレイヤーは今 ${angleDeg.toFixed(1)}° の方向を向いている`);
+
+
+  //console.log("dir",dir);
+  console.log("angle",angle);
+  const enemy = enemies[0]; // 最初の敵だけ確認
+  console.log("enX",enemy.x, "enY",enemy.y);
+  console.log("📍 プレイヤー位置: X =", posX.toFixed(2), "Y =", posY.toFixed(2));
+
+
+
 
   const touchEndX = e.changedTouches[0].clientX;
   const touchEndY = e.changedTouches[0].clientY;
