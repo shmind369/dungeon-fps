@@ -126,21 +126,35 @@
   const inventory = [];
   
   
+  let items = []; // グローバルで定義
+
+window.onload = function () {
   
+
+  // アイテムをここで初期化
+  const itemNames = ["🗡️青銅剣", "🍞パン", "🕯️松明", "🏹木の矢", "🔑鍵", "💊回復薬", "💊鈍足の薬", "💊俊足の薬"];
+  items = Array.from({ length: 10 }, () => {
+    const name = itemNames[Math.floor(Math.random() * itemNames.length)];
+    let type = "misc";
+
+    if (name.includes("回復薬")) type = "heal";
+    else if (name.includes("鍵")) type = "key";
+    else if (name.includes("鈍足")) type = "slow";
+    else if (name.includes("俊足")) type = "fast";
+
+    return new Item(
+      Math.floor(Math.random() * 14) + 1.5,
+      Math.floor(Math.random() * 14) + 1.5,
+      name,
+      type
+    );
+  });
+}
  
   
     
 
-    // 1. アイテム名を定義（5〜6種類）
-  const itemNames = ["🗡️青銅剣", "🍞パン", "🕯️松明", "🏹木の矢", "🔑鍵", "💊回復薬","💊鈍足の薬","💊俊足の薬"];
   
-  
-  // 2. アイテムごとにランダムな名前を割り当て（初期化時）
-  const items = Array.from({ length: 10 }, () => ({
-    x: Math.floor(Math.random() * 14) + 1.5,
-    y: Math.floor(Math.random() * 14) + 1.5,
-    name: itemNames[Math.floor(Math.random() * itemNames.length)]
-  }));
   
   
  
@@ -210,6 +224,7 @@
     }
   }
 
+//ゾンビクラス↓
   class ZombieEnemy extends Enemy {
   constructor(x, y) {
     super(x, y, 5, 0.002);
@@ -244,24 +259,7 @@
 
   }
 
-  /*
   
-  draw(ctx) {
-    if (!this.isAlive) return;
-    const px = this.x * TILE_SIZE;
-    const py = this.y * TILE_SIZE;
-    const size = TILE_SIZE;
-
-    if (this.hitTimer > 0) {
-      ctx.filter = "brightness(200%) sepia(1) hue-rotate(-50deg)";
-    }
-
-    //ctx.drawImage(zombieImage, px - size / 2, py - size / 2, size, size);
-    ctx.filter = "none";
-  }
-  */
-
-  // ✅ ここが重要
   drawFromRaycastView(ctx) {
     if (!this.isAlive) return;
 
@@ -307,10 +305,85 @@
     ctx.restore();
   }
 }
+//ゾンビクラス↑
 
   enemies.push(new ZombieEnemy(5.5, 1.5));
+  
 
-   
+//アイテムクラス↓
+class Item {
+  constructor(x, y, name, type) {
+    this.x = x;
+    this.y = y;
+    this.name = name;
+    this.type = type;
+    this.picked = false;
+  }
+
+  use(player) {
+    if (this.type === "heal") {
+      const healAmount = 20;
+      player.hp = Math.min(player.maxHp, player.hp + healAmount);
+      console.log(`💊 ${this.name} を使った！HP +${healAmount}`);
+      return true;
+    }
+    return false;
+  }
+
+  draw(ctx) {
+    const dx = this.x - posX;
+    const dy = this.y - posY;
+    const distance = Math.sqrt(dx * dx + dy * dy);
+    const angleToItem = Math.atan2(dy, dx) - angle;
+
+    const halfFov = fov / 2;
+    const rayAngle = normalizeAngle(angle + angleToItem);
+    const eyeX = Math.cos(rayAngle);
+    const eyeY = Math.sin(rayAngle);
+
+    let rayDist = 0;
+    let hit = false;
+    while (!hit && rayDist < maxDepth) {
+      rayDist += 0.01;
+      const testX = Math.floor(posX + eyeX * rayDist);
+      const testY = Math.floor(posY + eyeY * rayDist);
+      if (
+        testX < 0 || testY < 0 ||
+        testX >= mapWidth || testY >= mapHeight
+      ) {
+        hit = true;
+        rayDist = maxDepth;
+      } else if (map[testY][testX] > 0) {
+        hit = true;
+      }
+    }
+
+    if (Math.abs(angleToItem) < halfFov && distance < rayDist) {
+      const screenX = (angleToItem + halfFov) / fov * canvas.width;
+      const size = Math.max(5, 200 / distance);
+      ctx.fillStyle = "gold";
+      ctx.font = `${size}px sans-serif`;
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText("物", screenX, canvas.height / 2);
+    }
+  }
+}
+//アイテムクラス↑
+
+items.push(new Item(2,2,"回復薬","heal"));
+
+  function useSelectedItem() {
+    if (!selectedItem) return;
+    const used = selectedItem.use(player);
+    if (used) {
+      const index = inventory.indexOf(selectedItem);
+      if (index !== -1) {
+        inventory.splice(index, 1); // 使用後削除
+      }
+      selectedItem = null;
+    }
+  }
     
   
     function generateRandomMap(width, height) {
@@ -456,9 +529,9 @@
       const selectedItem = player.inventory[selectedInventoryIndex];
       if (selectedItem && selectedItem.name) {
         ctx.fillStyle = "white";
-        ctx.font = "28px sans-serif";
+        ctx.font = "58px sans-serif";
         ctx.textAlign = "center";
-        ctx.fillText(`🎯 ${selectedItem.name}`, canvas.width / 2, canvas.height - 40);
+        ctx.fillText(`選択中${selectedItem.name}`, canvas.width / 2, canvas.height - 100);
       }
       
     }
@@ -527,50 +600,14 @@
   }
 
 
-  
+
   function drawItems() {
-  const halfFov = fov / 2;
-
-  items.forEach(item => {
-    const dx = item.x - posX;
-    const dy = item.y - posY;
-    const distance = Math.sqrt(dx * dx + dy * dy);
-    const angleToItem = Math.atan2(dy, dx) - angle;
-
-    // レイキャスト（壁までの距離）を計算
-    let rayDist = 0;
-    let hit = false;
-    const rayAngle = normalizeAngle(angle + angleToItem);
-    const eyeX = Math.cos(rayAngle);
-    const eyeY = Math.sin(rayAngle);
-    while (!hit && rayDist < maxDepth) {
-      rayDist += 0.01;
-      const testX = Math.floor(posX + eyeX * rayDist);
-      const testY = Math.floor(posY + eyeY * rayDist);
-      if (
-        testX < 0 || testY < 0 ||
-        testX >= mapWidth || testY >= mapHeight
-      ) {
-        hit = true;
-        rayDist = maxDepth;
-      } else if (map[testY][testX] > 0) {
-        hit = true;
-      }
-    }
-
-    // アイテムが手前にある場合だけ描画
-    if (Math.abs(angleToItem) < halfFov && distance < rayDist) {
-      const screenX = (angleToItem + halfFov) / fov * canvas.width;
-      const size = Math.max(5, 200 / distance);
-
-      ctx.fillStyle = "gold";
-      ctx.font = `${size}px sans-serif`;
-      ctx.textAlign = "center";
-      ctx.textBaseline = "middle";
-      ctx.fillText("物", screenX, canvas.height / 2);
-    }
-  });
-}
+    items.forEach(item => {
+      item.draw(ctx); // ← 各アイテムに描画処理を任せる
+    });
+  }
+  
+  
   
   
 //プレイヤーパンチ↓
@@ -915,9 +952,9 @@
   
     const normalized = normalizeAngle(angleToEnemy - angle);
     if (normalized < 0) {
-      ctx.fillText("＜＜", 80, canvas.height / 2);
+      ctx.fillText("＜＜️", 80, canvas.height / 2);
     } else {
-      ctx.fillText("＞＞", canvas.width - 80, canvas.height / 2);
+      ctx.fillText("＞＞️", canvas.width - 80, canvas.height / 2);
     }
   
     ctx.restore();
@@ -1414,7 +1451,8 @@ console.log(`🧭 プレイヤーは今 ${angleDeg.toFixed(1)}° の方向を向
           break;
         case "drop":
           console.log("📦 地面に置いた！");
-          items.push({ x: posX, y: posY, name: item.name });
+          items.push(new Item(posX,posY,item.name,item.type));
+          //items.push({ x: posX, y: posY, name: item.name });
           player.inventory.splice(selectedInventoryIndex, 1);
           break;
         case "use":
