@@ -74,6 +74,7 @@
   let isGameOver = false;
   
   let selectedInventoryIndex = 0; //選択中インデックス(仮)
+  
 
   
   // ここでマップとゴールを初期化
@@ -513,6 +514,26 @@ items.push(new Item(2,2,"回復薬","heal"));
   ctx.fillStyle = "red";
   ctx.fillRect(Math.floor(enemy.x * scale), Math.floor(enemy.y * scale), scale, scale);
 }*/
+
+    
+  // 装備スロット
+  let equippedWeapon = null;
+  
+  // ドロップ処理
+  function handleDrop(item, target) {
+    if (target === "usebox") {
+      if (item.type === "weapon") {
+        equippedWeapon = item;
+        console.log(`装備しました: ${item.name}`);
+      } else {
+        useItem(item);
+      }
+  
+      // ドロップ後はインベントリから削除
+      const index = player.inventory.indexOf(item);
+      if (index !== -1) player.inventory.splice(index, 1);
+    }
+  }
   
   function drawStatusBars() {
     const barWidth = 200;
@@ -963,6 +984,29 @@ items.push(new Item(2,2,"回復薬","heal"));
     ctx.strokeStyle = "white";
     ctx.lineWidth = 2;
     ctx.strokeRect(x, y, size, size);
+    
+   
+
+    // 装備中武器のアイコン
+    if (equippedWeapon) {
+      ctx.font = `${size * 0.5}px sans-serif`;
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText("🗡️", x + size / 2, y + size / 2);
+    }
+
+  }
+  
+  function isInUseBox(touchX, touchY) {
+    const size = 100;
+    const x = canvas.width - size - 20;
+    const y = canvas.height / 1.75 - size / 2;
+    return (
+      touchX >= x &&
+      touchX <= x + size &&
+      touchY >= y &&
+      touchY <= y + size
+    );
   }
   
   function getDirectionName(angle) {
@@ -1375,6 +1419,18 @@ items.push(new Item(2,2,"回復薬","heal"));
     return;
   }
   
+  
+  if (isInUseBox(touch.clientX, touch.clientY) && equippedWeapon) {
+      // 装備解除
+      console.log(`⚔️ 装備解除: ${equippedWeapon.name}`);
+      player.inventory.push(equippedWeapon); // インベントリに戻す
+      isDraggingItem = true;
+      wasDraggingItem = true;
+      selectedInventoryIndex = player.inventory.length - 1; // 新たに追加した武器
+      equippedWeapon = null;
+  }
+  
+  
   // 攻撃処理（ドラッグじゃない、かつチャージしてないとき）
   if (!isDraggingItem && !charging) {
     const now = Date.now();
@@ -1451,32 +1507,19 @@ items.push(new Item(2,2,"回復薬","heal"));
 const TAP_THRESHOLD = 10;
 
 canvas.addEventListener("touchend", (e) => {
-  //console.log("touchend発生");
-  const angleDeg = angle * 180 / Math.PI;
-console.log(`🧭 プレイヤーは今 ${angleDeg.toFixed(1)}° の方向を向いている`);
-
-
-  //console.log("dir",dir);
-  console.log("angle",angle);
-  const enemy = enemies[0]; // 最初の敵だけ確認
-  console.log("enX",enemy.x, "enY",enemy.y);
-  console.log("📍 プレイヤー位置: X =", posX.toFixed(2), "Y =", posY.toFixed(2));
-
-
-
-
   const touchEndX = e.changedTouches[0].clientX;
   const touchEndY = e.changedTouches[0].clientY;
   const dx = touchEndX - touchStartX;
   const dy = touchEndY - touchStartY;
   const distance = Math.hypot(dx, dy);
-  
-  let tapHandled = false;
 
-  // --- ✅ ドロップ処理 ---
+  // デバッグ情報
+  const angleDeg = angle * 180 / Math.PI;
+  console.log(`🧭 プレイヤーは今 ${angleDeg.toFixed(1)}° の方向を向いている`);
+  console.log("📍 プレイヤー位置: X =", posX.toFixed(2), "Y =", posY.toFixed(2));
+
   if (wasDraggingItem) {
     console.log("🟢 ドロップ処理にはいりました");
-
     const x = touchEndX;
     const y = touchEndY;
     const w = canvas.width / 2;
@@ -1486,43 +1529,47 @@ console.log(`🧭 プレイヤーは今 ${angleDeg.toFixed(1)}° の方向を向
     if (x < w && y < h) action = "throw";
     else if (x >= w && y < h) action = "use";
     else if (x < w && y >= h) action = "drop";
-    else if (x >= w && y >= h) action = null;
 
     console.log("📍 最終位置:", x, y, "➡️ Action:", action);
 
     const item = player.inventory[selectedInventoryIndex];
     if (item) {
-      switch (action) {
-        case "throw":
-          console.log("💥 投げた！");
-          break;
-        case "drop":
-          console.log("📦 地面に置いた！");
-          items.push(new Item(posX,posY,item.name,item.type));
-          //items.push({ x: posX, y: posY, name: item.name });
-          player.inventory.splice(selectedInventoryIndex, 1);
-          break;
-        case "use":
-          console.log("✅ 使用した！");
-          break;
-        default:
-          console.log("👆 何もしないエリアにドロップされました");
-          break;
+      if (isInUseBox(touchEndX, touchEndY)) {
+        handleDrop(item, "usebox");
+      } else {
+        switch (action) {
+          case "throw":
+            console.log("💥 投げた！");
+            break;
+          case "drop":
+            console.log("📦 地面に置いた！");
+            items.push(new Item(posX, posY, item.name, item.type, item.weight));
+            player.inventory.splice(selectedInventoryIndex, 1);
+            break;
+          case "use":
+            console.log("✅ 使用した！");
+            break;
+          default:
+            console.log("👆 何もしないエリアにドロップされました");
+            break;
+        }
       }
     }
 
+    // ドラッグ後の初期化
     isDraggingItem = false;
     wasDraggingItem = false;
     showDropTargets = false;
     tapHandled = true;
 
-    return; // ← 他の処理に行かせない！
+    return; // 他の処理に進まない
   }
 
-  // 👊 ドラッグじゃなかったら「タップ判定」
+  // 👊 タップによる攻撃判定
   if (distance < TAP_THRESHOLD) {
-    performAttack(); // ← パンチ発動！
+    performAttack();
   }
+
 
 
   // --- インベントリスワイプ処理 ---
