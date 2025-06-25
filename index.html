@@ -45,6 +45,10 @@
     
   const punchImage = new Image();
     punchImage.src = "Punch.png";
+    
+  // 短剣攻撃用の斬撃エフェクト画像をロード
+  const zangekiImg = new Image();
+    zangekiImg.src = "Zangeki.png";
   
   
   let player = {
@@ -150,19 +154,24 @@ window.onload = function () {
   items = Array.from({ length: 10 }, () => {
     const name = itemNames[Math.floor(Math.random() * itemNames.length)];
     let type = "misc";
+    let damage = 0;
 
     if (name.includes("回復薬")) type = "medicine";
     else if (name.includes("パン")) type = "food";
     else if (name.includes("鈍足")) type = "medicine";
     else if (name.includes("俊足")) type = "medicine";
-    else if (name.includes("短剣")) type = "weapon";
+    else if (name.includes("短剣")) {
+      type = "weapon";
+      damage = 5;
+    }
 
     return new Item(
       Math.floor(Math.random() * 14) + 1.5,
       Math.floor(Math.random() * 14) + 1.5,
       name,
       type,
-      name.includes("短剣")? 1.0:2.5
+      name.includes("短剣")? 1.0:2.5,
+      damage
     );
   });
   
@@ -331,13 +340,14 @@ window.onload = function () {
 
 //アイテムクラス↓
 class Item {
-  constructor(x, y, name, type, weight ) {
+  constructor(x, y, name, type, weight,damage = 0 ) {
     this.x = x;
     this.y = y;
     this.name = name;
     this.type = type;
     this.picked = false;
     this.weight = weight;
+    this.damage = damage;
   }
 
   use(player) {
@@ -675,7 +685,6 @@ items.push(new Item(2,2,"回復薬","heal"));
   
   
   
-//プレイヤーパンチ↓
  function drawPunchEffect() {
   if (!isPunching || !punchImage.complete) return;
 
@@ -701,36 +710,70 @@ items.push(new Item(2,2,"回復薬","heal"));
   if (punchTimer > 7) isPunching = false;
 }
   
+  
+//プレイヤー攻撃関連↓
   function performAttack() {
-   
-  isPunching = true;
-  punchTimer = 0;
-  //console.log("👊 攻撃した！");
+  let damageToApply = 1; // 素手のデフォルト攻撃力
 
+  // 装備中の武器があれば、その攻撃力を使う
+  if (equippedWeapon) {
+    damageToApply = equippedWeapon.damage;
+  }
+
+  // 敵の攻撃判定処理
   enemies.forEach((enemy, i) => {
     const dx = enemy.x - posX;
     const dy = enemy.y - posY;
     const dist = Math.sqrt(dx * dx + dy * dy);
-
     const angleToEnemy = Math.atan2(dy, dx);
     const diffAngle = Math.abs(normalizeAngle(angleToEnemy - angle));
 
-    console.log(`敵${i} x=${enemy.x.toFixed(2)} y=${enemy.y.toFixed(2)} 距離=${dist.toFixed(2)} 角度差=${(diffAngle * 180 / Math.PI).toFixed(1)}°`);
-
-    // 前方±45度（90度）＆攻撃範囲内
     if (dist < attackRange && diffAngle < Math.PI / 4) {
-      enemy.takeDamage(attackDamage);
-      console.log(`🎯 敵${i}に命中！残HP: ${enemy.hp}`);
+      enemy.takeDamage(damageToApply);
+      console.log(`🎯 敵${i}に ${damageToApply} ダメージ！残HP: ${enemy.hp}`);
 
       if (enemy.hp <= 0) {
         console.log(`💀 敵${i} 撃破！`);
-        // 敵を消す場合はここに処理を入れてください
       }
     }
   });
+
+  // エフェクト処理
+  if (equippedWeapon && equippedWeapon.name.includes("短剣")) {
+    console.log("🗡️ 短剣攻撃発動、斬撃エフェクト表示！");
+    showZangekiEffect();
+  } else if (!equippedWeapon) {
+    isPunching = true;
+    punchTimer = 0;
+  }
 }
 
-  //パンチ↑
+  //プレイヤー攻撃関連↑
+  
+ 
+  function showZangekiEffect() {
+    const effectDuration = 200; // エフェクト表示時間（ms）
+    const startTime = Date.now();
+  
+    function drawEffect() {
+      const now = Date.now();
+      if (now - startTime < effectDuration) {
+        // 攻撃方向中央にエフェクトを表示（例: 画面中央）
+        ctx.drawImage(
+          zangekiImg,
+          canvas.width / 2 - zangekiImg.width / 4,
+          canvas.height / 2 - zangekiImg.height / 4,
+          zangekiImg.width / 2,
+          zangekiImg.height / 2
+        );
+        requestAnimationFrame(drawEffect);
+      }
+    }
+  
+    drawEffect();
+  }
+  
+  
   
   function normalizeAngle(angle) {
     return Math.atan2(Math.sin(angle), Math.cos(angle));
