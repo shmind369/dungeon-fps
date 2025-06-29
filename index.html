@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <!--<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">-->
    
-    <title>2025/06/23ローグライクFPS</title>
+    <title>ローグライクFPS</title>
     <style>
       body {
         margin: 0;
@@ -43,8 +43,15 @@
   const zombieImage = new Image();
     zombieImage.src = "Zombie.png";
     
+  const mummyImage = new Image();
+    mummyImage.src = "Mummy.png";
+    
+  const dragonImage = new Image();
+    dragonImage.src = "Dragon.png";
+    
   const punchImage = new Image();
     punchImage.src = "Punch.png";
+    
     
   // 短剣攻撃用の斬撃エフェクト画像をロード
   const zangekiImg = new Image();
@@ -136,48 +143,54 @@
   
   let items = []; // グローバルで定義
 
-window.onload = function () {
+  window.onload = function () {
+    
+  
+    // アイテムをここで初期化
+    const itemNames = [
+      "🗡️短剣",
+      //"🗡️青銅剣",
+      "🍞パン",
+      //"🕯️松明",
+      //"🏹木の矢",
+      //"🔑鍵",
+      "💊回復薬",
+      "💊鈍足の薬",
+      "💊俊足の薬"
+      ];
+    items = Array.from({ length: 10 }, () => {
+      const name = itemNames[Math.floor(Math.random() * itemNames.length)];
+      let type = "misc";
+      let damage = 0;
+  
+      if (name.includes("回復薬")) type = "medicine";
+      else if (name.includes("パン")) type = "food";
+      else if (name.includes("鈍足")) type = "medicine";
+      else if (name.includes("俊足")) type = "medicine";
+      else if (name.includes("短剣")) {
+        type = "weapon";
+        damage = 5;
+      }
+  
+      return new Item(
+        Math.floor(Math.random() * 14) + 1.5,
+        Math.floor(Math.random() * 14) + 1.5,
+        name,
+        type,
+        name.includes("短剣")? 1.0:2.5,
+        damage
+      );
+      
+        
+    });
+    
+    
+    
+    isCharging = false;
+    chargeStartTime = null;
+  }
   
 
-  // アイテムをここで初期化
-  const itemNames = [
-    "🗡️短剣",
-    //"🗡️青銅剣",
-    "🍞パン",
-    //"🕯️松明",
-    //"🏹木の矢",
-    //"🔑鍵",
-    "💊回復薬",
-    "💊鈍足の薬",
-    "💊俊足の薬"
-    ];
-  items = Array.from({ length: 10 }, () => {
-    const name = itemNames[Math.floor(Math.random() * itemNames.length)];
-    let type = "misc";
-    let damage = 0;
-
-    if (name.includes("回復薬")) type = "medicine";
-    else if (name.includes("パン")) type = "food";
-    else if (name.includes("鈍足")) type = "medicine";
-    else if (name.includes("俊足")) type = "medicine";
-    else if (name.includes("短剣")) {
-      type = "weapon";
-      damage = 5;
-    }
-
-    return new Item(
-      Math.floor(Math.random() * 14) + 1.5,
-      Math.floor(Math.random() * 14) + 1.5,
-      name,
-      type,
-      name.includes("短剣")? 1.0:2.5,
-      damage
-    );
-  });
-  
-  isCharging = false;
-  cargeStartTime = null;
-}
  
   
     
@@ -195,62 +208,124 @@ window.onload = function () {
 
   // ✅ ① Enemy クラスを先に定義
   class Enemy {
-        constructor(x, y, hp = 3, speed = 0.02) {
-          this.x = x;
-          this.y = y;
-          this.hp = hp;
-          this.speed = speed;
-          this.isAlive = true;
-          this.attackCooldown = 0;
-          this.hitTimer = 0;
-        }
-      
-      update(playerX, playerY) {
-        if (!this.isAlive) return;
-      
-        const dx = playerX - this.x;
-        const dy = playerY - this.y;
-        const distance = Math.hypot(dx, dy);
-      
-        // 攻撃範囲内に入っていたら攻撃
-        if (distance < 0.5) {
-          if (this.attackCooldown <= 0) {
-            this.attackPlayer(); // 攻撃！
-            this.attackCooldown = 60; // 60フレーム（1秒）待つ
-          }
-        } else {
-          // 移動処理
-          const nx = this.x + (dx / distance) * this.speed;
-          const ny = this.y + (dy / distance) * this.speed;
-          const tileX = Math.floor(nx);
-          const tileY = Math.floor(ny);
-          if (map[tileY][tileX] === 0) {
-            this.x = nx;
-            this.y = ny;
-          }
-        }
+  /**
+   * 敵クラス
+   * プレイヤーを追跡・攻撃し、倒されると徐々に透明になって消える。
+   */
+  constructor(x, y, hp = 3, speed = 0.02) {
+    this.x = x;               // 敵のX座標（タイルベース座標）
+    this.y = y;               // 敵のY座標
+    this.hp = hp;             // 敵のHP
+    this.alpha = 1.0;         // 敵の透明度（1.0=完全表示、0=消滅）
+    this.isDying = false;     // 消滅中かどうかのフラグ
+    this.deathStartTime = 0;  // 消滅開始時刻
+    this.speed = speed;       // 移動速度
+    this.isAlive = true;      // 生存フラグ（攻撃・移動の判定に使用）
+    this.attackCooldown = 0;  // 攻撃クールダウン（フレーム単位）
+    this.hitTimer = 0;        // 被弾エフェクト用タイマー
+  }
 
-            // クールダウン減少
-            if (this.attackCooldown > 0) this.attackCooldown--;
-          }
-          attackPlayer() {
-            player.hp -= 10;
-            player.hp = Math.max(player.hp,0);
-            console.log("敵の攻撃！プレイヤーのHP:", player.hp);
-            shakeTimer = 20;
-          }
+  /**
+   * 敵の状態更新（毎フレーム呼ばれる）
+   */
+  update(playerX, playerY) {
+    if (!this.isAlive) {
+      // 消滅中は透明度更新のみ行う
+      this.updateFadeOut();
+      return;
+    }
+
+    const dx = playerX - this.x;
+    const dy = playerY - this.y;
+    const distance = Math.hypot(dx, dy);
+
+    // 攻撃処理
+    if (distance < 0.5) {
+      if (this.attackCooldown <= 0) {
+        this.attackPlayer();
+        this.attackCooldown = 60; // 1秒のクールダウン
+      }
+    } else {
       
-        takeDamage(dmg) {
-          this.hp -= dmg;
-          this.hitTimer = 10;
-          if (this.hp <= 0) this.isAlive = false;
-        }
-      
-    updateHitEffect(){
-      if(this.hitTimer > 0) this.hitTimer--;
-      
+      if(distance === 0) return;
+      // 移動処理
+      const nx = this.x + (dx / distance) * this.speed;
+      const ny = this.y + (dy / distance) * this.speed;
+      const tileX = Math.floor(nx);
+      const tileY = Math.floor(ny);
+      if (map[tileY][tileX] === 0) {
+        this.x = nx;
+        this.y = ny;
+      }
+    }
+
+    if (this.attackCooldown > 0) this.attackCooldown--;
+  }
+
+  /**
+   * プレイヤーにダメージを与える
+   */
+  attackPlayer() {
+    player.hp -= 10;
+    player.hp = Math.max(player.hp, 0);
+    console.log("敵の攻撃！プレイヤーのHP:", player.hp);
+    shakeTimer = 20; // 画面揺れ効果
+  }
+
+  /**
+   * ダメージを受けたときの処理
+   */
+  takeDamage(damage) {
+    this.hp -= damage;
+    this.hitTimer = 10;
+    if (this.hp <= 0 && !this.isDying) {
+      this.isAlive = false;
+      this.startDying();
     }
   }
+
+  /**
+   * 消滅エフェクト開始
+   */
+  startDying() {
+    this.isDying = true;
+    this.deathStartTime = Date.now();
+  }
+
+  /**
+   * 消滅時の透明度更新
+   * 徐々に alpha を下げる
+   */
+  updateFadeOut() {
+    const elapsed = Date.now() - this.deathStartTime;
+    const fadeDuration = 1000; // 1秒で完全消滅
+    this.alpha = Math.max(0, 1 - elapsed / fadeDuration);
+  }
+
+  /**
+   * 被弾エフェクト更新
+   */
+  updateHitEffect() {
+    if (this.hitTimer > 0) this.hitTimer--;
+  }
+
+  /**
+   * 敵の描画
+   */
+  draw(ctx) {
+    ctx.globalAlpha = this.alpha;
+
+    // 被弾中は赤く表示、それ以外は緑
+    if (this.hitTimer > 0) {
+      ctx.fillStyle = "red";
+    } else {
+      ctx.fillStyle = "green";
+    }
+
+    ctx.fillRect(this.x * tileSize, this.y * tileSize, tileSize, tileSize);
+    ctx.globalAlpha = 1.0; // 描画後は alpha をリセット
+  }
+}
 
 //ゾンビクラス↓
   class ZombieEnemy extends Enemy {
@@ -335,8 +410,148 @@ window.onload = function () {
 }
 //ゾンビクラス↑
 
+//ミイラクラス↓
+  class MummyEnemy extends Enemy {
+  constructor(x, y) {
+    super(x, y, 20, 0.020); // HP8、ゾンビより少し遅い
+    this.type = "mummy";
+  }
+
+  update(playerX, playerY) {
+    // ゾンビと同じ挙動でOK
+    super.update(playerX, playerY);
+  }
+
+  drawFromRaycastView(ctx) {
+    if (!this.isAlive) return;
+
+    const dx = this.x - posX;
+    const dy = this.y - posY;
+    const distance = Math.sqrt(dx * dx + dy * dy);
+    const angleToEnemy = Math.atan2(dy, dx) - angle;
+    const halfFov = fov / 2;
+
+    if (Math.abs(angleToEnemy) > halfFov) return;
+
+    // 遮蔽チェック
+    const steps = Math.floor(distance * 10);
+    for (let i = 1; i < steps; i++) {
+      const t = i / steps;
+      const cx = posX + dx * t;
+      const cy = posY + dy * t;
+      if (map[Math.floor(cy)][Math.floor(cx)] === 1) return;
+    }
+
+    const baseSize = 1000;
+    const screenX = (angleToEnemy + halfFov) / fov * canvas.width;
+    const size = Math.min(1500, baseSize / (distance + 0.2));
+
+    const offsetY = 80;
+
+    ctx.save();
+    ctx.drawImage(mummyImage, screenX - size / 2, canvas.height / 2 - size / 2 + offsetY, size, size);
+    ctx.restore();
+  }
+}
+//ミイラクラス↑
+
+//ドラゴンクラス↓
+  class DragonEnemy extends Enemy {
+  constructor(x, y) {
+    super(x, y, 20, 0.020); // HP8、ゾンビより少し遅い
+    this.type = "dragon";
+  }
+
+  update(playerX, playerY) {
+    // ゾンビと同じ挙動でOK
+    super.update(playerX, playerY);
+  }
+
+  drawFromRaycastView(ctx) {
+    if (!this.isAlive) return;
+
+    const dx = this.x - posX;
+    const dy = this.y - posY;
+    const distance = Math.sqrt(dx * dx + dy * dy);
+    const angleToEnemy = Math.atan2(dy, dx) - angle;
+    const halfFov = fov / 2;
+
+    if (Math.abs(angleToEnemy) > halfFov) return;
+
+    // 遮蔽チェック
+    const steps = Math.floor(distance * 10);
+    for (let i = 1; i < steps; i++) {
+      const t = i / steps;
+      const cx = posX + dx * t;
+      const cy = posY + dy * t;
+      if (map[Math.floor(cy)][Math.floor(cx)] === 1) return;
+    }
+
+    const baseSize = 1000;
+    const screenX = (angleToEnemy + halfFov) / fov * canvas.width;
+    const size = Math.min(1500, baseSize / (distance + 0.2));
+
+    const offsetY = 80;
+
+    ctx.save();
+    ctx.drawImage(dragonImage, screenX - size / 2, canvas.height / 2 - size / 2 + offsetY, size, size);
+    ctx.restore();
+  }
+}
+//ドラゴンクラス↑
+
+
   enemies.push(new ZombieEnemy(5.5, 1.5));
   
+  
+  /*function spawnEnemy(x = null, y = null) {
+    // ランダム座標を決定（指定が無ければランダム配置）
+    let spawnX = x;
+    let spawnY = y;
+  
+    if (spawnX === null || spawnY === null) {
+      do {
+        spawnX = Math.floor(Math.random() * mapWidth);
+        spawnY = Math.floor(Math.random() * mapHeight);
+      } while (map[spawnY][spawnX] !== 0);  // 通路（0）の場所に出現
+    }
+  
+    // 敵インスタンスを作成して追加
+    const newEnemy = new Enemy(spawnX + 0.5, spawnY + 0.5); // 中央寄せ
+    enemies.push(newEnemy);
+  
+    console.log(`🧟 新しい敵が出現: (${spawnX}, ${spawnY})`);
+  }
+  
+  function spawnEnemies(count) {
+    for (let i = 0; i < count; i++) {
+      spawnEnemy(5);
+    }
+  }
+  */
+  function spawnEnemy(x = null, y = null) {
+  let spawnX = x;
+  let spawnY = y;
+
+  if (spawnX === null || spawnY === null) {
+    do {
+      spawnX = Math.floor(Math.random() * mapWidth);
+      spawnY = Math.floor(Math.random() * mapHeight);
+    } while (map[spawnY][spawnX] !== 0);
+  }
+
+  // ⭐️ここをZombieEnemyにする
+  const newEnemy = new ZombieEnemy(spawnX + 0.5, spawnY + 0.5);
+  enemies.push(newEnemy);
+
+  console.log(`🧟 新しい敵が出現: (${spawnX}, ${spawnY})`);
+}
+
+function spawnEnemies(count) {
+    for (let i = 0; i < count; i++) {
+      spawnEnemy(3);
+    }
+  }
 
 //アイテムクラス↓
 class Item {
@@ -965,23 +1180,80 @@ items.push(new Item(2,2,"回復薬","heal"));
 
   carvePath(map, { x: posX, y: posY }, goal);
 
-  // アイテムのリセット（必要なら）
+  const itemNames = [
+    "🗡️短剣",
+    "🍞パン",
+    "💊回復薬",
+    "💊鈍足の薬",
+    "💊俊足の薬"
+  ];
+
+  // アイテムのリセット
   items.length = 0;
   for (let i = 0; i < 5; i++) {
     const tile = findRandomEmptyTile(map);
-    items.push({
-      x: tile.x,
-      y: tile.y,
-      name: itemNames[Math.floor(Math.random() * itemNames.length)]
-    });
+    const name = itemNames[Math.floor(Math.random() * itemNames.length)];
+    let type = "misc";
+    let damage = 0;
+
+    if (name.includes("回復薬")) type = "medicine";
+    else if (name.includes("パン")) type = "food";
+    else if (name.includes("短剣")) {
+      type = "weapon";
+      damage = 5;
+    }
+
+    items.push(new Item(
+      tile.x,
+      tile.y,
+      name,
+      type,
+      name.includes("短剣") ? 1.0 : 2.5,
+      damage
+    ));
   }
 
-  // 敵の位置もリセットするならここで enemyX/Y を変更
-  //enemyX = 5.5;
-  //enemyY = 3.5;
-  //enemyHP = 3;
-}
+  // 敵のリセット
+  enemies = [];
+  //spawnEnemies(5);
   
+  
+  /*
+  if (floor === 3){
+    const tile = findRandomEmptyTile(map);
+    enemies.push(new MummyEnemy(tile.x,tile.y));
+  }
+}
+*/
+  
+
+  // ゾンビを配置（1階〜3階）
+  if (floor >= 1 && floor <= 3) {
+    spawnEnemies(5); // ゾンビ5体
+  }
+
+  // ミイラを配置（3階〜5階）
+  if (floor >= 3 && floor <= 5) {
+    const mummyCount = 3 + Math.floor((floor - 3) * 1); // 3F=1体, 4F=2体, 5F=3体
+    for (let i = 0; i < mummyCount; i++) {
+      const tile = findRandomEmptyTile(map);
+      enemies.push(new MummyEnemy(tile.x, tile.y));
+    }
+    console.log(`階${floor}: ミイラ男 ${mummyCount}体を配置！`);
+  }
+  
+  //ドラゴン配置５階
+    if (floor === 5) {
+    const dragonCount = 1
+    for (let i = 0; i < dragonCount; i++) {
+      const tile = findRandomEmptyTile(map);
+      enemies.push(new DragonEnemy(tile.x, tile.y));
+    }
+    console.log(`階${floor}: dragon ${dragonCount}体を配置！`);
+  }
+
+
+  }
   
   function normalizeAngle(angle) {
     return Math.atan2(Math.sin(angle), Math.cos(angle));
@@ -1103,9 +1375,6 @@ items.push(new Item(2,2,"回復薬","heal"));
     shakeTimer--;
   }
 
-  
-
-
   // ① 背景
     ctx.fillStyle = "black";
     ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -1123,6 +1392,8 @@ items.push(new Item(2,2,"回復薬","heal"));
     //enemy.draw(ctx);
     enemy.updateHitEffect();
     enemy.drawFromRaycastView(ctx);
+    
+
 
     // ▼ プレイヤーと敵の角度と距離を計算
     const dx = enemy.x - posX;
@@ -1314,72 +1585,60 @@ items.push(new Item(2,2,"回復薬","heal"));
   }
   
   
-  
-  
   function gameLoop() {
-    //console.log(ctx);
-    warningTimer ++;
-    
-    ctx.clearRect(0,0,canvas.width,canvas.height);
-    
-    getDirectionName();
-    
-    
-    gameCount++;
-    
-    
-    
-    for (const enemy of enemies) {
-      enemy.update(posX, posY); // プレイヤー位置を渡す
-      //console.log(enemy.update(posX, posY));
-      //enemy.draw(ctx);
+  warningTimer++;
+  gameCount++;
+
+  // 画面クリアは最初に1回だけ
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  // 各種処理
+  getDirectionName();
+
+  // 敵の更新・描画
+  for (let i = enemies.length - 1; i >= 0; i--) {
+    const enemy = enemies[i];
+    enemy.update(posX, posY);
+    enemy.updateHitEffect();
+    if (enemy.isDying && enemy.alpha <= 0) {
+      console.log("💀 敵消滅 完了");
+      enemies.splice(i, 1);
     }
-    
-    
-    //console.log("プレイヤー:", posX, posY);
-    
-    if (!isDraggingItem) {
-      if (isMovingForward) move(true);
-      if (isMovingBackward) move(false);
-      if (isTurningLeft) rotate(-0.05);
-      if (isTurningRight) rotate(0.05);
-    }
-        
-    //initNextFloor();
-    updateGoalProximity();
-    checkNearbyItems();
-    checkGoalCharging();
-    updateNearbyItem();
-    updateCharge();
-    playerHunger();
-    render();
-    
-    
-
-    requestAnimationFrame(gameLoop);
-    
-    
-    
-    explored[Math.floor(posY)][Math.floor(posX)] = true;
-    
-          ctx.restore(); // ← 必ず最後に戻す
-
-    
-
-    
-    if (player.hp <= 0) {
-      
-
-      
-      isGameOver = true;
-
-      
-      return;
-    }
-    
-
-  
   }
+
+  // プレイヤーの移動・回転
+  if (!isDraggingItem) {
+    if (isMovingForward) move(true);
+    if (isMovingBackward) move(false);
+    if (isTurningLeft) rotate(-0.05);
+    if (isTurningRight) rotate(0.05);
+  }
+
+  // その他の更新・描画
+  updateGoalProximity();
+  checkNearbyItems();
+  checkGoalCharging();
+  updateNearbyItem();
+  updateCharge();
+  playerHunger();
+  render();  // ここで画面全体を再描画する場合、敵の描画の後に呼ばないように調整が必要
+
+  // 探索記録
+  explored[Math.floor(posY)][Math.floor(posX)] = true;
+
+  ctx.restore();
+
+  if (player.hp <= 0) {
+    isGameOver = true;
+    return;
+  }
+
+  requestAnimationFrame(gameLoop);
+}
+  
+  
+  
+  
   
    document.addEventListener("keydown", (e) => {
     switch(e.key) {
@@ -1493,6 +1752,7 @@ items.push(new Item(2,2,"回復薬","heal"));
   } else if (goalInRange) {
     startCharge(() => {
       floor++;
+      initNextFloor();
     }, 100);
   }
 
