@@ -59,8 +59,8 @@
   
   
   let player = {
-    hp: 100,
-    maxHp: 100,
+    hp: 30,
+    maxHp: 30,
     hunger: 100,
     maxHunger: 100,
     inventory: [],
@@ -85,6 +85,8 @@
   let isGameOver = false;
   
   let selectedInventoryIndex = 0; //選択中インデックス(仮)
+  
+  let particles = [];
   
 
   
@@ -271,7 +273,7 @@
    * プレイヤーにダメージを与える
    */
   attackPlayer() {
-    player.hp -= 10;
+    player.hp -= 5;
     player.hp = Math.max(player.hp, 0);
     console.log("敵の攻撃！プレイヤーのHP:", player.hp);
     shakeTimer = 20; // 画面揺れ効果
@@ -283,10 +285,13 @@
   takeDamage(damage) {
     this.hp -= damage;
     this.hitTimer = 10;
+    
     if (this.hp <= 0 && !this.isDying) {
       this.isAlive = false;
       this.startDying();
     }
+
+  
   }
 
   /**
@@ -418,7 +423,7 @@
 //ミイラクラス↓
   class MummyEnemy extends Enemy {
   constructor(x, y) {
-    super(x, y, 20, 0.020); // HP8、ゾンビより少し遅い
+    super(x, y, 20, 0.0018); // HP8、ゾンビより少し遅い
     this.type = "mummy";
   }
 
@@ -463,7 +468,7 @@
 //ドラゴンクラス↓
   class DragonEnemy extends Enemy {
   constructor(x, y) {
-    super(x, y, 20, 0.020); // HP8、ゾンビより少し遅い
+    super(x, y, 20, 0.010); // HP8、ゾンビより少し遅い
     this.type = "dragon";
   }
 
@@ -665,9 +670,60 @@ items.push(new Item(2,2,"回復薬","heal"));
     selectedInventoryIndex = 0;
   }
 }
+
+  class Particle {
+    constructor(x, y, angle, speed, lifetime) {
+      this.x = x;
+      this.y = y;
+      this.vx = Math.cos(angle) * speed;
+      this.vy = Math.sin(angle) * speed;
+      this.lifetime = lifetime;
+      this.age = 1;
+    }
   
+    update() {
+      // 🎈 重力
+      this.vy += 0.005; // これが「落ちる」加速度
   
+      this.x += this.vx;
+      this.y += this.vy;
+  
+      this.age++;
+    }
+  
+    isAlive() {
+      return this.age < this.lifetime;
+    }
     
+  draw(ctx) {
+    const dx = this.x - posX;
+    const dy = this.y - posY;
+    const distance = Math.sqrt(dx * dx + dy * dy);
+    const angleToParticle = Math.atan2(dy, dx) - angle;
+  
+    const halfFov = fov / 2;
+    if (Math.abs(angleToParticle) > halfFov) return;
+  
+    const steps = Math.floor(distance * 10);
+    for (let i = 1; i < steps; i++) {
+      const t = i / steps;
+      const cx = posX + dx * t;
+      const cy = posY + dy * t;
+      if (map[Math.floor(cy)][Math.floor(cx)] === 1) return;
+    }
+  
+    const screenX = (angleToParticle + halfFov) / fov * canvas.width;
+    const size = Math.max(1, 10 / (distance + 0.1));
+  
+    // 🌟 落下表現: ageに応じてY座標を下げる
+    const offsetY = this.age * 70; // 2pxずつ下がる
+  
+    ctx.fillStyle = "green";
+    ctx.beginPath();
+    ctx.arc(screenX, canvas.height / 2 + offsetY, size, 0, Math.PI * 2);
+    ctx.fill();
+  }
+}
   
     function generateRandomMap(width, height) {
   const newMap = [];
@@ -942,41 +998,49 @@ items.push(new Item(2,2,"回復薬","heal"));
   
 //プレイヤー攻撃関連↓
   function performAttack() {
-  let damageToApply = 1; // 素手のデフォルト攻撃力
-
-  // 装備中の武器があれば、その攻撃力を使う
-  if (equippedWeapon) {
-    damageToApply = equippedWeapon.damage;
-  }
-
-  // 敵の攻撃判定処理
-  enemies.forEach((enemy, i) => {
-    const dx = enemy.x - posX;
-    const dy = enemy.y - posY;
-    const dist = Math.sqrt(dx * dx + dy * dy);
-    const angleToEnemy = Math.atan2(dy, dx);
-    const diffAngle = Math.abs(normalizeAngle(angleToEnemy - angle));
-
-    if (dist < attackRange && diffAngle < Math.PI / 4) {
-      enemy.takeDamage(damageToApply);
-      console.log(`🎯 敵${i}に ${damageToApply} ダメージ！残HP: ${enemy.hp}`);
-
-      if (enemy.hp <= 0) {
-        console.log(`💀 敵${i} 撃破！`);
-      }
+    let damageToApply = 1; // 素手のデフォルト攻撃力
+  
+    if (equippedWeapon) {
+      damageToApply = equippedWeapon.damage;
     }
-  });
-
-  // エフェクト処理
-  if (equippedWeapon && equippedWeapon.name.includes("短剣")) {
-    console.log("🗡️ 短剣攻撃発動、斬撃エフェクト表示！");
-    showZangekiEffect();
-  } else if (!equippedWeapon) {
-    isPunching = true;
-    punchTimer = 0;
+  
+    enemies.forEach((enemy, i) => {
+      if (!enemy.isAlive) return;
+  
+      const dx = enemy.x - posX;
+      const dy = enemy.y - posY;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      const angleToEnemy = Math.atan2(dy, dx);
+      const diffAngle = Math.abs(normalizeAngle(angleToEnemy - angle));
+  
+      if (dist < attackRange && diffAngle < Math.PI / 4) {
+        enemy.takeDamage(damageToApply);
+        console.log(`🎯 敵${i}に ${damageToApply} ダメージ！残HP: ${enemy.hp}`);
+  
+        // 🌟 ここでパーティクルを作る（攻撃時1回だけ）
+      for (let j = 0; j < 30; j++) {
+        const angle = Math.random() * Math.PI * 2;
+        const speed = Math.random() * 0.05 + 0.02;
+        const lifetime = 30 + Math.floor(Math.random() * 30);
+        particles.push(new Particle(enemy.x, enemy.y, angle, speed, lifetime));
+        //particles.push(new Particle(0,0,0,0,99999));
+        console.log(`粒作成: x=${enemy.x}, y=${enemy.y}, lifetime=${lifetime}`);
+      }
+  
+        if (enemy.hp <= 0) {
+          console.log(`💀 敵${i} 撃破！`);
+        }
+      }
+    });
+  
+    if (equippedWeapon && equippedWeapon.name.includes("短剣")) {
+      console.log("🗡️ 短剣攻撃発動、斬撃エフェクト表示！");
+      showZangekiEffect();
+    } else if (!equippedWeapon) {
+      isPunching = true;
+      punchTimer = 0;
+    }
   }
-}
-
   //プレイヤー攻撃関連↑
   
  
@@ -1383,103 +1447,81 @@ items.push(new Item(2,2,"回復薬","heal"));
   }
 
   function render() {
-    
-  ctx.save();
-
-  // ✅ スクリーンシェイク処理
-  if (shakeTimer > 0) {
-    const dx = (Math.random() - 0.5) * shakeIntensity;
-    const dy = (Math.random() - 0.5) * shakeIntensity;
-    ctx.translate(dx, dy);
-    shakeTimer--;
-  }
-
-  // ① 背景
+    ctx.save();
+  
+    // ✅ スクリーンシェイク
+    if (shakeTimer > 0) {
+      const dx = (Math.random() - 0.5) * shakeIntensity;
+      const dy = (Math.random() - 0.5) * shakeIntensity;
+      ctx.translate(dx, dy);
+      shakeTimer--;
+    }
+  
+    // ① 背景
     ctx.fillStyle = "black";
     ctx.fillRect(0, 0, canvas.width, canvas.height);
-    
-
-  // ② ゲーム世界（壁・敵・アイテム・ゴールなど）
+  
+    // ② ゲーム世界（壁・敵・アイテム・ゴールなど）
     castRays();
-    
-    
     drawItems();
-    
-    
+  
     for (const enemy of enemies) {
-  if (enemy.isAlive) {
-    //enemy.draw(ctx);
-    enemy.updateHitEffect();
-    enemy.drawFromRaycastView(ctx);
-    
-
-
-    // ▼ プレイヤーと敵の角度と距離を計算
-    const dx = enemy.x - posX;
-    const dy = enemy.y - posY;
-    const distance = Math.hypot(dx, dy);
-    const angleToEnemy = Math.atan2(dy, dx);
-    const diff = Math.abs(normalizeAngle(angleToEnemy - angle));
-
-    // ▼ 条件を満たせば警告を表示
-    const isNearby = distance < 1.5;
-    const isOutsideFov = diff > fov / 2;
-
-    if (isNearby && isOutsideFov) {
-      drawEnemyWarning(angleToEnemy);
+      if (enemy.isAlive) {
+        enemy.updateHitEffect();
+        enemy.drawFromRaycastView(ctx);
+  
+        const dx = enemy.x - posX;
+        const dy = enemy.y - posY;
+        const distance = Math.hypot(dx, dy);
+        const angleToEnemy = Math.atan2(dy, dx);
+        const diff = Math.abs(normalizeAngle(angleToEnemy - angle));
+  
+        const isNearby = distance < 1.5;
+        const isOutsideFov = diff > fov / 2;
+  
+        if (isNearby && isOutsideFov) {
+          drawEnemyWarning(angleToEnemy);
+        }
+      }
     }
-  }
-}
-    
-    [...enemies].sort((a, b) => b.distanceToPlayer - a.distanceToPlayer).forEach(enemy => {
-    });
-
+  
     enemies.forEach(enemy => {
       if (enemy.isAlive) {
-        
-        enemy.updateHitEffect(); // ✅ 個別のenemyに対して呼ぶ
+        enemy.updateHitEffect();
       }
     });
-    //drawBullets();
-    drawGoal();
-    
   
-    // ③ UI的要素
+    drawGoal();
+  
+    // ③ UI
     drawChargeGauge();
     drawStatusBars();
     drawPickupPrompt();
     drawInventory();
     drawMiniMap();
     drawPunchEffect();
-
     drawSelectedItem();
-  
-    // ④ ドラッグアイテムとドロップゾーン（最前面に）
-    drawDraggedItem();       // ←ドラッグ中のアイテム
-    drawUseBox();     // ←特別な枠（使うエリア）
-    drawFullDropZones();     // ←4分割のドロップ領域
-
-    // ③ UI的要素の最後あたりに追加するとよい
+    drawDraggedItem();
+    drawUseBox();
+    drawFullDropZones();
     drawDirectionHUD();
   
-    // ⑤ フロア表示やゲームオーバーなど
     ctx.fillStyle = "white";
     ctx.font = "44px sans-serif";
-    ctx.fillText(`${floor}F`, 200, 30); // 左上に表示
-    
+    ctx.fillText(`${floor}F`, 200, 30);
   
-
-
-  // ✅ 追加：ゲームカウント表示
-  ctx.font = "20px sans-serif";
-  ctx.fillText(`Count: ${gameCount}`, canvas.width - 150, 30);
-
-  
+    ctx.font = "20px sans-serif";
+    ctx.fillText(`Count: ${gameCount}`, canvas.width - 150, 30);
   
     if (isGameOver) drawGameOverScreen();
-
+  
+    // 🎇 パーティクルは一番最後に描く
+    for (const p of particles) {
+      p.draw(ctx);
+    }
+  
+    ctx.restore();
   }
-
   
   
   let isCharging = false;
@@ -1613,6 +1655,8 @@ items.push(new Item(2,2,"回復薬","heal"));
 
   // 各種処理
   getDirectionName();
+  
+  
 
   // 敵の更新・描画
   for (let i = enemies.length - 1; i >= 0; i--) {
@@ -1624,6 +1668,15 @@ items.push(new Item(2,2,"回復薬","heal"));
       enemies.splice(i, 1);
     }
   }
+  
+  // 血しぶきを更新
+  for (let i = particles.length - 1; i >= 0; i--) {
+    particles[i].update();
+    if (!particles[i].isAlive()) {
+      particles.splice(i, 1);
+    }
+  }
+  
 
   // プレイヤーの移動・回転
   if (!isDraggingItem) {
