@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <!--<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">-->
    
-    <title>ローグライクFPS</title>
+    <title>2025/06/23ローグライクFPS</title>
     <style>
       body {
         margin: 0;
@@ -162,8 +162,12 @@
       const name = itemNames[Math.floor(Math.random() * itemNames.length)];
       let type = "misc";
       let damage = 0;
+      let heal = 0;
   
-      if (name.includes("回復薬")) type = "medicine";
+      if (name.includes("回復薬")) {
+        type = "medicine";
+        heal = 20;
+      }
       else if (name.includes("パン")) type = "food";
       else if (name.includes("鈍足")) type = "medicine";
       else if (name.includes("俊足")) type = "medicine";
@@ -178,7 +182,8 @@
         name,
         type,
         name.includes("短剣")? 1.0:2.5,
-        damage
+        damage,
+        heal
       );
       
         
@@ -555,7 +560,7 @@ function spawnEnemies(count) {
 
 //アイテムクラス↓
 class Item {
-  constructor(x, y, name, type, weight,damage = 0 ) {
+  constructor(x, y, name, type, weight,damage = 0,heal = 0 ) {
     this.x = x;
     this.y = y;
     this.name = name;
@@ -563,15 +568,18 @@ class Item {
     this.picked = false;
     this.weight = weight;
     this.damage = damage;
+    this.heal = heal;
   }
 
   use(player) {
-    if (this.type === "heal") {
-      const healAmount = 20;
-      player.hp = Math.min(player.maxHp, player.hp + healAmount);
-      console.log(`💊 ${this.name} を使った！HP +${healAmount}`);
+    console.log(`use() called for ${this.name}`);
+    console.log(`type=${this.type}, heal=${this.heal}`);
+    if (this.heal > 0) {
+      player.hp = Math.min(player.maxHp, player.hp + this.heal);
+      console.log(`💊 ${this.name} を使った！HP +${this.heal}`);
       return true;
     }
+    console.log(`❌ 効果なし`);
     return false;
   }
 
@@ -640,17 +648,23 @@ class Item {
 
 items.push(new Item(2,2,"回復薬","heal"));
 
-  function useSelectedItem() {
-    if (!selectedItem) return;
-    const used = selectedItem.use(player);
-    if (used) {
-      const index = inventory.indexOf(selectedItem);
-      if (index !== -1) {
-        inventory.splice(index, 1); // 使用後削除
-      }
-      selectedItem = null;
+ function useSelectedItem() {
+  const selectedItem = player.inventory[selectedInventoryIndex];
+  if (!selectedItem) return;
+
+  const used = selectedItem.use(player);
+  if (used) {
+    const index = player.inventory.indexOf(selectedItem);
+    if (index !== -1) {
+      console.log("アイテム削除");
+      player.inventory.splice(index, 1); // 使用後削除
     }
+
+    // ここは不要: selectedItem = null;
+    // 代わりに選択インデックスをリセット
+    selectedInventoryIndex = 0;
   }
+}
   
   
     
@@ -1195,8 +1209,12 @@ items.push(new Item(2,2,"回復薬","heal"));
     const name = itemNames[Math.floor(Math.random() * itemNames.length)];
     let type = "misc";
     let damage = 0;
+    let heal = 0;
 
-    if (name.includes("回復薬")) type = "medicine";
+    if (name.includes("回復薬")) {
+      type = "medicine";
+      heal = 20;
+    }
     else if (name.includes("パン")) type = "food";
     else if (name.includes("短剣")) {
       type = "weapon";
@@ -1209,7 +1227,8 @@ items.push(new Item(2,2,"回復薬","heal"));
       name,
       type,
       name.includes("短剣") ? 1.0 : 2.5,
-      damage
+      damage,
+      heal
     ));
   }
 
@@ -1818,8 +1837,8 @@ canvas.addEventListener("touchend", (e) => {
 
   // デバッグ情報
   const angleDeg = angle * 180 / Math.PI;
-  console.log(`🧭 プレイヤーは今 ${angleDeg.toFixed(1)}° の方向を向いている`);
-  console.log("📍 プレイヤー位置: X =", posX.toFixed(2), "Y =", posY.toFixed(2));
+  //console.log(`🧭 プレイヤーは今 ${angleDeg.toFixed(1)}° の方向を向いている`);
+  //console.log("📍 プレイヤー位置: X =", posX.toFixed(2), "Y =", posY.toFixed(2));
 
   if (wasDraggingItem) {
     console.log("🟢 ドロップ処理にはいりました");
@@ -1851,6 +1870,7 @@ canvas.addEventListener("touchend", (e) => {
             break;
           case "use":
             console.log("✅ 使用した！");
+            useSelectedItem();
             break;
           default:
             console.log("👆 何もしないエリアにドロップされました");
