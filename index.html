@@ -40,22 +40,7 @@
   // ここに移動や回転処理を書く
 }, { passive: false }); // 👈 これが超重要！*/
 
- // const zombieImage = new Image();
-   // zombieImage.src = "Zombie.png";
-    
-  const mummyImage = new Image();
-    mummyImage.src = "Mummy.png";
-    
-  const dragonImage = new Image();
-    dragonImage.src = "Dragon.png";
-    
-  const punchImage = new Image();
-    punchImage.src = "Punch.png";
-    
-    
-  // 短剣攻撃用の斬撃エフェクト画像をロード
-  const zangekiImg = new Image();
-    zangekiImg.src = "Zangeki.png";
+ 
     
   const spriteSheet = new Image();
   spriteSheet.src = "sps.png";
@@ -121,6 +106,8 @@
   
   const bullets = [];
   
+  const thrownItems = [];
+  
   
 
   const tileSize = 64;
@@ -151,6 +138,8 @@
   
   
   let items = []; // グローバルで定義
+  
+  const damageTexts = [];
 
   window.onload = function () {
     
@@ -223,7 +212,7 @@
 
   // ✅ ① Enemy クラスを先に定義
 class Enemy {
-  constructor(x, y, spriteRow, hp = 3, speed = 0.02) {
+  constructor(x, y, spriteRow, hp = 3, speed = 0.001) {
     this.x = x;
     this.y = y;
     this.spriteRow = spriteRow; // スプライトシートの行番号
@@ -274,6 +263,34 @@ class Enemy {
     shakeTimer = 20;
   }
 
+
+  takeDamage(damage) {
+    this.hp -= damage;
+    this.hitTimer = 10;
+  
+    // ダメージテキスト生成
+    damageTexts.push(new DamageText(this.x, this.y, `${Math.abs(damage)}`));
+    //damageTexts.push(new DamageText(this.x, this.y, `-${damage}`));
+  
+    let particleCount = 40;
+    const offsetX = (Math.random() - 0.5) * 0.3;
+    const offsetY = (Math.random() - 0.5) * 0.3;
+  
+    for (let j = 0; j < particleCount; j++) {
+      const angle = Math.random() * Math.PI * 2;
+      const speed = Math.random() * 0.5 + 0.1;
+      const lifetime = 20 + Math.floor(Math.random() * 10);
+      particles.push(
+        new Particle(this.x + offsetX, this.y + offsetY, angle, speed, lifetime)
+      );
+    }
+  
+    if (this.hp <= 0 && !this.isDying) {
+      this.isAlive = false;
+      this.startDying();
+    }
+  }
+  /*
   takeDamage(damage) {
     this.hp -= damage;
     this.hitTimer = 10;
@@ -281,6 +298,11 @@ class Enemy {
     const particleCount = 40;
     const offsetX = (Math.random() - 0.5) * 0.3;
     const offsetY = (Math.random() - 0.5) * 0.3;
+    
+    enemy.takeDamage(damageToApply);
+
+// ダメージテキスト生成
+  damageTexts.push(new DamageText(enemy.x, enemy.y, `-${damageToApply}`));
 
     for (let j = 0; j < particleCount; j++) {
       const angle = Math.random() * Math.PI * 2;
@@ -293,7 +315,7 @@ class Enemy {
       this.isAlive = false;
       this.startDying();
     }
-  }
+  }*/
 
   startDying() {
     this.isDying = true;
@@ -331,7 +353,7 @@ class Enemy {
 //ゾンビクラス↓
   class ZombieEnemy extends Enemy {
   constructor(x, y) {
-    super(x, y, 5, 0.002);
+    super(x, y, 5, 0.1);
     this.type = "zombie";
   }
 
@@ -557,6 +579,54 @@ class Enemy {
   enemies.push(new ZombieEnemy(5.5, 1.5));
   
   
+  
+  class DamageText {
+    constructor(x, y, text) {
+      this.x = x;
+      this.y = y;
+      this.text = text;
+      this.age = 0; // 表示時間のカウント
+    }
+  
+    update() {
+      this.y -= 0.01; // 少し上に浮かせる
+      this.age++;
+    }
+  
+    isAlive() {
+      return this.age < 60; // 60フレーム(1秒)表示
+    }
+  
+    draw(ctx) {
+      const dx = this.x - posX;
+      const dy = this.y - posY;
+      const distance = Math.hypot(dx, dy);
+      const angleToEnemy = Math.atan2(dy, dx) - angle;
+    
+      const halfFov = fov / 2;
+      if (Math.abs(angleToEnemy) > halfFov) return;
+    
+      // 遮蔽判定（簡易）
+      const steps = Math.floor(distance * 10);
+      for (let i = 1; i < steps; i++) {
+        const t = i / steps;
+        const cx = posX + dx * t;
+        const cy = posY + dy * t;
+        if (map[Math.floor(cy)][Math.floor(cx)] === 1) return;
+      }
+    
+      const screenX = (angleToEnemy + halfFov) / fov * canvas.width;
+      //const offsetY = 0; // 浮き上がる
+
+      const offsetY = this.age * 1; // 浮き上がる
+    
+      ctx.fillStyle = "red";
+      ctx.font = "100px sans-serif";
+      ctx.fillText(this.text, screenX, canvas.height / 2 + offsetY);
+    }
+  }
+  
+  
   /*function spawnEnemy(x = null, y = null) {
     // ランダム座標を決定（指定が無ければランダム配置）
     let spawnX = x;
@@ -713,6 +783,113 @@ items.push(new Item(2,2,"回復薬","heal"));
     selectedInventoryIndex = 0;
   }
 }
+
+//投げるクラス↓
+class ThrownItem {
+  constructor(x, y, vx, vy, item) {
+    this.x = x;           // 現在位置 X
+    this.y = y;           // 現在位置 Y
+    this.vx = vx;         // X方向の速度（初期値）
+    this.vy = vy;         // Y方向の速度（初期値）
+    this.item = item;     // 投げたアイテムオブジェクト
+    this.age = 0;         // フレーム経過数
+    this.lifetime = 50;   // 飛ぶ長さ
+    this.isActive = true; // 飛行中かどうか
+  }
+
+  update() {
+  if (!this.isActive) return;
+
+  // 次に移動する予定の座標
+  const nextX = this.x + this.vx;
+  const nextY = this.y + this.vy;
+
+  // 移動先が壁かどうか
+  const tileX = Math.floor(nextX);
+  const tileY = Math.floor(nextY);
+
+  if (
+    tileX < 0 || tileX >= mapWidth ||
+    tileY < 0 || tileY >= mapHeight ||
+    map[tileY][tileX] === 1 // 壁
+  ) {
+    this.isActive = false;
+
+    // 壁に当たった位置に落下させる
+    items.push(new Item(
+      Math.floor(this.x), // 直前の位置に落とす
+      Math.floor(this.y),
+      this.item.name,
+      this.item.type,
+      this.item.weight
+    ));
+    console.log(`💥 投げたアイテムが壁に当たって落下しました x=${this.x}, y=${this.y}`);
+    return;
+  }
+
+  // 壁に当たらなければ移動
+  this.x = nextX;
+  this.y = nextY;
+
+  this.age++;
+  
+  // 飛び終わったら落下
+  if (this.age >= this.lifetime) {
+    this.isActive = false;
+    items.push(new Item(
+      Math.floor(this.x),
+      Math.floor(this.y),
+      this.item.name,
+      this.item.type,
+      this.item.weight
+    ));
+    console.log(`🟢 投げたアイテムが寿命で落下しました x=${this.x}, y=${this.y}`);
+  }
+}
+/*
+  update() {
+    if (!this.isActive) return;
+
+    this.x += this.vx;
+    this.y += this.vy;
+
+    this.age++;
+
+    if (this.age >= this.lifetime) {
+      this.isActive = false;
+      items.push(new Item(
+        Math.floor(this.x),
+        Math.floor(this.y),
+        this.item.name,
+        this.item.type,
+        this.item.weight
+      ));
+      console.log(`🟢 投げたアイテムが床に落ちた`);
+      console.log(`投げたアイテムが落下 x=${this.x} y=${this.y}`);
+    }
+  }
+*/
+  
+    draw(ctx) {
+    if (!this.isActive) return;
+  
+    const dx = this.x - posX;
+    const dy = this.y - posY;
+    const dist = Math.sqrt(dx*dx + dy*dy);
+    const angleTo = Math.atan2(dy, dx) - angle;
+    const halfFov = fov/2;
+  
+    if (Math.abs(angleTo) < halfFov) {
+      const screenX = (angleTo + halfFov) / fov * canvas.width;
+      const size = Math.max(2, 300 / (dist + 0.1));
+      ctx.fillStyle = "orange";
+      ctx.beginPath();
+      ctx.arc(screenX, canvas.height/2, size, 0, Math.PI*2);
+      ctx.fill();
+    }
+  }
+}
+//投げるクラス↑
 
   class Particle {
     constructor(x, y, angle, speed, lifetime) {
@@ -929,6 +1106,20 @@ items.push(new Item(2,2,"回復薬","heal"));
     ctx.font = "12px sans-serif";
     ctx.fillText(`満腹度: ${player.hunger}/${player.maxHunger}`, margin + 5, canvas.height - barHeight - margin + 12);
   }
+  
+  function throwSelectedItem() {
+    const item = player.inventory[selectedInventoryIndex];
+    if (!item) return;
+  
+    const speed = 0.4;
+    const vx = Math.cos(angle) * speed;
+    const vy = Math.sin(angle) * speed;
+  
+    thrownItems.push(new ThrownItem(posX, posY, vx, vy, item));
+    player.inventory.splice(selectedInventoryIndex, 1);
+  
+    console.log(`💥 投げた！`);
+  }
 
   function drawInventory() {
     
@@ -989,7 +1180,7 @@ items.push(new Item(2,2,"回復薬","heal"));
   const h = canvas.height / 2;
 
   const zones = [
-    { x: 0, y: 0, label: "投げる(開発中)" },
+    { x: 0, y: 0, label: "投げる" },
     { x: w, y: 0, label: "使う" },              // ← ここが余白
     { x: 0, y: h, label: "置く" },
     { x: w, y: h, label: ""},
@@ -1044,30 +1235,37 @@ items.push(new Item(2,2,"回復薬","heal"));
   
   
   
- function drawPunchEffect() {
-  if (!isPunching || !punchImage.complete) return;
-
-  const progress = punchTimer / 100;
-  const alpha = 1 - progress;
-  const scale = 0.7 + 0.3 * progress;
-
-  const imgWidth = punchImage.width * scale;
-  const imgHeight = punchImage.height * scale;
-
-  const offsetX = 65;
-  const offsetY = 100;
-
-  const x = canvas.width / 2 - imgWidth / 2 + offsetX;
-  const y = canvas.height / 2 - imgHeight / 2 + offsetY;
-
-  ctx.save();
-  ctx.globalAlpha = alpha;
-  ctx.drawImage(punchImage, x, y, imgWidth+offsetX, imgHeight+offsetY);
-  ctx.restore();
-
-  punchTimer++;
-  if (punchTimer > 7) isPunching = false;
-}
+  function drawPunchEffect(){
+    if (!isPunching) return;
+  
+    const spriteSize = 128;
+  
+    // 進行度（透明度だけに使う）
+    const progress = punchTimer / 100;
+    const alpha = 1 - progress;
+  
+    ctx.save();
+    ctx.globalAlpha = alpha;
+  
+    // 切り出し位置（行7:パンチエフェクト）
+    const sx = 0 * spriteSize; // 列0
+    const sy = 7 * spriteSize; // 行7
+  
+    ctx.drawImage(
+      spriteSheet,
+      sx, sy,
+      spriteSize, spriteSize,
+      0,                 // dx: 左上に配置
+      0,                 // dy
+      canvas.width,      // 描画幅をキャンバス全体に
+      canvas.height      // 描画高さをキャンバス全体に
+    );
+  
+    ctx.restore();
+  
+    punchTimer++;
+    if (punchTimer > 7) isPunching = false;
+  }
   
   
 //プレイヤー攻撃関連↓
@@ -1110,27 +1308,34 @@ items.push(new Item(2,2,"回復薬","heal"));
   
  
   function showZangekiEffect() {
-    const effectDuration = 200; // エフェクト表示時間（ms）
+    const effectDuration = 200; // ms
     const startTime = Date.now();
   
     function drawEffect() {
       const now = Date.now();
       if (now - startTime < effectDuration) {
-        // 攻撃方向中央にエフェクトを表示（例: 画面中央）
+        const spriteSize = 128;
+  
+        // 切り出し位置
+        const sx = 1 * spriteSize; // 列0
+        const sy = 7 * spriteSize; // 行0（斬撃エフェクト）
+  
         ctx.drawImage(
-          zangekiImg,
-          canvas.width / 2 - zangekiImg.width / 4,
-          canvas.height / 2 - zangekiImg.height / 4,
-          zangekiImg.width / 2,
-          zangekiImg.height / 2
+          spriteSheet,
+          sx, sy,
+          spriteSize, spriteSize,
+          0,                 // 描画先X（左端）
+          0,                 // 描画先Y（上端）
+          canvas.width,      // 描画先幅（全体）
+          canvas.height      // 描画先高さ（全体）
         );
+  
         requestAnimationFrame(drawEffect);
       }
     }
   
     drawEffect();
   }
-  
   
   
   function normalizeAngle(angle) {
@@ -1628,12 +1833,29 @@ items.push(new Item(2,2,"回復薬","heal"));
         }
       }
     }
+    
   
     enemies.forEach(enemy => {
       if (enemy.isAlive) {
         enemy.updateHitEffect();
       }
     });
+    
+  for (let i = damageTexts.length - 1; i >= 0; i--) {
+    damageTexts[i].update();
+    if (!damageTexts[i].isAlive()) {
+      damageTexts.splice(i, 1);
+    }
+  }
+  
+  for (const dt of damageTexts) {
+    dt.draw(ctx);
+  }
+  
+  for (const thrown of thrownItems) {
+    thrown.draw(ctx);
+  }
+    
   
     drawGoal();
   
@@ -1818,6 +2040,27 @@ items.push(new Item(2,2,"回復薬","heal"));
     particles[i].update();
     if (!particles[i].isAlive()) {
       particles.splice(i, 1);
+    }
+  }
+  
+  // 当たり判定ループ
+  
+  for (const thrown of thrownItems) {
+    if (!thrown.isActive) continue;
+    for (const enemy of enemies) {
+      const dx = enemy.x - thrown.x;
+      const dy = enemy.y - thrown.y;
+      if (Math.hypot(dx, dy) < 0.5) {
+        enemy.takeDamage(3); // 3ダメージとか
+        thrown.isActive = false;
+      }
+    }
+  }
+  
+  for (let i = thrownItems.length - 1; i >= 0; i--) {
+    thrownItems[i].update();
+    if (!thrownItems[i].isActive) {
+      thrownItems.splice(i, 1);
     }
   }
   
@@ -2059,6 +2302,7 @@ canvas.addEventListener("touchend", (e) => {
         switch (action) {
           case "throw":
             console.log("💥 投げた！");
+            throwSelectedItem();
             break;
           case "drop":
             console.log("📦 地面に置いた！");
