@@ -143,6 +143,8 @@
 
   window.onload = function () {
     
+    player.nextAttackTime = 0; // 次に攻撃できる時刻
+    
   
     // アイテムをここで初期化
     const itemNames = [
@@ -352,116 +354,102 @@ class Enemy {
 }
 //ゾンビクラス↓
   class ZombieEnemy extends Enemy {
-  constructor(x, y) {
-    super(x, y, 5, 0.1);
-    this.type = "zombie";
-  }
-
-  update(playerX, playerY) {
-    super.update(playerX, playerY);
+    constructor(x, y) {
+      super(x, y, 0, 3 , 0.002); // ←ここだけ修正
+      this.type = "zombie";
+    }
     
-    const dx = playerX - this.x;
-    const dy = playerY - this.y;
-    const dist = Math.hypot(dx, dy);
-    const speed = this.speed;
+    
   
-    const nextX = this.x + dx / dist * speed;
-    const nextY = this.y + dy / dist * speed;
+    update(playerX, playerY) {
+      super.update(playerX, playerY);
   
-    if (map[Math.floor(nextY)][Math.floor(nextX)] === 0) {
-      this.x = nextX;
-      this.y = nextY;
-    } else {
-      // 壁にぶつかったとき：斜め移動 or 横移動で回避を試みる
-      const tryX = this.x + Math.sign(dx) * speed;
-      const tryY = this.y + Math.sign(dy) * speed;
+      const dx = playerX - this.x;
+      const dy = playerY - this.y;
+      const dist = Math.hypot(dx, dy);
   
-      if (map[Math.floor(this.y)][Math.floor(tryX)] === 0) {
-        this.x = tryX;
-      } else if (map[Math.floor(tryY)][Math.floor(this.x)] === 0) {
-        this.y = tryY;
+      if (dist === 0) return;
+  
+      const speed = this.speed;
+      const nextX = this.x + (dx / dist) * speed;
+      const nextY = this.y + (dy / dist) * speed;
+  
+      if (map[Math.floor(nextY)]?.[Math.floor(nextX)] === 0) {
+        this.x = nextX;
+        this.y = nextY;
+      } else {
+        const tryX = this.x + Math.sign(dx) * speed;
+        const tryY = this.y + Math.sign(dy) * speed;
+  
+        if (map[Math.floor(this.y)]?.[Math.floor(tryX)] === 0) {
+          this.x = tryX;
+        } else if (map[Math.floor(tryY)]?.[Math.floor(this.x)] === 0) {
+          this.y = tryY;
+        }
       }
     }
-
-  }
-
   
-  drawFromRaycastView(ctx) {
-    if (!this.isAlive) return;
-
-    ctx.save();
-
-    const dx = this.x - posX;
-    const dy = this.y - posY;
-    const distance = Math.sqrt(dx * dx + dy * dy);
-    const angleToEnemy = Math.atan2(dy, dx) - angle;
-    const halfFov = fov / 2;
-   
-
-    if (Math.abs(angleToEnemy) > halfFov) {
-      ctx.restore(); return;
-    }
-
-    // 遮蔽チェック
-    const steps = Math.floor(distance * 10);
-    for (let i = 1; i < steps; i++) {
-      const t = i / steps;
-      const cx = posX + dx * t;
-      const cy = posY + dy * t;
-      if (map[Math.floor(cy)][Math.floor(cx)] === 1) {
+    drawFromRaycastView(ctx) {
+      if (!this.isAlive) return;
+  
+      ctx.save();
+  
+      const dx = this.x - posX;
+      const dy = this.y - posY;
+      const distance = Math.sqrt(dx * dx + dy * dy);
+      const angleToEnemy = Math.atan2(dy, dx) - angle;
+      const halfFov = fov / 2;
+  
+      if (Math.abs(angleToEnemy) > halfFov) {
         ctx.restore(); return;
       }
-    }
-
-    const baseSize = 1000;
-
-    const screenX = (angleToEnemy + halfFov) / fov * canvas.width;
-    const size = Math.min(1500, baseSize / (distance+0.2));
-    
-    const offsetY = 80;
-
-    
-    if(this.hitTimer > 0){
-      ctx.globalAlpha = 0.1;
-       
-    }
-    
-    
-    
-
-    // スプライトシートから切り出して描画
-    const spriteSize = 128;  // スプライト1マスのピクセル数
-    
-    const sx = (this.attackCooldown > 45) ? (1 * spriteSize) : (0 * spriteSize);
-
-    //const sx = 0 * spriteSize; // 左から何マス目
-    const sy = 0 * spriteSize; // 上から何マス目
-    
   
-    ctx.drawImage(
-      spriteSheet,          // ←ここを単体画像じゃなくスプライトシートにする
-      sx, sy,               // 切り出し元X,Y
-      spriteSize, spriteSize, // 切り出しサイズ
-      screenX - size/2,
-      canvas.height/2 - size/2 + offsetY,
-      size,
-      size
-    );
-   
-
-    //ctx.drawImage(zombieImage, screenX - size / 2, canvas.height / 2 - size / 2+offsetY, size, size);
-    
-    
-    ctx.globalAlpha = 1.0;
-    ctx.restore();
+      const steps = Math.floor(distance * 10);
+      for (let i = 1; i < steps; i++) {
+        const t = i / steps;
+        const cx = posX + dx * t;
+        const cy = posY + dy * t;
+        if (map[Math.floor(cy)]?.[Math.floor(cx)] === 1) {
+          ctx.restore(); return;
+        }
+      }
+  
+      const baseSize = 1000;
+      const screenX = (angleToEnemy + halfFov) / fov * canvas.width;
+      const size = Math.min(1500, baseSize / (distance + 0.2));
+      const offsetY = 80;
+  
+      if (this.hitTimer > 0) {
+        ctx.globalAlpha = 0.1;
+      }
+  
+      const spriteSize = 128;
+      const sx = (this.attackCooldown > 45) ? (1 * spriteSize) : (0 * spriteSize);
+      const sy = 0 * spriteSize;
+  
+      ctx.drawImage(
+        spriteSheet,
+        sx, sy,
+        spriteSize, spriteSize,
+        screenX - size / 2,
+        canvas.height / 2 - size / 2 + offsetY,
+        size,
+        size
+      );
+  
+      ctx.globalAlpha = 1.0;
+      ctx.restore();
+    }
   }
-}
 //ゾンビクラス↑
+
+    const z = new ZombieEnemy(0,0);
+    console.log("ゾンビHP:", z.hp); // ← ここで5と表示されるはず
 
 //ミイラクラス↓
   class MummyEnemy extends Enemy {
   constructor(x, y) {
-    super(x, y, 20, 0.0018); // HP8、ゾンビより少し遅い
+    super(x, y, 1,6, 0.0018); // HP8、ゾンビより少し遅い
     this.type = "mummy";
   }
 
@@ -520,7 +508,7 @@ class Enemy {
 //ドラゴンクラス↓
   class DragonEnemy extends Enemy {
   constructor(x, y) {
-    super(x, y, 20, 0.010); // HP8、ゾンビより少し遅い
+    super(x, y, 2,20, 0.010); // HP8、ゾンビより少し遅い
     this.type = "dragon";
   }
 
@@ -1120,33 +1108,33 @@ class ThrownItem {
   
     console.log(`💥 投げた！`);
   }
-
+  
   function drawInventory() {
-    
-  const padding = 20;            // 右端・上端からの余白
-  const lineHeight = 24;         // 行間
-  const fontSize = 40;
-
-  const x = canvas.width - 200;  // ← 常に右端（画面幅から200px分左へ）
-  let y = padding + fontSize;    // 上端から余白を取って開始位置
-
-  ctx.fillStyle = "white";
-  ctx.font = `${fontSize}px sans-serif`;
-  ctx.textAlign = "left";
-  ctx.textBaseline = "top";
-
-  ctx.fillText("🎒 ITEM", x, y);
-  y += lineHeight;
-
-  player.inventory.forEach((item, index) => {
-    const itemText = item?.name || "(不明なアイテム)";
-    ctx.fillText(`- ${itemText}`, x, y + index * lineHeight);
-      if (item && item.name) {
+    const padding = 20;
+    const fontSize = 30;       // ← 大きくしたいフォントサイズ
+    const lineHeight = 40;     // ← 行間（フォントサイズ +10くらい推奨）
+  
+    const x = canvas.width - 200;
+    let y = padding;
+  
+    ctx.font = `${fontSize}px sans-serif`;
+    ctx.textAlign = "left";
+    ctx.textBaseline = "top";
+  
+    // タイトル
+    ctx.fillStyle = "white";
+    ctx.fillText("🎒 ITEM", x, y);
+    y += lineHeight;
+  
+    player.inventory.forEach((item, index) => {
+      const itemText = item?.name || "(不明なアイテム)";
+  
+      // 選択中だけ色を変える
       ctx.fillStyle = index === selectedInventoryIndex ? "yellow" : "white";
-      ctx.fillText(`- ${item.name}`, x, y + index * 20);
-    }
-  });
-}
+  
+      ctx.fillText(`- ${itemText}`, x, y + index * lineHeight);
+    });
+  }
 
   function drawSelectedItem() {
     if (player.inventory.length > 0) {
@@ -1269,41 +1257,56 @@ class ThrownItem {
   
   
 //プレイヤー攻撃関連↓
-  function performAttack() {
-    let damageToApply = 1; // 素手のデフォルト攻撃力
+function performAttack() {
+  const now = Date.now();
   
-    if (equippedWeapon) {
-      damageToApply = equippedWeapon.damage;
-    }
+  // クールダウン中なら何もしない
+  if (now < player.nextAttackTime) {
+    console.log("⏳ 攻撃クールダウン中！");
+    return;
+  }
   
-    enemies.forEach((enemy, i) => {
-      if (!enemy.isAlive) return;
-  
-      const dx = enemy.x - posX;
-      const dy = enemy.y - posY;
-      const dist = Math.sqrt(dx * dx + dy * dy);
-      const angleToEnemy = Math.atan2(dy, dx);
-      const diffAngle = Math.abs(normalizeAngle(angleToEnemy - angle));
-  
-      if (dist < attackRange && diffAngle < Math.PI / 4) {
-        enemy.takeDamage(damageToApply);
-        console.log(`🎯 敵${i}に ${damageToApply} ダメージ！残HP: ${enemy.hp}`);
-  
-  
-        if (enemy.hp <= 0) {
-          console.log(`💀 敵${i} 撃破！`);
-        }
-      }
-    });
-  
-    if (equippedWeapon && equippedWeapon.name.includes("短剣")) {
-      console.log("🗡️ 短剣攻撃発動、斬撃エフェクト表示！");
-      showZangekiEffect();
-    } else if (!equippedWeapon) {
-      isPunching = true;
-      punchTimer = 0;
+  let damageToApply = 1; // 素手のデフォルトダメージ
+  let cooldown = 1000;    // 素手のクールダウン(ms)
+
+  if (equippedWeapon) {
+    damageToApply = equippedWeapon.damage;
+
+    // 武器別にクールダウン
+    if (equippedWeapon.name.includes("短剣")) {
+      cooldown = 1300; // 短剣は素早い
+    } else if (equippedWeapon.name.includes("大剣")) {
+      cooldown = 2500; // 大剣は重い
     }
   }
+
+  // 攻撃処理
+  enemies.forEach(enemy => {
+    if (!enemy.isAlive) return;
+    
+    const dx = enemy.x - posX;
+    const dy = enemy.y - posY;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+    const angleToEnemy = Math.atan2(dy, dx);
+    const diffAngle = Math.abs(normalizeAngle(angleToEnemy - angle));
+
+    if (dist < attackRange && diffAngle < Math.PI / 4) {
+      enemy.takeDamage(damageToApply);
+      console.log(`🎯 敵に${damageToApply}ダメージ！`);
+    }
+  });
+
+  // エフェクト
+  if (equippedWeapon && equippedWeapon.name.includes("短剣")) {
+    showZangekiEffect();
+  } else if (!equippedWeapon) {
+    isPunching = true;
+    punchTimer = 0;
+  }
+
+  // 次に攻撃できる時刻を設定
+  player.nextAttackTime = now + cooldown;
+}
   //プレイヤー攻撃関連↑
   
  
@@ -1553,6 +1556,7 @@ class ThrownItem {
 
   // アイテムのリセット
   items.length = 0;
+  
   for (let i = 0; i < 5; i++) {
     const tile = findRandomEmptyTile(map);
     const name = itemNames[Math.floor(Math.random() * itemNames.length)];
@@ -2051,7 +2055,7 @@ class ThrownItem {
       const dx = enemy.x - thrown.x;
       const dy = enemy.y - thrown.y;
       if (Math.hypot(dx, dy) < 0.5) {
-        enemy.takeDamage(3); // 3ダメージとか
+        enemy.takeDamage(1); // 1ダメージとか
         thrown.isActive = false;
       }
     }
