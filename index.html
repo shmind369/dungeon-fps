@@ -2,9 +2,9 @@
   <html lang="ja">
   <head>
     <meta charset="UTF-8">
-    <!--<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">-->
+    
    
-    <title>2025/06/23ローグライクFPS</title>
+    <title>2025/07/09ローグライクFPS</title>
     <style>
       body {
         margin: 0;
@@ -19,348 +19,301 @@
    
   </head>
   <body>
- 
   <canvas id="gameCanvas"></canvas>
   <script>
+  // 2025/07/09 10:46 アロー関数の整理
+  // 2025/07/09  3:24 G変数、関数の整理 ゾンビのサイズoffsetを80→40に変更
   
-  //
+  console.log();
+  
+  window.onload = function () {
+    
+    //initEnemies();
+
+    player.nextAttackTime = 0; // 次に攻撃できる時刻
+    
+    isCharging = false;
+    
+    chargeStartTime = null;
+  }
+  
+  //↓描画関係
+  
   const canvas = document.getElementById('gameCanvas');
   const ctx = canvas.getContext('2d');
-  const TILE_SIZE = 32;
-  const fov = Math.PI / 3;
-  
- 
-
   canvas.width = window.innerWidth;
   canvas.height = window.innerHeight;
-  
- /*
- canvas.addEventListener("touchmove", (e) => {
-  e.preventDefault(); // スクロール防止
-  // ここに移動や回転処理を書く
-}, { passive: false }); // 👈 これが超重要！*/
-
- 
     
   const spriteSheet = new Image();
   spriteSheet.src = "sps.png";
   
+  const numRays = Math.min(1024, canvas.width); // 画質落ちるけど軽くなる
+  const maxDepth = 10;
+  //const tileSize = 64;
+  const TILE_SIZE = 32;
+  const fov = Math.PI / 3;
+  
+  //↑描画関係
+
+
+  //↓プレイヤー関連
   
   let player = {
     hp: 30,
     maxHp: 30,
     hunger: 100,
     maxHunger: 100,
+    speed: 0.04,
     inventory: [],
     effects: []  // 状態異常など
   };
   
-  let shakeTimer = 0;
-  let shakeIntensity = 50;
+  let hungerTick = 0;
+  let equippedWeapon = null;//装備スロット
+  let selectedInventoryIndex = 0; //選択中インデックス
+  const start = {x:1.5,y:1.5};
+  let posX = start.x;
+  let posY = start.y;
+  let angle = 0;
   
-  let   lastAttackTime = 0;
+  //const inventory = []; // 2025/07/07 23:44 インベントリーを統一する
+
+  //↑プレイヤー関連
+  
+  //↓マップ関連
+
+  let map = generateRandomMap(16, 16);// ここでマップとゴールを初期化
+  let goal = findRandomEmptyTile(map);
+  let explored = initializeExplored(map);
+  const mapWidth = map[0].length;
+  const mapHeight = map.length;
+  let goalReached = false; //ゴールに到達したかどうか
+  let goalInRange = false;
+  let floor = 1;
+  
+  //↑マップ関連
+
+  //↓敵/アイテム/エフェクト
+  
+  let enemies = [];
+  let items = []; // グローバルで定義
+  const bullets = [];
+  const thrownItems = [];
+  const damageTexts = [];
+  let particles = [];//パーティクル
+  let nearbyItemIndex = -1;
+
+  //↑敵/アイテム/エフェクト
+
+  //↓プレイヤー行動関連
+  
+  let lastAttackTime = 0;
   const attackCooldown = 500; // ミリ秒
   const attackRange = 1;     // 距離（ピクセル）
   const attackDamage = 1;     // 与えるダメージ
-  
   let isPunching = false;
   let punchTimer = 0;
   
-  let enemies = []; // グローバルで定義
+  let charging = false;//アクションゲージ
+  let chargeThreshold = 100; // 100フレームで満タン
+  let chargeInProgress = false;
+  let isCharging = false;
+  let chargeTime = 0;
+  let chargeCallback = null;
   
+  let showDropTargets = false;
+
+  //↑プレイヤー行動関連
+
+  //↓その他
+  
+  let shakeTimer = 0;
+  let shakeIntensity = 50;
+  let warningTimer = 0;
   let gameCount = 0;
-  
   let isGameOver = false;
   
-  let selectedInventoryIndex = 0; //選択中インデックス(仮)
+  //↑その他
   
-  let particles = [];
-  
-
-  
-  // ここでマップとゴールを初期化
-  let map = generateRandomMap(16, 16);
-  
-
-  
-  let goal = findRandomEmptyTile(map);
+  const itemTemplates = {
+    "🍞パン": {
+      type: "food",
+      heal: 0,
+      hunger: 30,
+      throwDamage: 0,
+      spriteRow: 0
+    },
     
-  let explored = [];
-  
-      for (let y = 0; y < map.length; y++) {
-        explored[y] = [];
-      for (let x = 0; x < map[0].length; x++) {
-        explored[y][x] = false; // まだ探索していない
-      }
+    "💊回復薬": {
+      type: "medicine",
+      heal: 20,
+      throwDamage: 0,
+      spriteRow: 1
+    },
+    
+    "💊加速の薬": {
+      type: "medicine",
+      speed: 0.05,
+      throwDamage: 0,
+      spriteRow: 0
+    },
+    
+    "💊鈍足の薬": {
+      type: "medicine",
+      speed: -0.02,
+      throwDamage: 0,
+      spriteRow: 0
+    },
+    
+    "🗡️短剣": {
+      type: "weapon",
+      damage: 5,
+      throwDamage: 1,
+      spriteRow: 2
     }
     
-    const start = {x:1.5,y:1.5};
-    
-    carvePath(map,start,goal);
-    let posX = start.x;
-    let posY = start.y;
+  };
   
-  //フロアの調整
-  let floor = 1;
-  
-  
-  const bullets = [];
-  
-  const thrownItems = [];
-  
-  
+  //carvePath(map,start,goal);
 
-  const tileSize = 64;
-  const mapWidth = map[0].length;
-  const mapHeight = map.length;
  
-  let angle = 0;
+ /*2025/07/07 20:10 テスト削除 一応削除後も機能
+  startCharge(() => {
+      const item = items[nearbyItemIndex];
+      inventory.push(item); // 所持品に追加
+      items.splice(nearbyItemIndex, 1); // マップ上から削除
+      nearbyItemIndex = -1;
+      isDraggingItem = false;
+    }, 60
+  );
+  */
   
-  let warningTimer = 0;
+  //↓Enemyクラス---------------------
+  class Enemy {
+    constructor(x, y, spriteRow, hp = 3, speed = 0.001) {
+      this.x = x;
+      this.y = y;
+      this.spriteRow = spriteRow; // スプライトシートの行番号
+      this.hp = hp;
+      this.alpha = 1.0;
+      this.isDying = false;
+      this.deathStartTime = 0;
+      this.speed = speed;
+      this.isAlive = true;
+      this.attackCooldown = 0;
+      this.hitTimer = 0;
+    }
   
-  
-  
-  //アクションゲージ
-  let charging = false;
-  //let chargeTime = 0;
-  let chargeThreshold = 100; // 100フレームで満タン
-  //ここまで
-  
-  let chargeInProgress = false;
-  
-
-
-  //let posX = 3.5, posY = 3.5; angle = 0;// プレイヤーの位置
-  //let dir = 0; // 視点の角度（ラジアン）
-  
-
-  const inventory = [];
-  
-  
-  let items = []; // グローバルで定義
-  
-  const damageTexts = [];
-
-  window.onload = function () {
-    
-    player.nextAttackTime = 0; // 次に攻撃できる時刻
-    
-  
-    // アイテムをここで初期化
-    const itemNames = [
-      "🗡️短剣",
-      //"🗡️青銅剣",
-      "🍞パン",
-      //"🕯️松明",
-      //"🏹木の矢",
-      //"🔑鍵",
-      "💊回復薬",
-      "💊鈍足の薬",
-      "💊俊足の薬"
-      ];
-    items = Array.from({ length: 10 }, () => {
-      const name = itemNames[Math.floor(Math.random() * itemNames.length)];
-      let type = "misc";
-      let damage = 0;
-      let heal = 0;
-  
-      if (name.includes("回復薬")) {
-        type = "medicine";
-        heal = 20;
-      }
-      else if (name.includes("パン")) type = "food";
-      else if (name.includes("鈍足")) type = "medicine";
-      else if (name.includes("俊足")) type = "medicine";
-      else if (name.includes("短剣")) {
-        type = "weapon";
-        damage = 5;
+    update(playerX, playerY) {
+      if (!this.isAlive) {
+        this.updateFadeOut();
+        return;
       }
   
-      return new Item(
-        Math.floor(Math.random() * 14) + 1.5,
-        Math.floor(Math.random() * 14) + 1.5,
-        name,
-        type,
-        name.includes("短剣")? 1.0:2.5,
-        damage,
-        heal
+      const dx = playerX - this.x;
+      const dy = playerY - this.y;
+      const distance = Math.hypot(dx, dy);
+  
+      if (distance < 0.5) {
+        if (this.attackCooldown <= 0) {
+          this.attackPlayer();
+          this.attackCooldown = 60;
+        }
+      } else {
+        if (distance === 0) return;
+        const nx = this.x + (dx / distance) * this.speed;
+        const ny = this.y + (dy / distance) * this.speed;
+        const tileX = Math.floor(nx);
+        const tileY = Math.floor(ny);
+        if (map[tileY][tileX] === 0) {
+          this.x = nx;
+          this.y = ny;
+        }
+      }
+  
+      if (this.attackCooldown > 0) this.attackCooldown--;
+    }
+  
+    attackPlayer() {
+      player.hp -= 5;
+      player.hp = Math.max(player.hp, 0);
+      console.log("敵の攻撃！プレイヤーのHP:", player.hp);
+      shakeTimer = 20;
+    }
+  
+  
+    takeDamage(damage) {
+      this.hp -= damage;
+      this.hitTimer = 10;
+    
+      // ダメージテキスト生成
+      damageTexts.push(new DamageText(this.x, this.y, `${Math.abs(damage)}`));
+      //damageTexts.push(new DamageText(this.x, this.y, `-${damage}`));
+    
+      let particleCount = 40;
+      const offsetX = (Math.random() - 0.5) * 0.3;
+      const offsetY = (Math.random() - 0.5) * 0.3;
+    
+      for (let j = 0; j < particleCount; j++) {
+        const angle = Math.random() * Math.PI * 2;
+        const speed = Math.random() * 0.5 + 0.1;
+        const lifetime = 20 + Math.floor(Math.random() * 10);
+        particles.push(
+          new Particle(this.x + offsetX, this.y + offsetY, angle, speed, lifetime)
+        );
+      }
+    
+      if (this.hp <= 0 && !this.isDying) {
+        this.isAlive = false;
+        this.startDying();
+      }
+    }
+  
+    startDying() {
+      this.isDying = true;
+      this.deathStartTime = Date.now();
+    }
+  
+    updateFadeOut() {
+      const elapsed = Date.now() - this.deathStartTime;
+      const fadeDuration = 1000;
+      this.alpha = Math.max(0, 1 - elapsed / fadeDuration);
+    }
+  
+    updateHitEffect() {
+      if (this.hitTimer > 0) this.hitTimer--;
+    }
+  
+    /*
+    draw(ctx) {
+      const spriteSize = 128;
+      const sx = 0 * spriteSize;
+      const sy = this.spriteRow * spriteSize;
+  
+      ctx.globalAlpha = this.alpha;
+  
+      ctx.drawImage(
+        spriteSheet,
+        sx, sy,
+        spriteSize, spriteSize,
+        this.x * TILE_SIZE,
+        this.y * TILE_SIZE,
+        TILE_SIZE, TILE_SIZE
       );
-      
-        
-    });
-    
-    
-    
-    isCharging = false;
-    chargeStartTime = null;
-  }
   
-
- 
-  
-    
-
-  
-  
-  
- 
-  //const numRays = canvas.width;
-  // 例: レイ本数を制限
-  const numRays = Math.min(1024, canvas.width); // 画質落ちるけど軽くなる
-  
-  const maxDepth = 10;
-  
-  
-
-  // ✅ ① Enemy クラスを先に定義
-class Enemy {
-  constructor(x, y, spriteRow, hp = 3, speed = 0.001) {
-    this.x = x;
-    this.y = y;
-    this.spriteRow = spriteRow; // スプライトシートの行番号
-    this.hp = hp;
-    this.alpha = 1.0;
-    this.isDying = false;
-    this.deathStartTime = 0;
-    this.speed = speed;
-    this.isAlive = true;
-    this.attackCooldown = 0;
-    this.hitTimer = 0;
-  }
-
-  update(playerX, playerY) {
-    if (!this.isAlive) {
-      this.updateFadeOut();
-      return;
+      ctx.globalAlpha = 1.0;
     }
-
-    const dx = playerX - this.x;
-    const dy = playerY - this.y;
-    const distance = Math.hypot(dx, dy);
-
-    if (distance < 0.5) {
-      if (this.attackCooldown <= 0) {
-        this.attackPlayer();
-        this.attackCooldown = 60;
-      }
-    } else {
-      if (distance === 0) return;
-      const nx = this.x + (dx / distance) * this.speed;
-      const ny = this.y + (dy / distance) * this.speed;
-      const tileX = Math.floor(nx);
-      const tileY = Math.floor(ny);
-      if (map[tileY][tileX] === 0) {
-        this.x = nx;
-        this.y = ny;
-      }
-    }
-
-    if (this.attackCooldown > 0) this.attackCooldown--;
+    */
   }
+  //↑Enemyクラス---------------------
 
-  attackPlayer() {
-    player.hp -= 5;
-    player.hp = Math.max(player.hp, 0);
-    console.log("敵の攻撃！プレイヤーのHP:", player.hp);
-    shakeTimer = 20;
-  }
-
-
-  takeDamage(damage) {
-    this.hp -= damage;
-    this.hitTimer = 10;
-  
-    // ダメージテキスト生成
-    damageTexts.push(new DamageText(this.x, this.y, `${Math.abs(damage)}`));
-    //damageTexts.push(new DamageText(this.x, this.y, `-${damage}`));
-  
-    let particleCount = 40;
-    const offsetX = (Math.random() - 0.5) * 0.3;
-    const offsetY = (Math.random() - 0.5) * 0.3;
-  
-    for (let j = 0; j < particleCount; j++) {
-      const angle = Math.random() * Math.PI * 2;
-      const speed = Math.random() * 0.5 + 0.1;
-      const lifetime = 20 + Math.floor(Math.random() * 10);
-      particles.push(
-        new Particle(this.x + offsetX, this.y + offsetY, angle, speed, lifetime)
-      );
-    }
-  
-    if (this.hp <= 0 && !this.isDying) {
-      this.isAlive = false;
-      this.startDying();
-    }
-  }
-  /*
-  takeDamage(damage) {
-    this.hp -= damage;
-    this.hitTimer = 10;
-
-    const particleCount = 40;
-    const offsetX = (Math.random() - 0.5) * 0.3;
-    const offsetY = (Math.random() - 0.5) * 0.3;
-    
-    enemy.takeDamage(damageToApply);
-
-// ダメージテキスト生成
-  damageTexts.push(new DamageText(enemy.x, enemy.y, `-${damageToApply}`));
-
-    for (let j = 0; j < particleCount; j++) {
-      const angle = Math.random() * Math.PI * 2;
-      const speed = Math.random() * 0.5 + 0.1;
-      const lifetime = 20 + Math.floor(Math.random() * 10);
-      particles.push(new Particle(this.x + offsetX, this.y + offsetY, angle, speed, lifetime));
-    }
-
-    if (this.hp <= 0 && !this.isDying) {
-      this.isAlive = false;
-      this.startDying();
-    }
-  }*/
-
-  startDying() {
-    this.isDying = true;
-    this.deathStartTime = Date.now();
-  }
-
-  updateFadeOut() {
-    const elapsed = Date.now() - this.deathStartTime;
-    const fadeDuration = 1000;
-    this.alpha = Math.max(0, 1 - elapsed / fadeDuration);
-  }
-
-  updateHitEffect() {
-    if (this.hitTimer > 0) this.hitTimer--;
-  }
-
-  draw(ctx) {
-    const spriteSize = 128;
-    const sx = 0 * spriteSize;
-    const sy = this.spriteRow * spriteSize;
-
-    ctx.globalAlpha = this.alpha;
-
-    ctx.drawImage(
-      spriteSheet,
-      sx, sy,
-      spriteSize, spriteSize,
-      this.x * TILE_SIZE, this.y * TILE_SIZE,
-      TILE_SIZE, TILE_SIZE
-    );
-
-    ctx.globalAlpha = 1.0;
-  }
-}
-//ゾンビクラス↓
+  //ゾンビクラス↓---------------------
   class ZombieEnemy extends Enemy {
     constructor(x, y) {
       super(x, y, 0, 3 , 0.002); // ←ここだけ修正
       this.type = "zombie";
     }
     
-    
-  
     update(playerX, playerY) {
       super.update(playerX, playerY);
   
@@ -417,7 +370,7 @@ class Enemy {
       const baseSize = 1000;
       const screenX = (angleToEnemy + halfFov) / fov * canvas.width;
       const size = Math.min(1500, baseSize / (distance + 0.2));
-      const offsetY = 80;
+      const offsetY = 40;
   
       if (this.hitTimer > 0) {
         ctx.globalAlpha = 0.1;
@@ -441,133 +394,230 @@ class Enemy {
       ctx.restore();
     }
   }
-//ゾンビクラス↑
-
-    const z = new ZombieEnemy(0,0);
-    console.log("ゾンビHP:", z.hp); // ← ここで5と表示されるはず
-
-//ミイラクラス↓
-  class MummyEnemy extends Enemy {
-  constructor(x, y) {
-    super(x, y, 1,6, 0.0018); // HP8、ゾンビより少し遅い
-    this.type = "mummy";
-  }
-
-  update(playerX, playerY) {
-    // ゾンビと同じ挙動でOK
-    super.update(playerX, playerY);
-  }
-
-  drawFromRaycastView(ctx) {
-    if (!this.isAlive) return;
-
-    const dx = this.x - posX;
-    const dy = this.y - posY;
-    const distance = Math.sqrt(dx * dx + dy * dy);
-    const angleToEnemy = Math.atan2(dy, dx) - angle;
-    const halfFov = fov / 2;
-
-    if (Math.abs(angleToEnemy) > halfFov) return;
-
-    // 遮蔽チェック
-    const steps = Math.floor(distance * 10);
-    for (let i = 1; i < steps; i++) {
-      const t = i / steps;
-      const cx = posX + dx * t;
-      const cy = posY + dy * t;
-      if (map[Math.floor(cy)][Math.floor(cx)] === 1) return;
-    }
-
-    const baseSize = 1000;
-    const screenX = (angleToEnemy + halfFov) / fov * canvas.width;
-    const size = Math.min(1500, baseSize / (distance + 0.2));
-
-    const offsetY = 80;
-    
-    // スプライトシートから切り出して描画
-    const spriteSize = 128;  // スプライト1マスのピクセル数
-    const sx = (this.attackCooldown > 45) ? (1 * spriteSize) : (0 * spriteSize);
-
-    //const sx = 0 * spriteSize; // 左から何マス目
-    const sy = 1 * spriteSize; // 上から何マス目
-  
-    ctx.drawImage(
-      spriteSheet,          // ←ここを単体画像じゃなくスプライトシートにする
-      sx, sy,               // 切り出し元X,Y
-      spriteSize, spriteSize, // 切り出しサイズ
-      screenX - size/2,
-      canvas.height/2 - size/2 + offsetY,
-      size,
-      size
-    );
-    
-  }
-}
-//ミイラクラス↑
-
-//ドラゴンクラス↓
-  class DragonEnemy extends Enemy {
-  constructor(x, y) {
-    super(x, y, 2,20, 0.010); // HP8、ゾンビより少し遅い
-    this.type = "dragon";
-  }
-
-  update(playerX, playerY) {
-    // ゾンビと同じ挙動でOK
-    super.update(playerX, playerY);
-  }
-
-  drawFromRaycastView(ctx) {
-    if (!this.isAlive) return;
-
-    const dx = this.x - posX;
-    const dy = this.y - posY;
-    const distance = Math.sqrt(dx * dx + dy * dy);
-    const angleToEnemy = Math.atan2(dy, dx) - angle;
-    const halfFov = fov / 2;
-
-    if (Math.abs(angleToEnemy) > halfFov) return;
-
-    // 遮蔽チェック
-    const steps = Math.floor(distance * 10);
-    for (let i = 1; i < steps; i++) {
-      const t = i / steps;
-      const cx = posX + dx * t;
-      const cy = posY + dy * t;
-      if (map[Math.floor(cy)][Math.floor(cx)] === 1) return;
-    }
-
-    const baseSize = 1000;
-    const screenX = (angleToEnemy + halfFov) / fov * canvas.width;
-    const size = Math.min(1500, baseSize / (distance + 0.2));
-
-    const offsetY = 80;
-
-     // スプライトシートから切り出して描画
-    const spriteSize = 128;  // スプライト1マスのピクセル数
-    const sx = (this.attackCooldown > 45) ? (1 * spriteSize) : (0 * spriteSize);
-
-    //const sx = 0 * spriteSize; // 左から何マス目
-    const sy = 2 * spriteSize; // 上から何マス目
-  
-    ctx.drawImage(
-      spriteSheet,          // ←ここを単体画像じゃなくスプライトシートにする
-      sx, sy,               // 切り出し元X,Y
-      spriteSize, spriteSize, // 切り出しサイズ
-      screenX - size/2,
-      canvas.height/2 - size/2 + offsetY,
-      size,
-      size
-    );
-  }
-}
-//ドラゴンクラス↑
-
+  //ゾンビクラス↑--------------------------
 
   enemies.push(new ZombieEnemy(5.5, 1.5));
+
+  //ミイラクラス↓-----------------------
+  class MummyEnemy extends Enemy {
+    constructor(x, y) {
+      super(x, y, 1,6, 0.0018); // HP8、ゾンビより少し遅い
+      this.type = "mummy";
+    }
   
+    update(playerX, playerY) {
+      // ゾンビと同じ挙動でOK
+      super.update(playerX, playerY);
+    }
   
+    drawFromRaycastView(ctx) {
+      if (!this.isAlive) return;
   
+      const dx = this.x - posX;
+      const dy = this.y - posY;
+      const distance = Math.sqrt(dx * dx + dy * dy);
+      const angleToEnemy = Math.atan2(dy, dx) - angle;
+      const halfFov = fov / 2;
+  
+      if (Math.abs(angleToEnemy) > halfFov) return;
+  
+      // 遮蔽チェック
+      const steps = Math.floor(distance * 10);
+      for (let i = 1; i < steps; i++) {
+        const t = i / steps;
+        const cx = posX + dx * t;
+        const cy = posY + dy * t;
+        if (map[Math.floor(cy)][Math.floor(cx)] === 1) return;
+      }
+  
+      const baseSize = 1000;
+      const screenX = (angleToEnemy + halfFov) / fov * canvas.width;
+      const size = Math.min(1500, baseSize / (distance + 0.2));
+  
+      const offsetY = 80;
+      
+      // スプライトシートから切り出して描画
+      const spriteSize = 128;  // スプライト1マスのピクセル数
+      const sx = (this.attackCooldown > 45) ? (1 * spriteSize) : (0 * spriteSize);
+  
+      //const sx = 0 * spriteSize; // 左から何マス目
+      const sy = 1 * spriteSize; // 上から何マス目
+    
+      ctx.drawImage(
+        spriteSheet,          // ←ここを単体画像じゃなくスプライトシートにする
+        sx, sy,               // 切り出し元X,Y
+        spriteSize, spriteSize, // 切り出しサイズ
+        screenX - size/2,
+        canvas.height/2 - size/2 + offsetY,
+        size,
+        size
+      );
+      
+    }
+  }
+  //ミイラクラス↑---------------------
+
+  //ドラゴンクラス↓--------------------
+  class DragonEnemy extends Enemy {
+    constructor(x, y) {
+      super(x, y, 2,20, 0.010); // HP8、ゾンビより少し遅い
+      this.type = "dragon";
+    }
+  
+    update(playerX, playerY) {
+      // ゾンビと同じ挙動でOK
+      super.update(playerX, playerY);
+    }
+  
+    drawFromRaycastView(ctx) {
+      if (!this.isAlive) return;
+  
+      const dx = this.x - posX;
+      const dy = this.y - posY;
+      const distance = Math.sqrt(dx * dx + dy * dy);
+      const angleToEnemy = Math.atan2(dy, dx) - angle;
+      const halfFov = fov / 2;
+  
+      if (Math.abs(angleToEnemy) > halfFov) return;
+  
+      // 遮蔽チェック
+      const steps = Math.floor(distance * 10);
+      for (let i = 1; i < steps; i++) {
+        const t = i / steps;
+        const cx = posX + dx * t;
+        const cy = posY + dy * t;
+        if (map[Math.floor(cy)][Math.floor(cx)] === 1) return;
+      }
+  
+      const baseSize = 1000;
+      const screenX = (angleToEnemy + halfFov) / fov * canvas.width;
+      const size = Math.min(1500, baseSize / (distance + 0.2));
+  
+      const offsetY = 80;
+  
+       // スプライトシートから切り出して描画
+      const spriteSize = 128;  // スプライト1マスのピクセル数
+      const sx = (this.attackCooldown > 45) ? (1 * spriteSize) : (0 * spriteSize);
+  
+      //const sx = 0 * spriteSize; // 左から何マス目
+      const sy = 2 * spriteSize; // 上から何マス目
+    
+      ctx.drawImage(
+        spriteSheet,          // ←ここを単体画像じゃなくスプライトシートにする
+        sx, sy,               // 切り出し元X,Y
+        spriteSize, spriteSize, // 切り出しサイズ
+        screenX - size/2,
+        canvas.height/2 - size/2 + offsetY,
+        size,
+        size
+      );
+    }
+  }
+  //ドラゴンクラス↑-----------------
+    
+  //アイテムクラス↓-----------------
+  class Item {
+      constructor({x, y, name, type, weight, damage = 0, heal = 0, speed = 0, hunger = 0 }) {
+        console.log("Item created",{x,y,name});
+        this.x = x;
+        this.y = y;
+        this.name = name;
+        this.type = type;
+        this.weight = weight;
+        this.damage = damage;
+        this.heal = heal;
+        this.speed = speed;
+        this.picked = false;
+        this.hunger = hunger;
+      }
+    
+      use(player) {
+        console.log(`use() called for ${this.name}`);
+
+        console.log(`type=${this.type}, heal=${this.heal}, speed=${this.speed}, hunger=${this.hunger}`);
+    
+        let used = false;
+    
+        if (this.heal !== 0) {
+          player.hp = Math.min(player.maxHp, player.hp + this.heal);
+          console.log(`💊 ${this.name} を使った！HP +${this.heal}`);
+          used = true;
+        }
+    
+        if (this.speed !== 0) {
+          player.speed += this.speed;
+          console.log(`💊 ${this.name} を使った！Speed ${this.speed > 0 ? "+" : ""}${this.speed}`);
+          used = true;
+        }
+        
+        if (this.hunger !== 0) {
+          player.hunger = Math.min(player.maxHunger, player.hunger + this.hunger);
+          console.log(`🍞 ${this.name} を食べた！満腹度 +${this.hunger}`);
+          used = true;
+        }
+    
+        if (!used) {
+          console.log(`❌ 効果なし`);
+        }
+    
+        return used;
+      }
+    
+    
+      draw(ctx) {
+        const dx = this.x - posX;
+        const dy = this.y - posY;
+        const distance = Math.sqrt(dx * dx + dy * dy);
+        const angleToItem = Math.atan2(dy, dx) - angle;
+    
+        const halfFov = fov / 2;
+        const rayAngle = normalizeAngle(angle + angleToItem);
+        const eyeX = Math.cos(rayAngle);
+        const eyeY = Math.sin(rayAngle);
+    
+        let rayDist = 0;
+        let hit = false;
+        while (!hit && rayDist < maxDepth) {
+          rayDist += 0.01;
+          const testX = Math.floor(posX + eyeX * rayDist);
+          const testY = Math.floor(posY + eyeY * rayDist);
+          if (
+            testX < 0 || testY < 0 ||
+            testX >= mapWidth || testY >= mapHeight
+          ) {
+            hit = true;
+            rayDist = maxDepth;
+          } else if (map[testY][testX] > 0) {
+            hit = true;
+          }
+        }
+        
+        if (Math.abs(angleToItem) < halfFov && distance < rayDist) {
+          const screenX = (angleToItem + halfFov) / fov * canvas.width;
+          const size = Math.max(5, 200 / distance);
+          ctx.fillStyle = "green";
+          ctx.font = `${size}px sans-serif`;
+          ctx.textAlign = "center";
+          ctx.textBaseline = "middle";
+        
+          // アイコンを決定
+          let icon = "物";  // デフォルト
+          if (this.type === "weapon") {
+            icon = "🗡️";
+          } else if (this.type === "medicine") {
+            icon = "💊";
+          } else if (this.type === "food"){
+            icon = "🍞";
+          }
+        
+          ctx.fillText(icon, screenX, canvas.height / 2);
+        }
+        
+      }
+    }
+  //↑アイテムクラス------------------
+
+  //↓ダメージテキストクラス------------------
   class DamageText {
     constructor(x, y, text) {
       this.x = x;
@@ -613,346 +663,339 @@ class Enemy {
       ctx.fillText(this.text, screenX, canvas.height / 2 + offsetY);
     }
   }
-  
-  
-  /*function spawnEnemy(x = null, y = null) {
-    // ランダム座標を決定（指定が無ければランダム配置）
-    let spawnX = x;
-    let spawnY = y;
-  
-    if (spawnX === null || spawnY === null) {
-      do {
-        spawnX = Math.floor(Math.random() * mapWidth);
-        spawnY = Math.floor(Math.random() * mapHeight);
-      } while (map[spawnY][spawnX] !== 0);  // 通路（0）の場所に出現
-    }
-  
-    // 敵インスタンスを作成して追加
-    const newEnemy = new Enemy(spawnX + 0.5, spawnY + 0.5); // 中央寄せ
-    enemies.push(newEnemy);
-  
-    console.log(`🧟 新しい敵が出現: (${spawnX}, ${spawnY})`);
-  }
-  
-  function spawnEnemies(count) {
-    for (let i = 0; i < count; i++) {
-      spawnEnemy(5);
-    }
-  }
-  */
-  function spawnEnemy(x = null, y = null) {
-  let spawnX = x;
-  let spawnY = y;
+  //↑ダメージテキストクラス-----------------
 
-  if (spawnX === null || spawnY === null) {
-    do {
-      spawnX = Math.floor(Math.random() * mapWidth);
-      spawnY = Math.floor(Math.random() * mapHeight);
-    } while (map[spawnY][spawnX] !== 0);
-  }
-
-  // ZombieEnemyにする
-  const newEnemy = new ZombieEnemy(spawnX + 0.5, spawnY + 0.5);
-  enemies.push(newEnemy);
-
-  console.log(`🧟 新しい敵が出現: (${spawnX}, ${spawnY})`);
-}
-
-function spawnEnemies(count) {
-    for (let i = 0; i < count; i++) {
-      spawnEnemy(3);
-    }
-  }
-
-//アイテムクラス↓
-class Item {
-  constructor(x, y, name, type, weight,damage = 0,heal = 0 ) {
-    this.x = x;
-    this.y = y;
-    this.name = name;
-    this.type = type;
-    this.picked = false;
-    this.weight = weight;
-    this.damage = damage;
-    this.heal = heal;
-  }
-
-  use(player) {
-    console.log(`use() called for ${this.name}`);
-    console.log(`type=${this.type}, heal=${this.heal}`);
-    if (this.heal > 0) {
-      player.hp = Math.min(player.maxHp, player.hp + this.heal);
-      console.log(`💊 ${this.name} を使った！HP +${this.heal}`);
-      return true;
-    }
-    console.log(`❌ 効果なし`);
-    return false;
-  }
-
-  draw(ctx) {
-    const dx = this.x - posX;
-    const dy = this.y - posY;
-    const distance = Math.sqrt(dx * dx + dy * dy);
-    const angleToItem = Math.atan2(dy, dx) - angle;
-
-    const halfFov = fov / 2;
-    const rayAngle = normalizeAngle(angle + angleToItem);
-    const eyeX = Math.cos(rayAngle);
-    const eyeY = Math.sin(rayAngle);
-
-    let rayDist = 0;
-    let hit = false;
-    while (!hit && rayDist < maxDepth) {
-      rayDist += 0.01;
-      const testX = Math.floor(posX + eyeX * rayDist);
-      const testY = Math.floor(posY + eyeY * rayDist);
-      if (
-        testX < 0 || testY < 0 ||
-        testX >= mapWidth || testY >= mapHeight
-      ) {
-        hit = true;
-        rayDist = maxDepth;
-      } else if (map[testY][testX] > 0) {
-        hit = true;
-      }
-    }
-    
-    if (Math.abs(angleToItem) < halfFov && distance < rayDist) {
-      const screenX = (angleToItem + halfFov) / fov * canvas.width;
-      const size = Math.max(5, 200 / distance);
-      ctx.fillStyle = "gold";
-      ctx.font = `${size}px sans-serif`;
-      ctx.textAlign = "center";
-      ctx.textBaseline = "middle";
-    
-      // アイコンを決定
-      let icon = "物";  // デフォルト
-      if (this.type === "weapon") {
-        icon = "🗡️";
-      } else if (this.type === "medicine") {
-        icon = "💊";
-      } else if (this.type === "food"){
-        icon = "🍞";
-      }
-    
-      ctx.fillText(icon, screenX, canvas.height / 2);
-    }
-    /*
-    if (Math.abs(angleToItem) < halfFov && distance < rayDist) {
-      const screenX = (angleToItem + halfFov) / fov * canvas.width;
-      const size = Math.max(5, 200 / distance);
-      ctx.fillStyle = "gold";
-      ctx.font = `${size}px sans-serif`;
-      ctx.textAlign = "center";
-      ctx.textBaseline = "middle";
-      ctx.fillText("物", screenX, canvas.height / 2);
-    }
-    */
-  }
-}
-//アイテムクラス↑
-
-items.push(new Item(2,2,"回復薬","heal"));
-
- function useSelectedItem() {
-  const selectedItem = player.inventory[selectedInventoryIndex];
-  if (!selectedItem) return;
-
-  const used = selectedItem.use(player);
-  if (used) {
-    const index = player.inventory.indexOf(selectedItem);
-    if (index !== -1) {
-      console.log("アイテム削除");
-      player.inventory.splice(index, 1); // 使用後削除
-    }
-
-    // ここは不要: selectedItem = null;
-    // 代わりに選択インデックスをリセット
-    selectedInventoryIndex = 0;
-  }
-}
-
-//投げるクラス↓
-class ThrownItem {
-  constructor(x, y, vx, vy, item) {
-    this.x = x;           // 現在位置 X
-    this.y = y;           // 現在位置 Y
-    this.vx = vx;         // X方向の速度（初期値）
-    this.vy = vy;         // Y方向の速度（初期値）
-    this.item = item;     // 投げたアイテムオブジェクト
-    this.age = 0;         // フレーム経過数
-    this.lifetime = 50;   // 飛ぶ長さ
-    this.isActive = true; // 飛行中かどうか
-  }
-
-  update() {
-  if (!this.isActive) return;
-
-  // 次に移動する予定の座標
-  const nextX = this.x + this.vx;
-  const nextY = this.y + this.vy;
-
-  // 移動先が壁かどうか
-  const tileX = Math.floor(nextX);
-  const tileY = Math.floor(nextY);
-
-  if (
-    tileX < 0 || tileX >= mapWidth ||
-    tileY < 0 || tileY >= mapHeight ||
-    map[tileY][tileX] === 1 // 壁
-  ) {
-    this.isActive = false;
-
-    // 壁に当たった位置に落下させる
-    items.push(new Item(
-      Math.floor(this.x), // 直前の位置に落とす
-      Math.floor(this.y),
-      this.item.name,
-      this.item.type,
-      this.item.weight
-    ));
-    console.log(`💥 投げたアイテムが壁に当たって落下しました x=${this.x}, y=${this.y}`);
-    return;
-  }
-
-  // 壁に当たらなければ移動
-  this.x = nextX;
-  this.y = nextY;
-
-  this.age++;
-  
-  // 飛び終わったら落下
-  if (this.age >= this.lifetime) {
-    this.isActive = false;
-    items.push(new Item(
-      Math.floor(this.x),
-      Math.floor(this.y),
-      this.item.name,
-      this.item.type,
-      this.item.weight
-    ));
-    console.log(`🟢 投げたアイテムが寿命で落下しました x=${this.x}, y=${this.y}`);
-  }
-}
-/*
-  update() {
-    if (!this.isActive) return;
-
-    this.x += this.vx;
-    this.y += this.vy;
-
-    this.age++;
-
-    if (this.age >= this.lifetime) {
-      this.isActive = false;
-      items.push(new Item(
-        Math.floor(this.x),
-        Math.floor(this.y),
-        this.item.name,
-        this.item.type,
-        this.item.weight
-      ));
-      console.log(`🟢 投げたアイテムが床に落ちた`);
-      console.log(`投げたアイテムが落下 x=${this.x} y=${this.y}`);
-    }
-  }
-*/
-  
-    draw(ctx) {
-    if (!this.isActive) return;
-  
-    const dx = this.x - posX;
-    const dy = this.y - posY;
-    const dist = Math.sqrt(dx*dx + dy*dy);
-    const angleTo = Math.atan2(dy, dx) - angle;
-    const halfFov = fov/2;
-  
-    if (Math.abs(angleTo) < halfFov) {
-      const screenX = (angleTo + halfFov) / fov * canvas.width;
-      const size = Math.max(2, 300 / (dist + 0.1));
-      ctx.fillStyle = "orange";
-      ctx.beginPath();
-      ctx.arc(screenX, canvas.height/2, size, 0, Math.PI*2);
-      ctx.fill();
-    }
-  }
-}
-//投げるクラス↑
-
-  class Particle {
-    constructor(x, y, angle, speed, lifetime) {
-      this.x = x;
-      this.y = y;
-      this.vx = Math.cos(angle) * speed;
-      this.vy = Math.sin(angle) * speed;
-      this.lifetime = lifetime;
-      this.age = 4;
+  //投げるクラス↓----------------------
+  class ThrownItem {
+    constructor(x, y, vx, vy, item) {
+      this.x = x;           // 現在位置 X
+      this.y = y;           // 現在位置 Y
+      this.vx = vx;         // X方向の速度（初期値）
+      this.vy = vy;         // Y方向の速度（初期値）
+      this.item = item;     // 投げたアイテムオブジェクト
+      this.age = 0;         // フレーム経過数
+      this.lifetime = 50;   // 飛ぶ長さ
+      this.isActive = true; // 飛行中かどうか
     }
   
     update() {
-      // 🎈 重力
-      this.vy += 0.015; // これが「落ちる」加速度
+    if (!this.isActive) return;
   
-      this.x += this.vx;
-      this.y += this.vy;
+    // 次に移動する予定の座標
+    const nextX = this.x + this.vx;
+    const nextY = this.y + this.vy;
   
-      this.age++;
+    // 移動先が壁かどうか
+    const tileX = Math.floor(nextX);
+    const tileY = Math.floor(nextY);
+  
+    if (
+      tileX < 0 || tileX >= mapWidth ||
+      tileY < 0 || tileY >= mapHeight ||
+      map[tileY][tileX] === 1 // 壁
+    ) {
+      this.isActive = false;
+  
+      // 壁に当たった位置に落下させる
+    items.push(new Item({
+        x: Math.floor(this.x),
+        y: Math.floor(this.y),
+        name: this.item.name,
+        type: this.item.type,
+        weight: this.item.weight,
+        damage: this.item.damage || 0,
+        heal: this.item.heal || 0,
+        speed: this.item.speed || 0
+    }));
+      
+      console.log(`投げたアイテムが壁に当たって落下しました x=${this.x}, y=${this.y}`);
+      return;
     }
   
-    isAlive() {
-      return this.age < this.lifetime;
-    }
+    // 壁に当たらなければ移動
+    this.x = nextX;
+    this.y = nextY;
+  
+    this.age++;
     
-  draw(ctx) {
-    const dx = this.x - posX;
-    const dy = this.y - posY;
-    const distance = Math.sqrt(dx * dx + dy * dy);
-    const angleToParticle = Math.atan2(dy, dx) - angle;
-  
-    const halfFov = fov / 2;
-    if (Math.abs(angleToParticle) > halfFov) return;
-  
-    const steps = Math.floor(distance * 10);
-    for (let i = 1; i < steps; i++) {
-      const t = i / steps;
-      const cx = posX + dx * t;
-      const cy = posY + dy * t;
-      if (map[Math.floor(cy)][Math.floor(cx)] === 1) return;
+    // 飛び終わったら落下
+    if (this.age >= this.lifetime) {
+      this.isActive = false;
+        items.push(new Item({
+          x: Math.floor(this.x),
+          y: Math.floor(this.y),
+          name: this.item.name,
+          type: this.item.type,
+          weight: this.item.weight,
+          damage: this.item.damage || 0,
+          heal: this.item.heal || 0,
+          speed: this.item.speed || 0
+        }));
+      console.log(`投げたアイテムが寿命で落下しました x=${this.x}, y=${this.y}`);
     }
-  
-    const screenX = (angleToParticle + halfFov) / fov * canvas.width;
-    const size = Math.max(5, 50 / (distance + 0.1));
-  
-    // 落下表現: ageに応じてY座標を下げる
-    const offsetY = this.age * 30; // 2pxずつ下がる
-  
-    ctx.fillStyle = "yellow";
-    ctx.beginPath();
-    ctx.arc(screenX, canvas.height / 2 + offsetY, size, 0, Math.PI * 2);
-    ctx.fill();
   }
-}
-  
-    function generateRandomMap(width, height) {
-  const newMap = [];
-    for (let y = 0; y < height; y++) {
-      const row = [];
-      for (let x = 0; x < width; x++) {
-        if (x === 0 || y === 0 || x === width - 1 || y === height - 1) {
-          row.push(1); // 外周は壁
-        } else {
-          row.push(Math.random() < 0.2 ? 1 : 0); // 20%で壁
-        }
+      draw(ctx) {
+      if (!this.isActive) return;
+    
+      const dx = this.x - posX;
+      const dy = this.y - posY;
+      const dist = Math.sqrt(dx*dx + dy*dy);
+      const angleTo = Math.atan2(dy, dx) - angle;
+      const halfFov = fov/2;
+    
+      if (Math.abs(angleTo) < halfFov) {
+        const screenX = (angleTo + halfFov) / fov * canvas.width;
+        const size = Math.max(2, 300 / (dist + 0.1));
+        ctx.fillStyle = "orange";
+        ctx.beginPath();
+        ctx.arc(screenX, canvas.height/2, size, 0, Math.PI*2);
+        ctx.fill();
       }
-      newMap.push(row);
     }
-    return newMap;
+  }
+  //投げるクラス↑------------------
+
+  //↓パーティクルクラス-------------------
+  class Particle {
+      constructor(x, y, angle, speed, lifetime) {
+        this.x = x;
+        this.y = y;
+        this.vx = Math.cos(angle) * speed;
+        this.vy = Math.sin(angle) * speed;
+        this.lifetime = lifetime;
+        this.age = 4;
+      }
+    
+      update() {
+        // 重力
+        this.vy += 0.015; // これが「落ちる」加速度
+    
+        this.x += this.vx;
+        this.y += this.vy;
+    
+        this.age++;
+      }
+    
+      isAlive() {
+        return this.age < this.lifetime;
+      }
+      
+    draw(ctx) {
+      const dx = this.x - posX;
+      const dy = this.y - posY;
+      const distance = Math.sqrt(dx * dx + dy * dy);
+      const angleToParticle = Math.atan2(dy, dx) - angle;
+    
+      const halfFov = fov / 2;
+      if (Math.abs(angleToParticle) > halfFov) return;
+    
+      const steps = Math.floor(distance * 10);
+      for (let i = 1; i < steps; i++) {
+        const t = i / steps;
+        const cx = posX + dx * t;
+        const cy = posY + dy * t;
+        if (map[Math.floor(cy)][Math.floor(cx)] === 1) return;
+      }
+    
+      const screenX = (angleToParticle + halfFov) / fov * canvas.width;
+      const size = Math.max(5, 50 / (distance + 0.1));
+    
+      // 落下表現: ageに応じてY座標を下げる
+      const offsetY = this.age * 30; // 2pxずつ下がる
+    
+      ctx.fillStyle = "yellow";
+      ctx.beginPath();
+      ctx.arc(screenX, canvas.height / 2 + offsetY, size, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+  //↑パーティクルクラス--------------------
+
+  //↓メインループ
+  function gameLoop() {
+    
+    warningTimer++;
+    gameCount++;
+  
+    // 画面クリアは最初に1回だけ
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+  
+    // 各種処理
+    getDirectionName();
+    
+    // 敵の更新・描画
+    updateEnemies();
+
+    
+    // 血しぶきを更新
+    updeteParticles();
+    
+    updateDamageTexts();
+
+    
+    // アイテム投げ当たり判定ループ
+    handleThrownCollision();
+    
+    cleanUpThrownItems();
+
+
+  
+    // プレイヤーの移動・回転
+    if (!isDraggingItem) {
+      if (isMovingForward) move(true);
+      if (isMovingBackward) move(false);
+      if (isTurningLeft) rotate(-0.05);
+      if (isTurningRight) rotate(0.05);
+    }
+  
+    // その他の更新・描画
+    updateGoalProximity();
+    checkNearbyItems();
+    checkGoalCharging();
+    updateNearbyItem();
+    updateCharge();
+    playerHunger();
+    render();  // ここで画面全体を再描画する場合、敵の描画の後に呼ばないように調整が必要
+    
+    //startItemPickup();//2025/07/07 20:26
+    
+    markCurrentTileExplored();//ミニマップ用探索済み
+    
+  
+    //ctx.restore();
+  
+    if (player.hp <= 0) {
+      isGameOver = true;
+      return;
+    }
+  
+    requestAnimationFrame(gameLoop);
+  }
+  //↑メインループ
+
+  //↓レンダー -------------------------
+  function render() {
+    ctx.save();
+  
+    if (shakeTimer > 0) {
+      const dx = (Math.random() - 0.5) * shakeIntensity;
+      const dy = (Math.random() - 0.5) * shakeIntensity;
+      ctx.translate(dx, dy);
+      shakeTimer--;
+    }
+  
+    // ① 背景
+    ctx.fillStyle = "black";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+  
+    // ② ゲーム世界（壁・敵・アイテム・ゴールなど）
+    castRays();
+
+    drawItems();
+    
+    drawEnemiesWithWarnings(ctx);
+
+
+  /*　2025/07/08 13:10　コメントアウト
+      enemies.forEach(enemy => {
+        if (enemy.isAlive) {
+          enemy.updateHitEffect();
+        }
+      });
+    
+  
+  for (let i = damageTexts.length - 1; i >= 0; i--) {
+    damageTexts[i].update();
+    if (!damageTexts[i].isAlive()) {
+      damageTexts.splice(i, 1);
+    }
+  }
+    */
+  for (const dt of damageTexts) {
+    dt.draw(ctx);
+  }
+
+  
+  for (const thrown of thrownItems) {
+    thrown.draw(ctx);
+  }
+    
+  
+    drawGoal();
+  
+    drawChargeGauge();
+    drawStatusBars();
+    drawPickupPrompt();
+    drawInventory();
+    drawMiniMap();
+    drawPunchEffect();
+    drawSelectedItem();
+    drawDraggedItem();
+    drawUseBox();
+    drawFullDropZones();
+    drawDirectionHUD();
+  
+    drawGameInfo();
+  
+    if (isGameOver) drawGameOverScreen();
+  
+    // パーティクルは一番最後に描く
+    for (const p of particles) {
+      p.draw(ctx);
+    }
+  
+    ctx.restore();
+  }
+  //↑レンダー------------------
+
+  function initNextFloor() {
+      
+    if (floor === 3) {
+      // 3Fだけ迷路生成
+      map = generateMazeMap(16, 16);
+    } else {
+      // それ以外は通常ランダムマップ
+      map = generateRandomMap(16, 16);
+    }
+  
+    map = generateRandomMap(16, 16);
+    
+    goal = findRandomEmptyTile(map);
+  
+    explored = Array.from({ length: map.length }, () =>
+      Array.from({ length: map[0].length }, () => false)
+    );
+  
+    posX = 1.5;
+    posY = 1.5;
+  
+    carvePath(map, { x: posX, y: posY }, goal);
+    
+    initItems();
+    initEnemies();
+    
+  }
+  
+  function generateRandomMap(width, height) {
+    const newMap = [];
+      for (let y = 0; y < height; y++) {
+        const row = [];
+        for (let x = 0; x < width; x++) {
+          if (x === 0 || y === 0 || x === width - 1 || y === height - 1) {
+            row.push(1); // 外周は壁
+          } else {
+            row.push(Math.random() < 0.2 ? 1 : 0); // 20%で壁
+          }
+        }
+        newMap.push(row);
+      }
+      return newMap;
   }
   
   function generateMazeMap(width, height) {
     const maze = Array.from({ length: height }, () =>
       Array.from({ length: width }, () => 1)
-    );
+  );
   
     function carve(x, y) {
       const directions = [
@@ -981,19 +1024,6 @@ class ThrownItem {
     return maze;
   }
   
-  function findRandomEmptyTile(map) {
-    while (true) {
-      const x = Math.floor(Math.random() * map[0].length);
-      const y = Math.floor(Math.random() * map.length);
-      if (map[y][x] === 0) {
-        return { x: x + 0.5, y: y + 0.5 }; // 中心に置く
-      }
-    }
-  }
-  
-
-  
-  
   function carvePath(map, start, goal) {
     let x = Math.floor(start.x);
     let y = Math.floor(start.y);
@@ -1011,62 +1041,361 @@ class ThrownItem {
     }
   }
   
-  function drawMiniMap() {
-  const scale = 10;
-  const mapWidthPx = map[0].length * scale;
-  const mapHeightPx = map.length * scale;
+  //↓空き地案内(ミニマップ用)-------------------
+  function findRandomEmptyTile(map) {
+    while (true) {
+      const x = Math.floor(Math.random() * map[0].length);
+      const y = Math.floor(Math.random() * map.length);
+      if (map[y][x] === 0) {
+        return { x: x + 0.5, y: y + 0.5 }; // 中心に置く
+      }
+    }
+  }
+  //↑空き地案内(ミニマップ用)-----------------
+  
+  //↓ミニマップ用-----------------
+  function initializeExplored(map) {
+      return Array.from({ length: map.length }, () =>
+        Array(map[0].length).fill(false)
+      );
+  }
+  //↑ミニマップ用------------------
 
-  ctx.fillStyle = "white";
-  ctx.fillRect(0, 0, mapWidthPx, mapHeightPx);
+  function markCurrentTileExplored() {
+    explored[Math.floor(posY)][Math.floor(posX)] = true;
+  }
+  
+  //プレイヤー攻撃関連↓
+  function performAttack() {
+    const now = Date.now();
+    
+    // クールダウン中なら何もしない
+    if (now < player.nextAttackTime) {
+      console.log("攻撃クールダウン中！");
+      return;
+    }
+    
+    let damageToApply = 1; // 素手のデフォルトダメージ
+    let cooldown = 1000;    // 素手のクールダウン(ms)
+  
+    if (equippedWeapon) {
+      damageToApply = equippedWeapon.damage;
+  
+      // 武器別にクールダウン
+      if (equippedWeapon.name.includes("短剣")) {
+        cooldown = 1300; // 短剣は素早い
+      } else if (equippedWeapon.name.includes("大剣")) {
+        cooldown = 2500; // 大剣は重い
+      }
+    }
+  
+    // 攻撃処理
+    
+    applyFrontAttackToEnemies(damageToApply);
 
-  for (let y = 0; y < map.length; y++) {
-    for (let x = 0; x < map[0].length; x++) {
-      if (!explored[y][x]) continue;
+  
+    // エフェクト
+    if (equippedWeapon && equippedWeapon.name.includes("短剣")) {
+      showZangekiEffect();
+    } else if (!equippedWeapon) {
+      isPunching = true;
+      punchTimer = 0;
+    }
+  
+    // 次に攻撃できる時刻を設定
+    player.nextAttackTime = now + cooldown;
+  }
+  //プレイヤー攻撃関連↑
+  
+  function applyFrontAttackToEnemies(damageToApply) {
+    enemies.forEach(enemy => {
+      if (!enemy.isAlive) return;
+  
+      const dx = enemy.x - posX;
+      const dy = enemy.y - posY;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      const angleToEnemy = Math.atan2(dy, dx);
+      const diffAngle = Math.abs(normalizeAngle(angleToEnemy - angle));
+  
+      if (dist < attackRange && diffAngle < Math.PI / 4) {
+        enemy.takeDamage(damageToApply);
+        console.log(`敵に${damageToApply}ダメージ！`);
+      }
+    });
+  }
+  
+  function playerHunger(){
 
-      ctx.fillStyle = (map[y][x] === 1) ? "gray" : "black";
-      ctx.fillRect(x * scale, y * scale, scale, scale);
+      hungerTick++;
+    if (hungerTick % 240 === 0) { // 約4秒に1回
+      player.hunger -= 1;
+      if (player.hunger < 0) player.hunger = 0;
+    }
+  
+    // 腹度ゼロでHP減少（オプション）
+    if (player.hunger === 0) {
+      player.hp -= 0.05; // 少しずつHPも減る
+      if (player.hp < 0) player.hp = 0;
     }
   }
 
-  // 🟦 プレイヤーの位置（青）
-  ctx.fillStyle = "blue";
-  ctx.fillRect(Math.floor(posX * scale), Math.floor(posY * scale), scale, scale);
 
-  /*
+  //↓モンスター初期化2025/07/05------------------
+  function initEnemies() {
+    enemies = [];
   
-  //敵の位置
-  ctx.fillStyle = "red";
-    enemies.forEach(enemy => {
-      if (!enemy.isAlive) return;
-      ctx.fillRect(Math.floor(enemy.x * scale), Math.floor(enemy.y * scale), scale, scale);
-    });*/
-}
-
-
-/*function drawMiniEnemy(enemy) {
-  const scale = 10;
-  ctx.fillStyle = "red";
-  ctx.fillRect(Math.floor(enemy.x * scale), Math.floor(enemy.y * scale), scale, scale);
-}*/
-
-    
-  // 装備スロット
-  let equippedWeapon = null;
+    if (floor >= 1 && floor <= 2) {
+      spawnEnemies(5);
+    }
   
-  // ドロップ処理
-  function handleDrop(item, target) {
-    if (target === "usebox") {
-      if (item.type === "weapon") {
-        equippedWeapon = item;
-        console.log(`装備しました: ${item.name}`);
-      } else {
-        useItem(item);
+    if (floor >= 3 && floor <= 5) {
+      const mummyCount = 3 + Math.floor((floor - 3) * 1);
+      for (let i = 0; i < mummyCount; i++) {
+        const tile = findRandomEmptyTile(map);
+        enemies.push(new MummyEnemy(tile.x, tile.y));
+      }
+      console.log(`階${floor}: ミイラ男 ${mummyCount}体を配置！`);
+    }
+  
+    if (floor === 5) {
+      const dragonCount = 1;
+      for (let i = 0; i < dragonCount; i++) {
+        const tile = findRandomEmptyTile(map);
+        enemies.push(new DragonEnemy(tile.x, tile.y));
+      }
+      console.log(`階${floor}: ドラゴン ${dragonCount}体を配置！`);
+    }
+  }
+  //↑モンスター初期化2025/07/05------------------
+  
+  function spawnEnemy(x = null, y = null) {
+    let spawnX = x;
+    let spawnY = y;
+  
+    if (spawnX === null || spawnY === null) {
+      do {
+        spawnX = Math.floor(Math.random() * mapWidth);
+        spawnY = Math.floor(Math.random() * mapHeight);
+      } while (map[spawnY][spawnX] !== 0);
+    }
+  
+    // ZombieEnemyにする
+    const newEnemy = new ZombieEnemy(spawnX + 0.5, spawnY + 0.5);
+    enemies.push(newEnemy);
+  
+    console.log(`新しい敵が出現: (${spawnX}, ${spawnY})`);
+  }
+
+  function spawnEnemies(count) {
+      for (let i = 0; i < count; i++) {
+        spawnEnemy();
+      }
+  }
+
+  function updateEnemies(){
+    for (let i = enemies.length - 1; i >= 0; i--) {
+      const enemy = enemies[i];
+      enemy.update(posX, posY);
+      enemy.updateHitEffect();
+      if (enemy.isDying && enemy.alpha <= 0) {
+        console.log("敵消滅 完了");
+        enemies.splice(i, 1);
+      }
+    }
+  }
+  
+  //↓アイテム初期化2025/07/05----------------------------------
+  function initItems() {
+    const itemNames = [
+      "🗡️短剣",
+      "🍞パン",
+      "💊回復薬",
+      "💊鈍足の薬",
+      "💊加速の薬"
+    ];
+  
+    items.length = 0;
+  
+    for (let i = 0; i < 5; i++) {
+      const tile = findRandomEmptyTile(map);
+      const name = itemNames[Math.floor(Math.random() * itemNames.length)];
+      const template = itemTemplates[name];
+  
+        if (!template) {
+          console.error(`テンプレートが見つかりません: ${name}`);
+          continue;
+        }
+      
+      items.push(new Item({
+        x: tile.x,
+        y: tile.y,
+        name,
+        type: template.type,
+        weight: template.weight,
+        damage: template.damage || 0,
+        heal: template.heal || 0,
+        speed: template.speed || 0,
+        hunger: template.hunger || 0
+      }));
+      /*
+      items.push(new Item(
+        tile.x,
+        tile.y,
+        name,
+        template.type,
+        template.weight,
+        template.damage || 0,
+        template.heal || 0,
+        template.hunger || 0,
+        template.throwDamage || 0,
+        template.speed || 0
+      ));
+      */
+    }
+  }
+  //↑アイテム初期化--------------------------------------------
+  
+  function startItemPickup(durationFrames = 60) {
+    startCharge(() => {
+      const item = items[nearbyItemIndex];
+      player.inventory.push(item);               // 所持品に追加
+      items.splice(nearbyItemIndex, 1);   // マップ上から削除
+      nearbyItemIndex = -1;               // インデックスリセット
+      isDraggingItem = false;             // ドラッグ解除
+    }, durationFrames);
+  }
+
+  function useSelectedItem() {
+    const selectedItem = player.inventory[selectedInventoryIndex];
+    if (!selectedItem) return;
+  
+    const used = selectedItem.use(player);
+    if (used) {
+      const index = player.inventory.indexOf(selectedItem);
+      if (index !== -1) {
+        console.log("アイテム削除");
+        player.inventory.splice(index, 1); // 使用後削除
       }
   
-      // ドロップ後はインベントリから削除
-      const index = player.inventory.indexOf(item);
-      if (index !== -1) player.inventory.splice(index, 1);
+      // ここは不要: selectedItem = null;
+      // 代わりに選択インデックスをリセット
+      selectedInventoryIndex = 0;
     }
+  }
+  
+  
+  function updeteParticles(){
+    for (let i = particles.length - 1; i >= 0; i--) {
+      particles[i].update();
+      if (!particles[i].isAlive()) {
+        particles.splice(i, 1);
+      }
+    }
+  }
+  
+  function updateDamageTexts() {
+    for (let i = damageTexts.length - 1; i >= 0; i--) {
+      damageTexts[i].update();
+      if (!damageTexts[i].isAlive()) {
+        damageTexts.splice(i, 1);
+      }
+    }
+  }
+  
+  function updateGoalProximity() {
+    const dx = goal.x - posX;
+    const dy = goal.y - posY;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+    goalInRange = dist < 0.5;
+  }
+  
+  function updateNearbyItem() {
+    nearbyItemIndex = -1; // 初期化
+  
+    items.forEach((item, index) => {
+      const dx = item.x - posX;
+      const dy = item.y - posY;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      if (dist < 0.5) { // 近ければ
+        nearbyItemIndex = index;
+      }
+    });
+  }
+  
+  function updateCharge() {
+    if (isCharging && chargeCallback) {
+      chargeTime++;
+      if (chargeTime >= chargeThreshold) {
+        chargeCallback(); // 成功時の処理を実行
+        stopCharge();     // 状態リセット
+      }
+    }else{
+    }
+  }
+
+
+//↓描画関連------------------------------------
+
+  function castRays() {
+    
+    for (let i = 0; i < numRays; i++) {
+      const rayAngle = (angle - fov / 2) + (i / numRays) * fov;
+      let dist = 0;
+      let hit = false;
+      let eyeX = Math.cos(rayAngle);
+      let eyeY = Math.sin(rayAngle);
+
+      while (!hit && dist < maxDepth) {
+        dist += 0.01;
+        let testX = Math.floor(posX + eyeX * dist);
+        let testY = Math.floor(posY + eyeY * dist);
+
+        if (testX < 0 || testY < 0 || testX >= mapWidth || testY >= mapHeight) {
+          hit = true;
+          dist = maxDepth;
+        } else if (map[testY][testX] > 0) {
+          hit = true;
+        }
+      }
+      
+      // 距離に応じて壁の高さを調整（遠いほど小さく）
+      const wallHeight = Math.min(canvas.height, canvas.height / dist);
+      const shade = 255 - Math.min(255, dist * 50);
+      ctx.fillStyle = `rgb(${shade},${shade},${shade})`;
+      ctx.fillRect(i, (canvas.height - wallHeight) / 2, 1, wallHeight);
+    
+    }
+  }
+  
+  function drawGameInfo() {
+    ctx.fillStyle = "white";
+    ctx.font = "44px sans-serif";
+    ctx.fillText(`${floor}F`, 200, 30);
+  
+    ctx.font = "20px sans-serif";
+    ctx.fillText(`Count: ${gameCount}`, canvas.width - 150, 30);
+  }
+  
+  function drawMiniMap() {
+    const scale = 10;
+    const mapWidthPx = map[0].length * scale;
+    const mapHeightPx = map.length * scale;
+  
+    ctx.fillStyle = "white";
+    ctx.fillRect(0, 0, mapWidthPx, mapHeightPx);
+  
+    for (let y = 0; y < map.length; y++) {
+      for (let x = 0; x < map[0].length; x++) {
+        if (!explored[y][x]) continue;
+  
+        ctx.fillStyle = (map[y][x] === 1) ? "gray" : "black";
+        ctx.fillRect(x * scale, y * scale, scale, scale);
+      }
+    }
+  
+    // 🟦 プレイヤーの位置（青）
+    ctx.fillStyle = "blue";
+    ctx.fillRect(Math.floor(posX * scale), Math.floor(posY * scale), scale, scale);
   }
   
   function drawStatusBars() {
@@ -1093,20 +1422,6 @@ class ThrownItem {
     ctx.fillStyle = "white";
     ctx.font = "12px sans-serif";
     ctx.fillText(`満腹度: ${player.hunger}/${player.maxHunger}`, margin + 5, canvas.height - barHeight - margin + 12);
-  }
-  
-  function throwSelectedItem() {
-    const item = player.inventory[selectedInventoryIndex];
-    if (!item) return;
-  
-    const speed = 0.4;
-    const vx = Math.cos(angle) * speed;
-    const vy = Math.sin(angle) * speed;
-  
-    thrownItems.push(new ThrownItem(posX, posY, vx, vy, item));
-    player.inventory.splice(selectedInventoryIndex, 1);
-  
-    console.log(`💥 投げた！`);
   }
   
   function drawInventory() {
@@ -1149,80 +1464,51 @@ class ThrownItem {
     }
   }
   
+  function drawDraggedItem() {
+    if (isDraggingItem) {
+      const item = player.inventory[selectedInventoryIndex];
+      if (!item) return;
   
- function drawDraggedItem() {
-  if (isDraggingItem) {
-    const item = player.inventory[selectedInventoryIndex];
-    if (!item) return;
-
-    ctx.fillStyle = "yellow";
-    ctx.font = "28px sans-serif";
-    ctx.fillText(item.name, dragX, dragY);
+      ctx.fillStyle = "yellow";
+      ctx.font = "28px sans-serif";
+      ctx.fillText(item.name, dragX, dragY);
+    }
   }
-}
   
   function drawFullDropZones() {
-  if (!isDraggingItem) return;
-
-  const w = canvas.width / 2;
-  const h = canvas.height / 2;
-
-  const zones = [
-    { x: 0, y: 0, label: "投げる" },
-    { x: w, y: 0, label: "使う" },              // ← ここが余白
-    { x: 0, y: h, label: "置く" },
-    { x: w, y: h, label: ""},
-  ];
-
-  ctx.font = "28px sans-serif";
-  ctx.textAlign = "center";
-  ctx.textBaseline = "middle";
-
-  zones.forEach(zone => {
-    ctx.strokeStyle = "white";
-    ctx.strokeRect(zone.x, zone.y, w, h);
-    ctx.fillStyle = "white";
-    if (zone.label) {
-      ctx.fillText(zone.label, zone.x + w / 2, zone.y + h / 2);
-    }
-  });
-}
-
-
+    if (!isDraggingItem) return;
   
-
-
- 
+    const w = canvas.width / 2;
+    const h = canvas.height / 2;
   
-  let hungerTick = 0;
+    const zones = [
+      { x: 0, y: 0, label: "投げる" },
+      { x: w, y: 0, label: "使う" },
+      { x: 0, y: h, label: "置く" },
+      { x: w, y: h, label: ""},
+    ];
   
-  function playerHunger(){
-
-      hungerTick++;
-    if (hungerTick % 240 === 0) { // 約4秒に1回
-      player.hunger -= 1;
-      if (player.hunger < 0) player.hunger = 0;
-    }
+    ctx.font = "28px sans-serif";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
   
-    // 腹度ゼロでHP減少（オプション）
-    if (player.hunger === 0) {
-      player.hp -= 0.05; // 少しずつHPも減る
-      if (player.hp < 0) player.hp = 0;
-    }
+    zones.forEach(zone => {
+      ctx.strokeStyle = "white";
+      ctx.strokeRect(zone.x, zone.y, w, h);
+      ctx.fillStyle = "white";
+      if (zone.label) {
+        ctx.fillText(zone.label, zone.x + w / 2, zone.y + h / 2);
+      }
+    });
   }
-
-
-
+  
   function drawItems() {
     items.forEach(item => {
       item.draw(ctx); // ← 各アイテムに描画処理を任せる
     });
    
   }
-  
-  
-  
-  
+ 
   function drawPunchEffect(){
     if (!isPunching) return;
   
@@ -1255,97 +1541,6 @@ class ThrownItem {
     if (punchTimer > 7) isPunching = false;
   }
   
-  
-//プレイヤー攻撃関連↓
-function performAttack() {
-  const now = Date.now();
-  
-  // クールダウン中なら何もしない
-  if (now < player.nextAttackTime) {
-    console.log("⏳ 攻撃クールダウン中！");
-    return;
-  }
-  
-  let damageToApply = 1; // 素手のデフォルトダメージ
-  let cooldown = 1000;    // 素手のクールダウン(ms)
-
-  if (equippedWeapon) {
-    damageToApply = equippedWeapon.damage;
-
-    // 武器別にクールダウン
-    if (equippedWeapon.name.includes("短剣")) {
-      cooldown = 1300; // 短剣は素早い
-    } else if (equippedWeapon.name.includes("大剣")) {
-      cooldown = 2500; // 大剣は重い
-    }
-  }
-
-  // 攻撃処理
-  enemies.forEach(enemy => {
-    if (!enemy.isAlive) return;
-    
-    const dx = enemy.x - posX;
-    const dy = enemy.y - posY;
-    const dist = Math.sqrt(dx * dx + dy * dy);
-    const angleToEnemy = Math.atan2(dy, dx);
-    const diffAngle = Math.abs(normalizeAngle(angleToEnemy - angle));
-
-    if (dist < attackRange && diffAngle < Math.PI / 4) {
-      enemy.takeDamage(damageToApply);
-      console.log(`🎯 敵に${damageToApply}ダメージ！`);
-    }
-  });
-
-  // エフェクト
-  if (equippedWeapon && equippedWeapon.name.includes("短剣")) {
-    showZangekiEffect();
-  } else if (!equippedWeapon) {
-    isPunching = true;
-    punchTimer = 0;
-  }
-
-  // 次に攻撃できる時刻を設定
-  player.nextAttackTime = now + cooldown;
-}
-  //プレイヤー攻撃関連↑
-  
- 
-  function showZangekiEffect() {
-    const effectDuration = 200; // ms
-    const startTime = Date.now();
-  
-    function drawEffect() {
-      const now = Date.now();
-      if (now - startTime < effectDuration) {
-        const spriteSize = 128;
-  
-        // 切り出し位置
-        const sx = 1 * spriteSize; // 列0
-        const sy = 7 * spriteSize; // 行0（斬撃エフェクト）
-  
-        ctx.drawImage(
-          spriteSheet,
-          sx, sy,
-          spriteSize, spriteSize,
-          0,                 // 描画先X（左端）
-          0,                 // 描画先Y（上端）
-          canvas.width,      // 描画先幅（全体）
-          canvas.height      // 描画先高さ（全体）
-        );
-  
-        requestAnimationFrame(drawEffect);
-      }
-    }
-  
-    drawEffect();
-  }
-  
-  
-  function normalizeAngle(angle) {
-    return Math.atan2(Math.sin(angle), Math.cos(angle));
-}
-  
-
   function drawBullets() {
     bullets.forEach(b => {
       const dx = b.x - posX;
@@ -1369,65 +1564,35 @@ function performAttack() {
   }
   
   function drawChargeGauge() {
-    if(!isCharging || chargeThreshold === 0)return;
-
-  const width = 100;
-  const height = 10;
-  const x = canvas.width / 2 - width / 2;
-  const y = canvas.height - 40;
-
-  const ratio = Math.min(1, chargeTime / chargeThreshold);
-
-  ctx.fillStyle = "gray";
-  ctx.fillRect(x, y, width, height);
-
-  ctx.fillStyle = "lime";
-  ctx.fillRect(x, y, width * ratio, height);
-}
-    
-
+      if(!isCharging || chargeThreshold === 0)return;
   
-  let nearbyItemIndex = -1;
-
-  function updateNearbyItem() {
-    nearbyItemIndex = -1; // 初期化
+    const width = 100;
+    const height = 10;
+    const x = canvas.width / 2 - width / 2;
+    const y = canvas.height - 40;
   
-    items.forEach((item, index) => {
-      const dx = item.x - posX;
-      const dy = item.y - posY;
-      const dist = Math.sqrt(dx * dx + dy * dy);
-      if (dist < 0.5) { // 近ければ
-        nearbyItemIndex = index;
-      }
-    });
-  }
-
-  function checkNearbyItems() {
-    nearbyItemIndex = -1;
-    for (let i = 0; i < items.length; i++) {
-      const dx = items[i].x - posX;
-      const dy = items[i].y - posY;
-      const dist = Math.sqrt(dx * dx + dy * dy);
-      if (dist < 0.6) {
-        nearbyItemIndex = i; // 近くのアイテム番号
-        break;
-      }
-    }
+    const ratio = Math.min(1, chargeTime / chargeThreshold);
+  
+    ctx.fillStyle = "gray";
+    ctx.fillRect(x, y, width, height);
+  
+    ctx.fillStyle = "lime";
+    ctx.fillRect(x, y, width * ratio, height);
   }
   
   function drawPickupPrompt() {
-  if (nearbyItemIndex !== -1) {
-    const item = items[nearbyItemIndex]; // アイテム情報を取得
-
-    ctx.fillStyle = "white";
-    ctx.font = "84px sans-serif";
-    ctx.textAlign = "center";
-   // ctx.fillText("【拾う】", canvas.width / 2, canvas.height - 80);
-    ctx.fillText(`【${item.name}】`, canvas.width / 2, canvas.height - 580);
+    if (nearbyItemIndex !== -1) {
+      const item = items[nearbyItemIndex]; // アイテム情報を取得
+  
+      ctx.fillStyle = "white";
+      ctx.font = "84px sans-serif";
+      ctx.textAlign = "center";
+     // ctx.fillText("【拾う】", canvas.width / 2, canvas.height - 80);
+      ctx.fillText(`【${item.name}】`, canvas.width / 2, canvas.height - 580);
+    }
   }
-}
  
- function drawGameOverScreen() {
+  function drawGameOverScreen() {
     ctx.fillStyle = "rgba(0, 0, 0, 0.7)";
     ctx.fillRect(0, 0, canvas.width, canvas.height);
   
@@ -1440,10 +1605,6 @@ function performAttack() {
     ctx.font = "24px sans-serif";
     ctx.fillText("画面をタッチでリスタート", canvas.width / 2, canvas.height / 2 + 50);
   }
-  
-  
-
-
   
   function drawGoal() {
     const dx = goal.x - posX;
@@ -1492,287 +1653,6 @@ function performAttack() {
     }
   }
   
-  let goalInRange = false;
-  
-  function updateGoalProximity() {
-    const dx = goal.x - posX;
-    const dy = goal.y - posY;
-    const dist = Math.sqrt(dx * dx + dy * dy);
-    goalInRange = dist < 0.5;
-  }
-  
-  
-  function checkGoalCharging() {
-    const dx = goal.x - posX;
-    const dy = goal.y - posY;
-    const dist = Math.sqrt(dx * dx + dy * dy);
-  
-    const isInGoalArea = dist < 0.5;
-  
-    if (isInGoalArea && charging && !isCharging) {
-      startCharge(() => {
-        floor++;
-        console.log("次の階層へ！");
-        initNextFloor(); // 必要ならここで階層遷移処理
-      }, 100); // 100フレーム（約1.6秒）など
-    }
-  }
-  
-  function initNextFloor() {
-    
-    
-  if (floor === 3) {
-    // 3Fだけ迷路生成
-    map = generateMazeMap(16, 16);
-  } else {
-    // それ以外は通常ランダムマップ
-    map = generateRandomMap(16, 16);
-  }
-
-  goal = findRandomEmptyTile(map);
-
- 
-
-  
-  map = generateRandomMap(16, 16);
-  goal = findRandomEmptyTile(map);
-
-  explored = Array.from({ length: map.length }, () =>
-    Array.from({ length: map[0].length }, () => false)
-  );
-
-  posX = 1.5;
-  posY = 1.5;
-
-  carvePath(map, { x: posX, y: posY }, goal);
-
-  const itemNames = [
-    "🗡️短剣",
-    "🍞パン",
-    "💊回復薬",
-    "💊鈍足の薬",
-    "💊俊足の薬"
-  ];
-
-  // アイテムのリセット
-  items.length = 0;
-  
-  for (let i = 0; i < 5; i++) {
-    const tile = findRandomEmptyTile(map);
-    const name = itemNames[Math.floor(Math.random() * itemNames.length)];
-    let type = "misc";
-    let damage = 0;
-    let heal = 0;
-
-    if (name.includes("回復薬")) {
-      type = "medicine";
-      heal = 20;
-    }
-    else if (name.includes("パン")) type = "food";
-    else if (name.includes("短剣")) {
-      type = "weapon";
-      damage = 5;
-    }
-
-    items.push(new Item(
-      tile.x,
-      tile.y,
-      name,
-      type,
-      name.includes("短剣") ? 1.0 : 2.5,
-      damage,
-      heal
-    ));
-  }
-
-  // 敵のリセット
-  enemies = [];
-  //spawnEnemies(5);
-  
-  
-  /*
-  if (floor === 3){
-    const tile = findRandomEmptyTile(map);
-    enemies.push(new MummyEnemy(tile.x,tile.y));
-  }
-}
-*/
-  
-
-  // ゾンビを配置（1階〜3階）
-  if (floor >= 1 && floor <= 3) {
-    spawnEnemies(5); // ゾンビ5体
-  }
-
-  // ミイラを配置（3階〜5階）
-  if (floor >= 3 && floor <= 5) {
-    const mummyCount = 3 + Math.floor((floor - 3) * 1); // 3F=1体, 4F=2体, 5F=3体
-    for (let i = 0; i < mummyCount; i++) {
-      const tile = findRandomEmptyTile(map);
-      enemies.push(new MummyEnemy(tile.x, tile.y));
-    }
-    console.log(`階${floor}: ミイラ男 ${mummyCount}体を配置！`);
-  }
-  
-  //ドラゴン配置５階
-    if (floor === 5) {
-    const dragonCount = 1
-    for (let i = 0; i < dragonCount; i++) {
-      const tile = findRandomEmptyTile(map);
-      enemies.push(new DragonEnemy(tile.x, tile.y));
-    }
-    console.log(`階${floor}: dragon ${dragonCount}体を配置！`);
-  }
-
-
-  }
-  
-  function normalizeAngle(angle) {
-    return Math.atan2(Math.sin(angle), Math.cos(angle));
-  }
-  
-  let goalReached = false;
-  
-  /*壁をテクスチャで描く 2025/07/03
-  function castRays() {
-  const sliceWidth = 2; // 切り出す幅（小さくしすぎると負荷が増える）
-  for (let i = 0; i < numRays; i++) {
-    const rayAngle = (angle - fov / 2) + (i / numRays) * fov;
-    let dist = 0;
-    let hit = false;
-    let eyeX = Math.cos(rayAngle);
-    let eyeY = Math.sin(rayAngle);
-
-    let hitX = 0;
-    let hitY = 0;
-    let texX = 0;
-
-    let prevX = Math.floor(posX);
-    let prevY = Math.floor(posY);
-
-    while (!hit && dist < maxDepth) {
-      dist += 0.01;
-      hitX = posX + eyeX * dist;
-      hitY = posY + eyeY * dist;
-
-      let testX = Math.floor(hitX);
-      let testY = Math.floor(hitY);
-
-      if (testX < 0 || testY < 0 || testX >= mapWidth || testY >= mapHeight) {
-        hit = true;
-        dist = maxDepth;
-      } else if (map[testY][testX] > 0) {
-        hit = true;
-
-        if (testX !== prevX) {
-          texX = hitY - Math.floor(hitY);
-        } else {
-          texX = hitX - Math.floor(hitX);
-        }
-      }
-
-      prevX = testX;
-      prevY = testY;
-    }
-
-    const correctedDist = dist * Math.cos(rayAngle - angle);
-    const wallHeight = Math.min(canvas.height, canvas.height / correctedDist);
-    const wallTop = (canvas.height - wallHeight) / 2;
-
-    const spriteSize = 128;
-    const sx = texX * spriteSize;
-    const sy = 6 * spriteSize;
-
-    ctx.drawImage(
-      spriteSheet,
-      sx, sy,
-      sliceWidth, spriteSize,
-      i, wallTop,
-      sliceWidth, wallHeight
-    );
-  }
-}*/
-
-
-  function castRays() {
-    for (let i = 0; i < numRays; i++) {
-      const rayAngle = (angle - fov / 2) + (i / numRays) * fov;
-      let dist = 0;
-      let hit = false;
-      let eyeX = Math.cos(rayAngle);
-      let eyeY = Math.sin(rayAngle);
-
-      while (!hit && dist < maxDepth) {
-        dist += 0.01;
-        let testX = Math.floor(posX + eyeX * dist);
-        let testY = Math.floor(posY + eyeY * dist);
-
-        if (testX < 0 || testY < 0 || testX >= mapWidth || testY >= mapHeight) {
-          hit = true;
-          dist = maxDepth;
-        } else if (map[testY][testX] > 0) {
-          hit = true;
-        }
-      }
-      
-      // 距離に応じて壁の高さを調整（遠いほど小さく）
-      
-      
-      const wallHeight = Math.min(canvas.height, canvas.height / dist);
-      const shade = 255 - Math.min(255, dist * 50);
-      ctx.fillStyle = `rgb(${shade},${shade},${shade})`;
-      ctx.fillRect(i, (canvas.height - wallHeight) / 2, 1, wallHeight);
-      
-      
-    }
-  }
-  
-  function drawUseBox() {
-    const size = 100; // 正方形のサイズ
-    const x = canvas.width - size - 20; // 右から20px内側
-    const y = canvas.height / 1.75 - size / 2; // 縦中央に配置
-  
-    ctx.strokeStyle = "white";
-    ctx.lineWidth = 2;
-    ctx.strokeRect(x, y, size, size);
-    
-   
-
-    // 装備中武器のアイコン
-    if (equippedWeapon) {
-      ctx.font = `${size * 0.5}px sans-serif`;
-      ctx.textAlign = "center";
-      ctx.textBaseline = "middle";
-      ctx.fillText("🗡️", x + size / 2, y + size / 2);
-    }
-
-  }
-  
-  function isInUseBox(touchX, touchY) {
-    const size = 100;
-    const x = canvas.width - size - 20;
-    const y = canvas.height / 1.75 - size / 2;
-    return (
-      touchX >= x &&
-      touchX <= x + size &&
-      touchY >= y &&
-      touchY <= y + size
-    );
-  }
-  
-  function getDirectionName(angle) {
-    const angleDeg = (angle * 180 / Math.PI + 360) % 360;
-  
-    //if (angleDeg >= 22.5 && angleDeg < 67.5) return "南東↘";
-    if (angleDeg >= 67.5 && angleDeg < 112.5) return "S↓";
-    //if (angleDeg >= 112.5 && angleDeg < 157.5) return "南西↙";
-    if (angleDeg >= 157.5 && angleDeg < 202.5) return "W←";
-    //if (angleDeg >= 202.5 && angleDeg < 247.5) return "北西↖";
-    if (angleDeg >= 247.5 && angleDeg < 292.5) return "N↑";
-    //if (angleDeg >= 292.5 && angleDeg < 337.5) return "北東↗";
-    return "E→";
-  }
-  
   function drawDirectionHUD() {
     const direction = getDirectionName(angle); // angleはグローバル変数と仮定
     ctx.font = "80px sans-serif";
@@ -1798,117 +1678,236 @@ function performAttack() {
   
     ctx.restore();
   }
-
-  function render() {
-    ctx.save();
   
-    // ✅ スクリーンシェイク
-    if (shakeTimer > 0) {
-      const dx = (Math.random() - 0.5) * shakeIntensity;
-      const dy = (Math.random() - 0.5) * shakeIntensity;
-      ctx.translate(dx, dy);
-      shakeTimer--;
-    }
-  
-    // ① 背景
-    ctx.fillStyle = "black";
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-  
-    // ② ゲーム世界（壁・敵・アイテム・ゴールなど）
-    castRays();
-    drawItems();
-  
+  function drawEnemiesWithWarnings(ctx) {
     for (const enemy of enemies) {
       if (enemy.isAlive) {
-        enemy.updateHitEffect();
-        enemy.drawFromRaycastView(ctx);
-  
-        const dx = enemy.x - posX;
-        const dy = enemy.y - posY;
-        const distance = Math.hypot(dx, dy);
-        const angleToEnemy = Math.atan2(dy, dx);
-        const diff = Math.abs(normalizeAngle(angleToEnemy - angle));
-  
-        const isNearby = distance < 1.5;
-        const isOutsideFov = diff > fov / 2;
-  
+          enemy.updateHitEffect();
+          enemy.drawFromRaycastView(ctx);
+    
+          const dx = enemy.x - posX;
+          const dy = enemy.y - posY;
+          const distance = Math.hypot(dx, dy);
+          const angleToEnemy = Math.atan2(dy, dx);
+          const diff = Math.abs(normalizeAngle(angleToEnemy - angle));
+    
+          const isNearby = distance < 1.5;
+          const isOutsideFov = diff > fov / 2;
+    
         if (isNearby && isOutsideFov) {
           drawEnemyWarning(angleToEnemy);
         }
       }
     }
-    
+  }
   
-    enemies.forEach(enemy => {
-      if (enemy.isAlive) {
-        enemy.updateHitEffect();
+  function drawFloorGridPerspective() {
+      ctx.strokeStyle = "white";
+      ctx.lineWidth = 1;
+    
+      // y: スクリーンY
+     for (let y = canvas.height / 2; y < canvas.height; ) {
+      const depth = (y - canvas.height / 2) / (canvas.height / 2);
+      const shade = Math.floor(255 - depth * 180); // 奥にいくほど暗く
+      ctx.strokeStyle = `rgb(${shade},${shade},${shade})`;
+    
+      ctx.beginPath();
+      ctx.moveTo(0, y);
+      ctx.lineTo(canvas.width, y);
+      ctx.stroke();
+    
+      y += Math.max(2, (y - canvas.height / 2) / 10);
+    }
+  }  //床のグリッド描画2025/07/07
+
+  function drawUseBox() {
+    const size = 100; // 正方形のサイズ
+    const x = canvas.width - size - 20; // 右から20px内側
+    const y = canvas.height / 1.75 - size / 2; // 縦中央に配置
+  
+    ctx.strokeStyle = "white";
+    ctx.lineWidth = 2;
+    ctx.strokeRect(x, y, size, size);
+    
+    // 装備中武器のアイコン
+    if (equippedWeapon) {
+      ctx.font = `${size * 0.5}px sans-serif`;
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText("🗡️", x + size / 2, y + size / 2);
+    }
+  }
+  
+  function showZangekiEffect() {
+    const effectDuration = 200; // ms
+    const startTime = Date.now();
+  
+    function drawEffect() {
+      const now = Date.now();
+      if (now - startTime < effectDuration) {
+        const spriteSize = 128;
+  
+        // 切り出し位置
+        const sx = 1 * spriteSize; // 列0
+        const sy = 7 * spriteSize; // 行0（斬撃エフェクト）
+  
+        ctx.drawImage(
+          spriteSheet,
+          sx, sy,
+          spriteSize, spriteSize,
+          0,                 // 描画先X（左端）
+          0,                 // 描画先Y（上端）
+          canvas.width,      // 描画先幅（全体）
+          canvas.height      // 描画先高さ（全体）
+        );
+  
+        requestAnimationFrame(drawEffect);
       }
-    });
-    
-  for (let i = damageTexts.length - 1; i >= 0; i--) {
-    damageTexts[i].update();
-    if (!damageTexts[i].isAlive()) {
-      damageTexts.splice(i, 1);
+    }
+  
+    drawEffect();
+  }
+  
+  function showZangekiEffect(angle) {
+    return Math.atan2(Math.sin(angle), Math.cos(angle));
+  }
+  
+//↑描画関連----------------------------
+  
+  function handleDrop(item, target) {
+    if (target === "usebox") {
+      if (item.type === "weapon") {
+        equippedWeapon = item;
+        console.log(`装備しました: ${item.name}`);
+      } else {
+        useItem(item);
+      }
+  
+      // ドロップ後はインベントリから削除
+      const index = player.inventory.indexOf(item);
+      if (index !== -1) player.inventory.splice(index, 1);
+    }
+  }  // ドロップ処理
+
+  function throwSelectedItem() {
+    const item = player.inventory[selectedInventoryIndex];
+    if (!item) return;
+  
+    const speed = 0.4;
+    const vx = Math.cos(angle) * speed;
+    const vy = Math.sin(angle) * speed;
+  
+    thrownItems.push(new ThrownItem(posX, posY, vx, vy, item));
+    player.inventory.splice(selectedInventoryIndex, 1);
+  
+    console.log(`💥 投げた！`);
+  }
+  
+  function cleanUpThrownItems(){
+    for (let i = thrownItems.length - 1; i >= 0; i--) {
+        thrownItems[i].update();
+          if (!thrownItems[i].isActive) {
+            thrownItems.splice(i, 1);
+        }
     }
   }
   
-  for (const dt of damageTexts) {
-    dt.draw(ctx);
-  }
-  
-  for (const thrown of thrownItems) {
-    thrown.draw(ctx);
-  }
+  function handleThrownCollision(){
+    for (const thrown of thrownItems) {
+      if (!thrown.isActive) continue;
+      for (const enemy of enemies) {
+        const dx = enemy.x - thrown.x;
+        const dy = enemy.y - thrown.y;
+        if (Math.hypot(dx, dy) < 0.5) {
+          // ダメージ効果
+          if (thrown.item.damage > 0) {
+            enemy.takeDamage(thrown.item.damage);
+            console.log(`🗡️ ${thrown.item.name}が命中！${thrown.item.damage}ダメージ`);
+          }
     
+          // スピード効果
+          if (thrown.item.speed < 0) {
+            const newSpeed = enemy.speed * 0.5;
+  // 0以下は0.01にする
+            enemy.speed = newSpeed <= 0 ? 0.01 : newSpeed;
+            console.log(`鈍足の薬が命中！敵のスピード: ${enemy.speed}`);
+            
+          }
+          
+          if (thrown.item.speed > 0) {
+            const newSpeed = enemy.speed * 1.5;
   
-    drawGoal();
-  
-    // ③ UI
-    drawChargeGauge();
-    drawStatusBars();
-    drawPickupPrompt();
-    drawInventory();
-    drawMiniMap();
-    drawPunchEffect();
-    drawSelectedItem();
-    drawDraggedItem();
-    drawUseBox();
-    drawFullDropZones();
-    drawDirectionHUD();
-  
-    ctx.fillStyle = "white";
-    ctx.font = "44px sans-serif";
-    ctx.fillText(`${floor}F`, 200, 30);
-  
-    ctx.font = "20px sans-serif";
-    ctx.fillText(`Count: ${gameCount}`, canvas.width - 150, 30);
-  
-    if (isGameOver) drawGameOverScreen();
-  
-    // 🎇 パーティクルは一番最後に描く
-    for (const p of particles) {
-      p.draw(ctx);
+            enemy.speed = newSpeed <= 0 ? 0.01 : newSpeed;
+            console.log(`加速の薬が命中！敵のスピード: ${enemy.speed}`);
+            
+          }
+    
+          // 他に効果を足したければここに
+    
+          // 投擲アイテムは消える
+          thrown.isActive = false;
+        }
+      }
     }
-  
-    ctx.restore();
   }
   
-  
-  let isCharging = false;
-  let chargeTime = 0;
-  let chargeCallback = null;
-  
-  let showDropTargets = false;
-
-
-//2025/06/08アイテム
-  startCharge(() => {
-    const item = items[nearbyItemIndex];
-    inventory.push(item); // 所持品に追加
-    items.splice(nearbyItemIndex, 1); // マップ上から削除
+  function checkNearbyItems() {
     nearbyItemIndex = -1;
-    isDraggingItem = false;
-  }, 60);
+    for (let i = 0; i < items.length; i++) {
+      const dx = items[i].x - posX;
+      const dy = items[i].y - posY;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      if (dist < 0.6) {
+        nearbyItemIndex = i; // 近くのアイテム番号
+        break;
+      }
+    }
+  }
+
+  function checkGoalCharging() {
+    const dx = goal.x - posX;
+    const dy = goal.y - posY;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+  
+    const isInGoalArea = dist < 0.5;
+  
+    if (isInGoalArea && charging && !isCharging) {
+      startCharge(() => {
+        floor++;
+        console.log("次の階層へ！");
+        initNextFloor(); // 必要ならここで階層遷移処理
+      }, 100); // 100フレーム（約1.6秒）など
+    }
+  }
+  
+  function normalizeAngle(angle) {
+    return Math.atan2(Math.sin(angle), Math.cos(angle));
+  }
+
+  function isInUseBox(touchX, touchY) {
+    const size = 100;
+    const x = canvas.width - size - 20;
+    const y = canvas.height / 1.75 - size / 2;
+    return (
+      touchX >= x &&
+      touchX <= x + size &&
+      touchY >= y &&
+      touchY <= y + size
+    );
+  }
+  
+  function getDirectionName(angle) {
+    const angleDeg = (angle * 180 / Math.PI + 360) % 360;
+  
+    //if (angleDeg >= 22.5 && angleDeg < 67.5) return "南東↘";
+    if (angleDeg >= 67.5 && angleDeg < 112.5) return "S↓";
+    //if (angleDeg >= 112.5 && angleDeg < 157.5) return "南西↙";
+    if (angleDeg >= 157.5 && angleDeg < 202.5) return "W←";
+    //if (angleDeg >= 202.5 && angleDeg < 247.5) return "北西↖";
+    if (angleDeg >= 247.5 && angleDeg < 292.5) return "N↑";
+    //if (angleDeg >= 292.5 && angleDeg < 337.5) return "北東↗";
+    return "E→";
+  }
 
   function startCharge(callback, threshold = 60) {
     
@@ -1929,207 +1928,60 @@ function performAttack() {
     isDraggingItem = false;
   }
 
-
-  function updateCharge() {
-    if (isCharging && chargeCallback) {
-      chargeTime++;
-      if (chargeTime >= chargeThreshold) {
-        chargeCallback(); // 成功時の処理を実行
-        stopCharge();     // 状態リセット
-      }
-    }else{
-    }
-  }
-  
- function move(forward) {
-  const moveSpeed = forward ? 0.04 : -0.02;
-  const nextX = posX + Math.cos(angle) * moveSpeed;
-  const nextY = posY + Math.sin(angle) * moveSpeed;
-
-  // 壁チェック
-  if (map[Math.floor(nextY)][Math.floor(nextX)] !== 0) return;
-
-  // 敵との衝突チェック
-  let blocked = false;
-
-  for (const enemy of enemies) {
-    if (!enemy.isAlive) continue;
-    const dx = enemy.x - nextX;
-    const dy = enemy.y - nextY;
-    const dist = Math.hypot(dx, dy);
-
-    const angleToEnemy = Math.atan2(dy, dx);
-    const diffAngle = Math.abs(normalizeAngle(angleToEnemy - angle));
-    const frontAngleThreshold = Math.PI / 2;
-
-    // ✅ 前方の敵のみブロック（背後はブロックしない）
-    if (dist < 0.4 && diffAngle < frontAngleThreshold) {
-      blocked = true;
-      break;
-    }
-  }
-
-  if (blocked) {
-    if (!forward) {
-      // ✅ 後退時はスピードそのまま、壁衝突だけチェックして移動許可
-      const escapeX = posX + Math.cos(angle) * moveSpeed;
-      const escapeY = posY + Math.sin(angle) * moveSpeed;
-      if (map[Math.floor(escapeY)][Math.floor(escapeX)] === 0) {
-        posX = escapeX;
-        posY = escapeY;
-      }
-    }
-    return;
-  }
-
-  // ✅ 正常移動
-  posX = nextX;
-  posY = nextY;
-}
-  
-  /*
   function move(forward) {
-    const moveSpeed = forward ? 0.04 : -0.02;
+    const moveSpeed = forward ? player.speed : -player.speed / 2;
     const nextX = posX + Math.cos(angle) * moveSpeed;
     const nextY = posY + Math.sin(angle) * moveSpeed;
   
-    // ① 壁チェック
+    // 壁チェック
     if (map[Math.floor(nextY)][Math.floor(nextX)] !== 0) return;
   
-    // ② 敵との衝突チェック
+    // 敵との衝突チェック
+    let blocked = false;
+  
     for (const enemy of enemies) {
       if (!enemy.isAlive) continue;
       const dx = enemy.x - nextX;
       const dy = enemy.y - nextY;
       const dist = Math.hypot(dx, dy);
-      if (dist < 0.4) return; // ✋ 近すぎるので移動をキャンセル
+  
+      const angleToEnemy = Math.atan2(dy, dx);
+      const diffAngle = Math.abs(normalizeAngle(angleToEnemy - angle));
+      const frontAngleThreshold = Math.PI / 2;
+  
+      //前の敵のみブロック
+      if (dist < 0.4 && diffAngle < frontAngleThreshold) {
+        blocked = true;
+        break;
+      }
+    }
+  
+    if (blocked) {
+      if (!forward) {
+        // 後退時はスピードそのまま、壁衝突だけチェックして移動許可
+        const escapeX = posX + Math.cos(angle) * moveSpeed;
+        const escapeY = posY + Math.sin(angle) * moveSpeed;
+        if (map[Math.floor(escapeY)][Math.floor(escapeX)] === 0) {
+          posX = escapeX;
+          posY = escapeY;
+        }
+      }
+      return;
+    }
+    // 正常移動
+    posX = nextX;
+    posY = nextY;
   }
- // ③ OKなら移動
-  posX = nextX;
-  posY = nextY;
-}*/
-
-
+  
   function rotate(deltaAngle) {
     angle += deltaAngle;
     angle =  normalizeAngle(angle);
   }
   
+//↓タッチイベント関連
+  //↓タッチイベント関連変数
   
-  function gameLoop() {
-  warningTimer++;
-  gameCount++;
-
-  // 画面クリアは最初に1回だけ
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-  // 各種処理
-  getDirectionName();
-  
-  
-
-  // 敵の更新・描画
-  for (let i = enemies.length - 1; i >= 0; i--) {
-    const enemy = enemies[i];
-    enemy.update(posX, posY);
-    enemy.updateHitEffect();
-    if (enemy.isDying && enemy.alpha <= 0) {
-      console.log("💀 敵消滅 完了");
-      enemies.splice(i, 1);
-    }
-  }
-  
-  // 血しぶきを更新
-  for (let i = particles.length - 1; i >= 0; i--) {
-    particles[i].update();
-    if (!particles[i].isAlive()) {
-      particles.splice(i, 1);
-    }
-  }
-  
-  // 当たり判定ループ
-  
-  for (const thrown of thrownItems) {
-    if (!thrown.isActive) continue;
-    for (const enemy of enemies) {
-      const dx = enemy.x - thrown.x;
-      const dy = enemy.y - thrown.y;
-      if (Math.hypot(dx, dy) < 0.5) {
-        enemy.takeDamage(1); // 1ダメージとか
-        thrown.isActive = false;
-      }
-    }
-  }
-  
-  for (let i = thrownItems.length - 1; i >= 0; i--) {
-    thrownItems[i].update();
-    if (!thrownItems[i].isActive) {
-      thrownItems.splice(i, 1);
-    }
-  }
-  
-
-  // プレイヤーの移動・回転
-  if (!isDraggingItem) {
-    if (isMovingForward) move(true);
-    if (isMovingBackward) move(false);
-    if (isTurningLeft) rotate(-0.05);
-    if (isTurningRight) rotate(0.05);
-  }
-
-  // その他の更新・描画
-  updateGoalProximity();
-  checkNearbyItems();
-  checkGoalCharging();
-  updateNearbyItem();
-  updateCharge();
-  playerHunger();
-  render();  // ここで画面全体を再描画する場合、敵の描画の後に呼ばないように調整が必要
-
-  // 探索記録
-  explored[Math.floor(posY)][Math.floor(posX)] = true;
-
-  ctx.restore();
-
-  if (player.hp <= 0) {
-    isGameOver = true;
-    return;
-  }
-
-  requestAnimationFrame(gameLoop);
-}
-  
-  
-  
-  
-  
-   document.addEventListener("keydown", (e) => {
-    switch(e.key) {
-      case "ArrowLeft":
-        rotate(-0.3);
-        break;
-      case "ArrowRight":
-        rotate(0.3);
-        break;
-      case "ArrowUp":
-        move(true);
-        break;
-      case "ArrowDown":
-        move(false);
-        break;
-    }
-    render();
-  });
-  
-  document.addEventListener("keydown", (e) => {
-    switch(e.key) {
-      case "ArrowLeft": rotate(-0.05); break;
-      case "ArrowRight": rotate(0.05); break;
-      case "ArrowUp": move(true); break;
-      case "ArrowDown": move(false); break;
-      case " ": shoot(); break; // ← スペースキーで弾発射！
-    }
-  });
+    const TAP_THRESHOLD = 10;
     
     let isMovingForward = false;
     let isMovingBackward = false;
@@ -2150,223 +2002,221 @@ function performAttack() {
  
     let isSwipeAllowed = false;
     
+    //↑タッチイベント関連変数
+
+  //↓タッチスタート
+  canvas.addEventListener("touchstart", (e) => {
+   
+    const touch = e.touches[0];
+    const rect = canvas.getBoundingClientRect();
+    const yInCanvas = touch.clientY - rect.top;
     
+    touchStartY = touch.clientY;
+    touchStartX = touch.clientX;
+    inventoryTouchStartY = touch.clientY;
+    isInventorySwipeAllowed = yInCanvas < canvas.height - 200;
+  
+    const item = player.inventory[selectedInventoryIndex];
+    const textX = canvas.width / 2 - 40;
+    const textY = canvas.height - 60;
+    const dist = Math.hypot(touch.clientX - textX, touch.clientY - textY);
     
-    canvas.addEventListener("touchstart", (e) => {
-      
-  const touch = e.touches[0];
-  const rect = canvas.getBoundingClientRect();
-  const yInCanvas = touch.clientY - rect.top;
-  
-  
-
-  touchStartY = touch.clientY;
-  touchStartX = touch.clientX;
-  inventoryTouchStartY = touch.clientY;
-  isInventorySwipeAllowed = yInCanvas < canvas.height - 200;
-
-  const item = player.inventory[selectedInventoryIndex];
-  const textX = canvas.width / 2 - 40;
-  const textY = canvas.height - 60;
-  const dist = Math.hypot(touch.clientX - textX, touch.clientY - textY);
-  
-
-
-
-  // 🎒 ドラッグ開始判定
-  if (item && dist < 100) {
-    isDraggingItem = true;
-    wasDraggingItem = true;
-    dragX = touch.clientX;
-    dragY = touch.clientY;
-    console.log("ドラッグ開始",dragX,dragY,  "isDraggingItem:", isDraggingItem);
-    render(); // 即描画
-    return;
-  }
-  
-  
-  if (isInUseBox(touch.clientX, touch.clientY) && equippedWeapon) {
-      // 装備解除
-      console.log(`⚔️ 装備解除: ${equippedWeapon.name}`);
-      player.inventory.push(equippedWeapon); // インベントリに戻す
+    // ドラッグ開始判定
+    if (item && dist < 100) {
       isDraggingItem = true;
       wasDraggingItem = true;
-      selectedInventoryIndex = player.inventory.length - 1; // 新たに追加した武器
-      equippedWeapon = null;
-  }
-  
-  
-  // 攻撃処理（ドラッグじゃない、かつチャージしてないとき）
-  if (!isDraggingItem && !charging) {
-    const now = Date.now();
-    if (now - lastAttackTime > attackCooldown) {
-      lastAttackTime = now;
+      dragX = touch.clientX;
+      dragY = touch.clientY;
+      console.log("ドラッグ開始",dragX,dragY,  "isDraggingItem:", isDraggingItem);
+      render(); // 即描画
+      return;
     }
-  }
-
-  // 🟢 アイテム取得 or ゴールチャージ
-  if (nearbyItemIndex !== -1) {
     
-    startCharge(() => {
-      player.inventory.push(items[nearbyItemIndex]);
-      items.splice(nearbyItemIndex, 1);
-      nearbyItemIndex = -1;
-    }, 60);
-  } else if (goalInRange) {
-    startCharge(() => {
-      floor++;
-      initNextFloor();
-    }, 100);
-  }
-
-
-  // 🎮 ゲームオーバー時のリスタート
-  if (isGameOver) location.reload();
-
-}, { passive: true });
+    if (isInUseBox(touch.clientX, touch.clientY) && equippedWeapon) {
+        // 装備解除
+        console.log(`装備解除: ${equippedWeapon.name}`);
+        player.inventory.push(equippedWeapon); // インベントリに戻す
+        isDraggingItem = true;
+        wasDraggingItem = true;
+        selectedInventoryIndex = player.inventory.length - 1; // 新たに追加した武器
+        equippedWeapon = null;
+    }
     
-
     
-    canvas.addEventListener("touchmove", (e) => {
-  if (isDraggingItem) {
-    const touch = e.touches[0];
-    dragX = touch.clientX;
-    dragY = touch.clientY;
-    //console.log("ドラッグ中",dragX,dragY,isDraggingItem);
-    
-
-
-    return; // ドラッグ中は他処理無視
-  }
-
-  if (touchStartY === null || touchStartX === null) return;
-
-  const touchY = e.touches[0].clientY;
-  const touchX = e.touches[0].clientX;
-
-  const dy = touchStartY - touchY;
-  const dx = touchX - touchStartX;
-
-  // 前進・後退
-  if (dy > 50) {
-    isMovingForward = true;
-    isMovingBackward = false;
-  } else if (dy < -50) {
-    isMovingForward = false;
-    isMovingBackward = true;
-  }
-
-  // 回転
-  if (dx > 50) {
-    isTurningRight = true;
-    isTurningLeft = false;
-    rotate(0.2);
-    touchStartX = touchX;
-  } else if (dx < -50) {
-    isTurningLeft = true;
-    isTurningRight = false;
-    rotate(-0.2);
-    touchStartX = touchX;
-  }
-}, { passive: false });
-
-const TAP_THRESHOLD = 10;
-
-canvas.addEventListener("touchend", (e) => {
-  const touchEndX = e.changedTouches[0].clientX;
-  const touchEndY = e.changedTouches[0].clientY;
-  const dx = touchEndX - touchStartX;
-  const dy = touchEndY - touchStartY;
-  const distance = Math.hypot(dx, dy);
-
-  // デバッグ情報
-  const angleDeg = angle * 180 / Math.PI;
-  //console.log(`🧭 プレイヤーは今 ${angleDeg.toFixed(1)}° の方向を向いている`);
-  //console.log("📍 プレイヤー位置: X =", posX.toFixed(2), "Y =", posY.toFixed(2));
-
-  if (wasDraggingItem) {
-    console.log("🟢 ドロップ処理にはいりました");
-    const x = touchEndX;
-    const y = touchEndY;
-    const w = canvas.width / 2;
-    const h = canvas.height / 2;
-
-    let action = null;
-    if (x < w && y < h) action = "throw";
-    else if (x >= w && y < h) action = "use";
-    else if (x < w && y >= h) action = "drop";
-
-    console.log("📍 最終位置:", x, y, "➡️ Action:", action);
-
-    const item = player.inventory[selectedInventoryIndex];
-    if (item) {
-      if (isInUseBox(touchEndX, touchEndY)) {
-        handleDrop(item, "usebox");
-      } else {
-        switch (action) {
-          case "throw":
-            console.log("💥 投げた！");
-            throwSelectedItem();
-            break;
-          case "drop":
-            console.log("📦 地面に置いた！");
-            items.push(new Item(posX, posY, item.name, item.type, item.weight));
-            player.inventory.splice(selectedInventoryIndex, 1);
-            break;
-          case "use":
-            console.log("✅ 使用した！");
-            useSelectedItem();
-            break;
-          default:
-            console.log("👆 何もしないエリアにドロップされました");
-            break;
-        }
+    // 攻撃処理（ドラッグじゃない、かつチャージしてないとき）
+    if (!isDraggingItem && !charging) {
+      const now = Date.now();
+      if (now - lastAttackTime > attackCooldown) {
+        lastAttackTime = now;
       }
     }
-
-    // ドラッグ後の初期化
-    isDraggingItem = false;
-    wasDraggingItem = false;
-    showDropTargets = false;
-    tapHandled = true;
-
-    return; // 他の処理に進まない
-  }
-
-  // 👊 タップによる攻撃判定
-  if (distance < TAP_THRESHOLD) {
-    performAttack();
-  }
-
-
-
-  // --- インベントリスワイプ処理 ---
-  if (inventoryTouchStartY !== null && isInventorySwipeAllowed) {
-    const endY = e.changedTouches[0].clientY;
-    const diffY = endY - inventoryTouchStartY;
-
-    if (Math.abs(diffY) > 50) {
-      selectedInventoryIndex += diffY > 0 ? 1 : -1;
-      const len = player.inventory.length;
-      selectedInventoryIndex = len > 0 ? (selectedInventoryIndex + len) % len : 0;
-    }
-  }
-
-  inventoryTouchStartY = null;
-  isInventorySwipeAllowed = false;
   
-   // --- 共通リセット（ドロップ後にする）
-  isMovingForward = false;
-  isMovingBackward = false;
-  isTurningLeft = false;
-  isTurningRight = false;
-  touchStartY = null;
-  touchStartX = null;
-  stopCharge();
-});
+    // アイテム取得 or ゴールチャージ
+    if (nearbyItemIndex !== -1) {
+      
+      startCharge(() => {
+        player.inventory.push(items[nearbyItemIndex]);
+        items.splice(nearbyItemIndex, 1);
+        nearbyItemIndex = -1;
+      }, 60);
+    } else if (goalInRange) {
+      startCharge(() => {
+        floor++;
+        initNextFloor();
+      }, 100);
+    }
+  
+  
+    // ゲームオーバー時のリスタート
+    if (isGameOver) location.reload();
+  
+    }, { passive: true });
+  //↑タッチスタート
 
+  //↓タッチムーブ
+  canvas.addEventListener("touchmove", (e) => {
+    if (isDraggingItem) {
+      const touch = e.touches[0];
+      dragX = touch.clientX;
+      dragY = touch.clientY;
+      
+      return; // ドラッグ中は他処理無視
+    }
+  
+    if (touchStartY === null || touchStartX === null) return;
+  
+    const touchY = e.touches[0].clientY;
+    const touchX = e.touches[0].clientX;
+  
+    const dy = touchStartY - touchY;
+    const dx = touchX - touchStartX;
+  
+    // 前進・後退
+    if (dy > 50) {
+      isMovingForward = true;
+      isMovingBackward = false;
+    } else if (dy < -50) {
+      isMovingForward = false;
+      isMovingBackward = true;
+    }
+  
+    // 回転
+    if (dx > 50) {
+      isTurningRight = true;
+      isTurningLeft = false;
+      rotate(0.2);
+      touchStartX = touchX;
+    } else if (dx < -50) {
+      isTurningLeft = true;
+      isTurningRight = false;
+      rotate(-0.2);
+      touchStartX = touchX;
+    }
+  }, { passive: false });
+  //↑タッチムーブ
 
-
+  //↓タッチエンド
+  canvas.addEventListener("touchend", (e) => {
+    const touchEndX = e.changedTouches[0].clientX;
+    const touchEndY = e.changedTouches[0].clientY;
+    const dx = touchEndX - touchStartX;
+    const dy = touchEndY - touchStartY;
+    const distance = Math.hypot(dx, dy);
+  
+    // デバッグ情報
+    const angleDeg = angle * 180 / Math.PI;
+    //console.log(`プレイヤーは今 ${angleDeg.toFixed(1)}° の方向を向いている`);
+    //console.log("プレイヤー位置: X =", posX.toFixed(2), "Y =", posY.toFixed(2));
+  
+    if (wasDraggingItem) {
+      console.log("ドロップ処理にはいりました");
+      const x = touchEndX;
+      const y = touchEndY;
+      const w = canvas.width / 2;
+      const h = canvas.height / 2;
+  
+      let action = null;
+      if (x < w && y < h) action = "throw";
+      else if (x >= w && y < h) action = "use";
+      else if (x < w && y >= h) action = "drop";
+  
+      console.log("最終位置:", x, y, "action:", action);
+  
+      const item = player.inventory[selectedInventoryIndex];
+      if (item) {
+        if (isInUseBox(touchEndX, touchEndY)) {
+          handleDrop(item, "usebox");
+        } else {
+          switch (action) {
+            case "throw":
+              console.log("投げた！");
+              throwSelectedItem();
+              break;
+            case "drop":
+              console.log("地面に置いた！");
+                items.push(new Item({
+                  x: posX,
+                  y: posY,
+                  name: item.name,
+                  type: item.type,
+                  weight: item.weight,
+                  damage: item.damage || 0,
+                  heal: item.heal || 0,
+                  speed: item.speed || 0
+                }));
+              
+              break;
+            case "use":
+              console.log("使用した！");
+              useSelectedItem();
+              break;
+            default:
+              console.log("何もしないエリアにドロップされました");
+              break;
+          }
+        }
+      }
+  
+      // ドラッグ後の初期化
+      isDraggingItem = false;
+      wasDraggingItem = false;
+      showDropTargets = false;
+      tapHandled = true;
+  
+      return; // 他の処理に進まない
+    }
+  
+    // タップによる攻撃判定
+    if (distance < TAP_THRESHOLD) {
+      performAttack();
+    }
+  
+    // --- インベントリスワイプ処理 ---
+    if (inventoryTouchStartY !== null && isInventorySwipeAllowed) {
+      const endY = e.changedTouches[0].clientY;
+      const diffY = endY - inventoryTouchStartY;
+  
+      if (Math.abs(diffY) > 50) {
+        selectedInventoryIndex += diffY > 0 ? 1 : -1;
+        const len = player.inventory.length;
+        selectedInventoryIndex = len > 0 ? (selectedInventoryIndex + len) % len : 0;
+      }
+    }
+  
+    inventoryTouchStartY = null;
+    isInventorySwipeAllowed = false;
+    
+     // --- 共通リセット（ドロップ後にする）
+    isMovingForward = false;
+    isMovingBackward = false;
+    isTurningLeft = false;
+    isTurningRight = false;
+    touchStartY = null;
+    touchStartX = null;
+    stopCharge();
+  });
+  //↑タッチエンド
+//↑タッチイベント関連
   
   gameLoop();
   </script>
