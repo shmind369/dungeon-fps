@@ -32,7 +32,7 @@
 
     player.nextAttackTime = 0; // 次に攻撃できる時刻
     
-    isCharging = false;
+    //isCharging = false; 2025/07/10 1:56 削除
     
     chargeStartTime = null;
   }
@@ -63,7 +63,7 @@
     maxHp: 30,
     hunger: 100,
     maxHunger: 100,
-    speed: 0.04,
+    speed: 0.015,
     inventory: [],
     effects: []  // 状態異常など
   };
@@ -75,6 +75,10 @@
   let posX = start.x;
   let posY = start.y;
   let angle = 0;
+  //const strafeAngle = angle + Math.PI / 2; // 右方向
+  // または angle - Math.PI / 2; で左方向
+
+  
   
   //const inventory = []; // 2025/07/07 23:44 インベントリーを統一する
 
@@ -122,6 +126,8 @@
   let chargeCallback = null;
   
   let showDropTargets = false;
+  
+  
 
   //↑プレイヤー行動関連
 
@@ -847,6 +853,8 @@
       if (isTurningLeft) rotate(-0.05);
       if (isTurningRight) rotate(0.05);
     }
+    
+    updatePlayerMovement();//
   
     // その他の更新・描画
     updateGoalProximity();
@@ -860,8 +868,7 @@
     //startItemPickup();//2025/07/07 20:26
     
     markCurrentTileExplored();//ミニマップ用探索済み
-    
-  
+
     //ctx.restore();
   
     if (player.hp <= 0) {
@@ -875,54 +882,20 @@
 
   //↓レンダー -------------------------
   function render() {
+    
     ctx.save();
   
-    if (shakeTimer > 0) {
-      const dx = (Math.random() - 0.5) * shakeIntensity;
-      const dy = (Math.random() - 0.5) * shakeIntensity;
-      ctx.translate(dx, dy);
-      shakeTimer--;
-    }
-  
-    // ① 背景
-    ctx.fillStyle = "black";
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-  
-    // ② ゲーム世界（壁・敵・アイテム・ゴールなど）
+    applyScreenShake(ctx); // 画面を揺らす
+
+    drawBackground(ctx);
+
     castRays();
 
     drawItems();
-    
     drawEnemiesWithWarnings(ctx);
-
-
-  /*　2025/07/08 13:10　コメントアウト
-      enemies.forEach(enemy => {
-        if (enemy.isAlive) {
-          enemy.updateHitEffect();
-        }
-      });
-    
-  
-  for (let i = damageTexts.length - 1; i >= 0; i--) {
-    damageTexts[i].update();
-    if (!damageTexts[i].isAlive()) {
-      damageTexts.splice(i, 1);
-    }
-  }
-    */
-  for (const dt of damageTexts) {
-    dt.draw(ctx);
-  }
-
-  
-  for (const thrown of thrownItems) {
-    thrown.draw(ctx);
-  }
-    
-  
+    drawDamageTexts(ctx);
+    drawThrownItems(ctx);
     drawGoal();
-  
     drawChargeGauge();
     drawStatusBars();
     drawPickupPrompt();
@@ -934,15 +907,10 @@
     drawUseBox();
     drawFullDropZones();
     drawDirectionHUD();
-  
     drawGameInfo();
-  
-    if (isGameOver) drawGameOverScreen();
-  
-    // パーティクルは一番最後に描く
-    for (const p of particles) {
-      p.draw(ctx);
-    }
+    drawParticles(ctx);  // パーティクルは一番最後に描く
+
+    renderGameOverScreenIfNeeded();
   
     ctx.restore();
   }
@@ -1096,7 +1064,9 @@
   
     // エフェクト
     if (equippedWeapon && equippedWeapon.name.includes("短剣")) {
+      
       showZangekiEffect();
+
     } else if (!equippedWeapon) {
       isPunching = true;
       punchTimer = 0;
@@ -1283,7 +1253,6 @@
     }
   }
   
-  
   function updeteParticles(){
     for (let i = particles.length - 1; i >= 0; i--) {
       particles[i].update();
@@ -1332,9 +1301,58 @@
     }else{
     }
   }
+  
+  /*
+  function updatePlayerMovement() {
+    if (isStrafingRight) moveRight();
+    if (isStrafingLeft) moveLeft();
+    if (isMovingForward) moveForward();
+    if (isMovingBackward) moveBackward();
+    
+    if (isTurningQuick) {
+      let targetAngle = 0;
+      //let diff = quickTurnTargetAngle - angle;
+      const diff = normalizeAngle(targetAngle - angle);
+      //const diff = normalizeAngle(quickTurnTargetAngle - angle);
+      //diff = Math.atan2(Math.sin(diff),Math.cos(diff));
+      if (Math.abs(diff) < 0.1) {
+        angle = quickTurnTargetAngle;
+        isTurningQuick = false;
+        console.log("🔁 クイックターン完了！");
+      } else {
+        // 少しずつ回転する（右方向に最短で）
+        angle += Math.sign(Math.sin(diff)) * quickTurnSpeed;
+      }
+    }
+  }
+  */
+  
+  function updatePlayerMovement() {
+    if (isStrafingRight) moveRight();
+    if (isStrafingLeft) moveLeft();
+    if (isMovingForward) moveForward();
+    if (isMovingBackward) moveBackward();
+  
+    if (isTurningQuick) {
+      const diff = normalizeAngle(quickTurnTargetAngle - angle);
+      
+      if (Math.abs(diff) < 0.05) {
+        angle = quickTurnTargetAngle;
+        isTurningQuick = false;
+        console.log("🔁 クイックターン完了！");
+      } else {
+        angle += Math.sign(diff) * quickTurnSpeed;
+      }
+    }
+  }
 
 
 //↓描画関連------------------------------------
+
+  function drawBackground(ctx) {
+    ctx.fillStyle = "black";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+  } //2025/07/09 17:51 追加
 
   function castRays() {
     
@@ -1768,9 +1786,42 @@
     drawEffect();
   }
   
-  function showZangekiEffect(angle) {
+  function normalizeAngle(angle) {
     return Math.atan2(Math.sin(angle), Math.cos(angle));
-  }
+  } //2025/07/09 19:36 追加
+  
+  function applyScreenShake(ctx) {
+    if (shakeTimer > 0) {
+      const dx = (Math.random() - 0.5) * shakeIntensity;
+      const dy = (Math.random() - 0.5) * shakeIntensity;
+      ctx.translate(dx, dy);
+      shakeTimer--;
+    }
+  } //2025/07/09 17:37 画面を揺らす
+  
+  function drawDamageTexts(ctx) {
+    for (const dt of damageTexts) {
+      dt.draw(ctx);
+    }
+  } //2025/07/09 17:46 追加
+
+  function drawThrownItems(ctx) {
+    for (const thrown of thrownItems) {
+      thrown.draw(ctx);
+    }
+  } //2025/07/09 17:46 追加
+  
+  function drawParticles(ctx) {
+    for (const p of particles) {
+      p.draw(ctx);
+    }
+  } //2025/07/09 17:48 追加
+  
+  function renderGameOverScreenIfNeeded() {
+    if (isGameOver) {
+      drawGameOverScreen();
+    }
+  } //2025/07/09 17:54 追加
   
 //↑描画関連----------------------------
   
@@ -1927,6 +1978,11 @@
     chargeCallback = null;
     isDraggingItem = false;
   }
+  
+  function rotate(deltaAngle) {
+    angle += deltaAngle;
+    angle =  normalizeAngle(angle);
+  }
 
   function move(forward) {
     const moveSpeed = forward ? player.speed : -player.speed / 2;
@@ -1936,20 +1992,17 @@
     // 壁チェック
     if (map[Math.floor(nextY)][Math.floor(nextX)] !== 0) return;
   
-    // 敵との衝突チェック
+    // 敵との衝突チェック（省略せず元のままでOK）
     let blocked = false;
-  
     for (const enemy of enemies) {
       if (!enemy.isAlive) continue;
       const dx = enemy.x - nextX;
       const dy = enemy.y - nextY;
       const dist = Math.hypot(dx, dy);
-  
       const angleToEnemy = Math.atan2(dy, dx);
       const diffAngle = Math.abs(normalizeAngle(angleToEnemy - angle));
       const frontAngleThreshold = Math.PI / 2;
   
-      //前の敵のみブロック
       if (dist < 0.4 && diffAngle < frontAngleThreshold) {
         blocked = true;
         break;
@@ -1958,7 +2011,6 @@
   
     if (blocked) {
       if (!forward) {
-        // 後退時はスピードそのまま、壁衝突だけチェックして移動許可
         const escapeX = posX + Math.cos(angle) * moveSpeed;
         const escapeY = posY + Math.sin(angle) * moveSpeed;
         if (map[Math.floor(escapeY)][Math.floor(escapeX)] === 0) {
@@ -1968,14 +2020,77 @@
       }
       return;
     }
-    // 正常移動
+  
     posX = nextX;
     posY = nextY;
   }
+
+  function moveForward() {
+    move(true);
+  }
+
+  function moveBackward() {
+    move(false);
+  }
+  /*
+  function moveLeft() {
+    const sideSpeed = 0.04; // 移動速度
+    const dx = Math.sin(angle);  // ←角度に直交するベクトル
+    const dy = -Math.cos(angle);
+    const nextX = posX - dx * sideSpeed;
+    const nextY = posY - dy * sideSpeed;
+    
+    if (map[Math.floor(nextY)][Math.floor(nextX)] === 0) {
+      posX = nextX;
+      posY = nextY;
+    }
+  }
+
+  function moveRight() {
+    const sideSpeed = 0.04;
+    const dx = Math.sin(angle);
+    const dy = -Math.cos(angle);
+    const nextX = posX + dx * sideSpeed;
+    const nextY = posY + dy * sideSpeed;
+    
+    if (map[Math.floor(nextY)][Math.floor(nextX)] === 0) {
+      posX = nextX;
+      posY = nextY;
+    }
+  }
+  */
   
-  function rotate(deltaAngle) {
-    angle += deltaAngle;
-    angle =  normalizeAngle(angle);
+  function moveRight() {
+    const strafeAngle = angle + Math.PI / 2; // 視線の右側へ90度
+    const strafeSpeed = player.speed;
+    const nextX = posX + Math.cos(strafeAngle) * strafeSpeed;
+    const nextY = posY + Math.sin(strafeAngle) * strafeSpeed;
+  
+    // 壁がないか確認してから移動
+    if (map[Math.floor(nextY)][Math.floor(nextX)] === 0) {
+      posX = nextX;
+      posY = nextY;
+    }
+  }
+
+  function moveLeft() {
+    const strafeAngle = angle - Math.PI / 2; // 視線の左側へ90度
+    const strafeSpeed = player.speed;
+    const nextX = posX + Math.cos(strafeAngle) * strafeSpeed;
+    const nextY = posY + Math.sin(strafeAngle) * strafeSpeed;
+  
+    if (map[Math.floor(nextY)][Math.floor(nextX)] === 0) {
+      posX = nextX;
+      posY = nextY;
+    }
+  }
+  
+  function quickTurn() {
+    if (isTurningQuick) return; // すでに回転中なら無視
+  
+    quickTurnTargetAngle = normalizeAngle(angle + Math.PI);
+    isTurningQuick = true;
+    console.log("🔁 クイックターン開始！");
   }
   
 //↓タッチイベント関連
@@ -1990,6 +2105,18 @@
     let touchStartY = null;
     let touchStartX = null;
     
+    
+    //↓クイックターン用 2025/07/10 10:09
+    let lastSwipeTime = 0;
+    let lastSwipeDirection = null;
+    const DOUBLE_SWIPE_THRESHOLD = 400; // ミリ秒以内ならダブルとみなす
+    
+    let isTurningQuick = false;
+    let quickTurnTargetAngle = 0;
+    let quickTurnSpeed = 0.1; // ← 調整可能（数値が小さいとゆっくり）
+    //↑クイックターン用 2025/07/10 10:09
+
+    
     //let draggingItem = false;
     let dragX = 0;
     let dragY = 0;
@@ -1999,8 +2126,12 @@
     
     let isDraggingItem = false;
     let wasDraggingItem = false;
+    let isDragging = false;
  
     let isSwipeAllowed = false;
+    
+    let isStrafingLeft = false; //カニ歩き用
+    let isStrafingRight = false; //カニ歩き用
     
     //↑タッチイベント関連変数
 
@@ -2073,7 +2204,8 @@
     }, { passive: true });
   //↑タッチスタート
 
-  //↓タッチムーブ
+  /*↓タッチムーブ
+  
   canvas.addEventListener("touchmove", (e) => {
     if (isDraggingItem) {
       const touch = e.touches[0];
@@ -2090,6 +2222,14 @@
   
     const dy = touchStartY - touchY;
     const dx = touchX - touchStartX;
+  
+    if (isDragging && Math.abs(dragDeltaX) > Math.abs(dragDeltaY)) {
+      if (dragDeltaX > 20) {
+        moveRight(); // カニ歩き右
+      } else if (dragDeltaX < -20) {
+        moveLeft(); // カニ歩き左
+      }
+    }
   
     // 前進・後退
     if (dy > 50) {
@@ -2113,7 +2253,53 @@
       touchStartX = touchX;
     }
   }, { passive: false });
-  //↑タッチムーブ
+  */
+  canvas.addEventListener("touchmove", (e) => {
+    if (isDraggingItem) {
+      const touch = e.touches[0];
+      dragX = touch.clientX;
+      dragY = touch.clientY;
+      return; // ドラッグ中は他処理無視
+    }
+  
+    if (touchStartY === null || touchStartX === null) return;
+  
+    const touchY = e.touches[0].clientY;
+    const touchX = e.touches[0].clientX;
+  
+    const dx = touchX - touchStartX;
+    const dy = touchStartY - touchY;
+  
+    // ✅ カニ歩き（左右）
+    if (Math.abs(dx) > Math.abs(dy)) {
+      if (dx > 20) {
+        isStrafingRight = true;
+        isStrafingLeft = false;
+      } else if (dx < -20) {
+        isStrafingLeft = true;
+        isStrafingRight = false;
+      }
+    }
+    
+    // ✅ 前進・後退
+    if (dy > 50) {
+      isMovingForward = true;
+      isMovingBackward = false;
+    } else if (dy < -50) {
+      isMovingForward = false;
+      isMovingBackward = true;
+    }
+  
+    // ✅ 視点回転（任意）
+    if (dx > 50) {
+      rotate(0.2);
+      touchStartX = touchX;
+    } else if (dx < -50) {
+      rotate(-0.2);
+      touchStartX = touchX;
+    }
+  }, { passive: false });
+  
 
   //↓タッチエンド
   canvas.addEventListener("touchend", (e) => {
@@ -2122,12 +2308,38 @@
     const dx = touchEndX - touchStartX;
     const dy = touchEndY - touchStartY;
     const distance = Math.hypot(dx, dy);
+    const now = Date.now();
   
-    // デバッグ情報
+    // スワイプ方向判定
+    let currentSwipeDirection = null;
+    if (dy > 50) currentSwipeDirection = "down";
+    else if (dy < -50) currentSwipeDirection = "up";
+  
+    if (currentSwipeDirection) {
+      if (
+        currentSwipeDirection === lastSwipeDirection &&
+        now - lastSwipeTime < DOUBLE_SWIPE_THRESHOLD &&
+        currentSwipeDirection === "down"
+      ) {
+        console.log("⬇⬇ ダブルスワイプ検出！（", currentSwipeDirection, "）");
+        quickTurn();
+      }
+      lastSwipeDirection = currentSwipeDirection;
+      lastSwipeTime = now;
+    }
+  
+    // ストレイフ等のリセット
+    isStrafingLeft = false;
+    isStrafingRight = false;
+    isMovingForward = false;
+    isMovingBackward = false;
+  
+    // --- デバッグログ
     const angleDeg = angle * 180 / Math.PI;
-    //console.log(`プレイヤーは今 ${angleDeg.toFixed(1)}° の方向を向いている`);
-    //console.log("プレイヤー位置: X =", posX.toFixed(2), "Y =", posY.toFixed(2));
+    console.log(`プレイヤーは今 ${angleDeg.toFixed(1)}° の方向を向いている`);
+    console.log("プレイヤー位置: X =", posX.toFixed(2), "Y =", posY.toFixed(2));
   
+    // --- ドロップ処理
     if (wasDraggingItem) {
       console.log("ドロップ処理にはいりました");
       const x = touchEndX;
@@ -2185,13 +2397,13 @@
   
       return; // 他の処理に進まない
     }
-  
-    // タップによる攻撃判定
+
+    // タップで攻撃
     if (distance < TAP_THRESHOLD) {
       performAttack();
     }
   
-    // --- インベントリスワイプ処理 ---
+    // インベントリスワイプ
     if (inventoryTouchStartY !== null && isInventorySwipeAllowed) {
       const endY = e.changedTouches[0].clientY;
       const diffY = endY - inventoryTouchStartY;
@@ -2203,16 +2415,13 @@
       }
     }
   
+    // 共通リセット
     inventoryTouchStartY = null;
     isInventorySwipeAllowed = false;
-    
-     // --- 共通リセット（ドロップ後にする）
-    isMovingForward = false;
-    isMovingBackward = false;
     isTurningLeft = false;
     isTurningRight = false;
-    touchStartY = null;
     touchStartX = null;
+    touchStartY = null;
     stopCharge();
   });
   //↑タッチエンド
@@ -2223,8 +2432,3 @@
   
   </body>
   </html>
-
-
-
-  
-
