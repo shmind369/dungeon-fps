@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     
    
-    <title>2025/07/09ローグライクFPS</title>
+    <title>2025/07/14ローグライクFPS</title>
     <style>
       body {
         margin: 0;
@@ -24,11 +24,20 @@
   // 2025/07/09 10:46 アロー関数の整理
   // 2025/07/09  3:24 G変数、関数の整理 ゾンビのサイズoffsetを80→40に変更
   
-  console.log();
+  //console.log();
   
   window.onload = function () {
     
     //initEnemies();
+    
+    enemies.push(new ZombieEnemy(5.5, 1.5));
+    
+    enemies.push(new ZombieEnemy(4.5, 1.5));
+
+    enemies.push(new ZombieEnemy(4.5, 0.5));
+
+    
+    initItems();
 
     player.nextAttackTime = 0; // 次に攻撃できる時刻
     
@@ -36,6 +45,21 @@
     
     chargeStartTime = null;
   }
+  
+  // 0 = 通れる, 1 = 壁, 'D' = ダンジョン入口
+  const entranceMap = [
+    [1,1,1,1,1,1,1,1],
+    [1,0,0,0,0,0,0,1],
+    [1,0,0,0,0,0,'D',1],
+    [1,0,0,0,0,0,0,1],
+    [1,0,0,0,0,0,0,1],
+    [1,0,0,0,0,0,0,1],
+    [1,0,0,0,0,0,0,1],
+    [1,1,1,1,1,1,1,1],
+  ];
+  
+  //let posX = 4.5;
+  //let posY = 6.5;
   
   //↓描画関係
   
@@ -50,7 +74,7 @@
   const numRays = Math.min(1024, canvas.width); // 画質落ちるけど軽くなる
   const maxDepth = 10;
   //const tileSize = 64;
-  const TILE_SIZE = 32;
+  //const TILE_SIZE = 32;
   const fov = Math.PI / 3;
   
   //↑描画関係
@@ -137,6 +161,7 @@
   let shakeIntensity = 50;
   let warningTimer = 0;
   let gameCount = 0;
+  let goalRotation = 0;
   let isGameOver = false;
   
   //↑その他
@@ -372,10 +397,14 @@
           ctx.restore(); return;
         }
       }
+      
+
+
   
       const baseSize = 1000;
       const screenX = (angleToEnemy + halfFov) / fov * canvas.width;
       const size = Math.min(1500, baseSize / (distance + 0.2));
+
       const offsetY = 40;
   
       if (this.hitTimer > 0) {
@@ -395,14 +424,14 @@
         size,
         size
       );
-  
+      
+      
       ctx.globalAlpha = 1.0;
       ctx.restore();
     }
   }
   //ゾンビクラス↑--------------------------
 
-  enemies.push(new ZombieEnemy(5.5, 1.5));
 
   //ミイラクラス↓-----------------------
   class MummyEnemy extends Enemy {
@@ -713,8 +742,8 @@
         heal: this.item.heal || 0,
         speed: this.item.speed || 0
     }));
-      
-      console.log(`投げたアイテムが壁に当たって落下しました x=${this.x}, y=${this.y}`);
+      console.log(`落下座標: x=${this.x.toFixed(2)}, y=${this.y.toFixed(2)}`);
+      //console.log(`投げたアイテムが壁に当たって落下しました x=${this.x}, y=${this.y}`);
       return;
     }
   
@@ -822,6 +851,7 @@
     
     warningTimer++;
     gameCount++;
+    goalRotation += 0.05; // 回転速度
   
     // 画面クリアは最初に1回だけ
     ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -884,18 +914,26 @@
   function render() {
     
     ctx.save();
-  
+    
+    //drawEntrance(ctx);
+
+      
     applyScreenShake(ctx); // 画面を揺らす
 
-    drawBackground(ctx);
+    drawBackground(ctx); // rawFloorGrid(ctx)含まれる;//2025/07/15
 
     castRays();
+    
+    //drawFloorGrid(ctx);//2025/07/15
 
     drawItems();
+    drawEnemiesFromRaycastView(ctx);
     drawEnemiesWithWarnings(ctx);
+
     drawDamageTexts(ctx);
     drawThrownItems(ctx);
     drawGoal();
+    drawGoalPrompt();
     drawChargeGauge();
     drawStatusBars();
     drawPickupPrompt();
@@ -915,6 +953,23 @@
     ctx.restore();
   }
   //↑レンダー------------------
+  
+  function drawEntrance(ctx) {
+    const tileSize = 40;
+    for (let y = 0; y < entranceMap.length; y++) {
+      for (let x = 0; x < entranceMap[y].length; x++) {
+        let tile = entranceMap[y][x];
+        ctx.fillStyle = tile === 1 ? "#444" : tile === 'D' ? "#0af" : "#ddd";
+        ctx.fillRect(x * tileSize, y * tileSize, tileSize, tileSize);
+      }
+    }
+  
+    // プレイヤー
+    ctx.fillStyle = "red";
+    ctx.beginPath();
+    ctx.arc(posX * tileSize, posY * tileSize, 10, 0, Math.PI * 2);
+    ctx.fill();
+  }
 
   function initNextFloor() {
       
@@ -926,7 +981,7 @@
       map = generateRandomMap(16, 16);
     }
   
-    map = generateRandomMap(16, 16);
+    //map = generateRandomMap(16, 16);
     
     goal = findRandomEmptyTile(map);
   
@@ -1318,7 +1373,7 @@
       if (Math.abs(diff) < 0.1) {
         angle = quickTurnTargetAngle;
         isTurningQuick = false;
-        console.log("🔁 クイックターン完了！");
+        console.log("クイックターン完了！");
       } else {
         // 少しずつ回転する（右方向に最短で）
         angle += Math.sign(Math.sin(diff)) * quickTurnSpeed;
@@ -1332,6 +1387,7 @@
     if (isStrafingLeft) moveLeft();
     if (isMovingForward) moveForward();
     if (isMovingBackward) moveBackward();
+    
   
     if (isTurningQuick) {
       const diff = normalizeAngle(quickTurnTargetAngle - angle);
@@ -1339,7 +1395,7 @@
       if (Math.abs(diff) < 0.05) {
         angle = quickTurnTargetAngle;
         isTurningQuick = false;
-        console.log("🔁 クイックターン完了！");
+        console.log("クイックターン完了！");
       } else {
         angle += Math.sign(diff) * quickTurnSpeed;
       }
@@ -1350,8 +1406,10 @@
 //↓描画関連------------------------------------
 
   function drawBackground(ctx) {
-    ctx.fillStyle = "black";
+    ctx.fillStyle = "Black";
     ctx.fillRect(0, 0, canvas.width, canvas.height);
+    
+    //drawFloorGrid(ctx);
   } //2025/07/09 17:51 追加
 
   function castRays() {
@@ -1384,6 +1442,120 @@
     
     }
   }
+  
+  function drawFloorGrid(ctx) {
+    ctx.fillRect(canvas.width / 2, canvas.height / 2, 10, 10);
+    ctx.save();
+    ctx.strokeStyle = "lime";
+    ctx.lineWidth = 2;
+  
+    const cosA = Math.cos(-angle);
+    const sinA = Math.sin(-angle);
+  
+    const gridSize = 1; // 1マス1m相当
+    const range = 10;   // 前方何マスまで表示するか
+  
+    for (let gx = -range; gx <= range; gx++) {
+      ctx.beginPath();
+      let started = false;
+      for (let gz = 1; gz <= range; gz++) {
+        const wx = posX + gx * gridSize;
+        const wy = posY + gz * gridSize;
+  
+        const dx = wx - posX;
+        const dy = wy - posY;
+  
+        const rx = dx * cosA - dy * sinA;
+        const rz = dx * sinA + dy * cosA;
+  
+        if (rz <= 0.1) continue;
+  
+        const screenX = (rx / rz) * 300 + canvas.width / 2;
+        //const screenY = canvas.height / 2 + 50 / rz;
+        const screenY = canvas.height / 2 + 200 + 400 / rz;
+  
+        if (!started) {
+          ctx.moveTo(screenX, screenY);
+          started = true;
+        } else {
+          ctx.lineTo(screenX, screenY);
+        }
+      }
+      ctx.stroke();
+    }
+  
+    for (let gz = 1; gz <= range; gz++) {
+      ctx.beginPath();
+      let started = false;
+      for (let gx = -range; gx <= range; gx++) {
+        const wx = posX + gx * gridSize;
+        const wy = posY + gz * gridSize;
+  
+        const dx = wx - posX;
+        const dy = wy - posY;
+  
+        const rx = dx * cosA - dy * sinA;
+        const rz = dx * sinA + dy * cosA;
+  
+        if (rz <= 0.1) continue;
+  
+        const screenX = (rx / rz) * 300 + canvas.width / 2;
+        const screenY = canvas.height / 2 + 50 / rz;
+  
+        if (!started) {
+          ctx.moveTo(screenX, screenY);
+          started = true;
+        } else {
+          ctx.lineTo(screenX, screenY);
+        }
+      }
+      ctx.stroke();
+    }
+  
+    ctx.restore();
+  }
+  
+  /*
+  function drawFloorGrid(ctx) {
+    const gridWidth = 10;
+    const gridDepth = 20;
+    const spacing = 1; // 1マス = 1m前提
+    const eyeHeight = 0.5;
+    const focalLength = 1.0;
+  
+    ctx.save();
+    ctx.strokeStyle = "lime";
+    //ctx.strokeStyle = "rgba(0, 255, 0, 0.2)";
+    ctx.lineWidth = 2;
+  
+    for (let x = -gridWidth; x <= gridWidth; x += spacing) {
+      ctx.beginPath();
+      for (let z = 1; z < gridDepth; z++) {
+        const worldX = posX + Math.cos(angle) * z + Math.cos(angle + Math.PI / 2) * x;
+        const worldY = posY + Math.sin(angle) * z + Math.sin(angle + Math.PI / 2) * x;
+  
+        const dx = worldX - posX;
+        const dy = worldY - posY;
+        const distance = Math.sqrt(dx * dx + dy * dy);
+  
+        const angleTo = Math.atan2(dy, dx) - angle;
+        if (Math.abs(angleTo) > fov / 2) continue;
+  
+        const screenX = (angleTo + fov / 2) / fov * canvas.width;
+        const screenY = canvas.height / 2 + eyeHeight * (canvas.height / distance);
+  
+        if (z === 1) {
+          ctx.moveTo(screenX, screenY);
+        } else {
+          ctx.lineTo(screenX, screenY);
+        }
+      }
+      ctx.stroke();
+    }
+  
+    ctx.restore();
+  }
+  */
   
   function drawGameInfo() {
     ctx.fillStyle = "white";
@@ -1605,7 +1777,7 @@
       ctx.fillStyle = "white";
       ctx.font = "84px sans-serif";
       ctx.textAlign = "center";
-     // ctx.fillText("【拾う】", canvas.width / 2, canvas.height - 80);
+      ctx.fillText("【拾う】", canvas.width / 2, canvas.height - 480);
       ctx.fillText(`【${item.name}】`, canvas.width / 2, canvas.height - 580);
     }
   }
@@ -1656,18 +1828,48 @@
         }
       }
   
-      // ゴールが手前にあるときだけ描画
       if (dist < rayDist) {
-        const maxSize = 180;
-        const size = Math.max(4, maxSize / dist);
+        const maxSize = 280;
+        const size = Math.max(16, maxSize / dist);
+      
+        const flipScale = Math.cos(goalRotation); // 看板回転風
+      
+        ctx.save();
+        ctx.translate(screenX, canvas.height / 2);
+        ctx.scale(flipScale, 1); // Y軸反転だけ
+      
+        // ひし形を線
+        ctx.beginPath();
+        ctx.moveTo(0, -size / 2);
+        ctx.lineTo(size / 2, 0);
+        ctx.lineTo(0, size / 2);
+        ctx.lineTo(-size / 2, 0);
+        ctx.closePath();
+        ctx.strokeStyle = "lime";
+        ctx.lineWidth = 8;
+        ctx.stroke();
         
-        ctx.fillStyle = "lime";
-        ctx.font = `${size}px sans-serif`; // フォントサイズ＝見た目の大きさ
-        ctx.textAlign = "center";
-        ctx.textBaseline = "middle";
-        ctx.fillText("階", screenX, canvas.height / 2);
-
+      
+        ctx.restore();
       }
+    /*
+      if (dist < rayDist) {
+          const maxSize = 180;
+          const size = Math.max(4, maxSize / dist);
+      
+          const flipScale = Math.cos(goalRotation); // -1〜1 の周期
+      
+          ctx.save();
+          ctx.translate(screenX, canvas.height / 2);
+          ctx.scale(flipScale, 1); // ← Y方向に反転スケール
+          ctx.fillStyle = "lime";
+          ctx.font = `${size}px sans-serif`;
+          ctx.textAlign = "center";
+          ctx.textBaseline = "middle";
+          ctx.fillText("階", 0, 0);
+          ctx.restore();
+        }
+      */
     }
   }
   
@@ -1676,6 +1878,24 @@
     ctx.font = "80px sans-serif";
     ctx.fillStyle = "White";
     ctx.fillText(`${direction}`, 10, 200);
+  }
+  
+  
+  function drawEnemiesFromRaycastView(ctx) {
+    const sortedEnemies = enemies.slice().sort((a, b) => {
+      const distA = Math.hypot(a.x - posX, a.y - posY);
+      const distB = Math.hypot(b.x - posX, b.y - posY);
+      return distA - distB;
+    });
+  
+        for (const enemy of sortedEnemies) {
+      const dist = Math.hypot(enemy.x - posX, enemy.y - posY);
+      ctx.save();
+      ctx.fillStyle = "red";
+      ctx.font = "20px sans-serif";
+      ctx.fillText(Math.round(dist * 10) / 10, 10, 20 + sortedEnemies.indexOf(enemy) * 20);
+      ctx.restore();
+    }
   }
   
   function drawEnemyWarning(angleToEnemy) {
@@ -1786,6 +2006,21 @@
     drawEffect();
   }
   
+  function worldToScreen(x, y) {
+    const dx = x - posX;
+    const dy = y - posY;
+  
+    const rx = dx * Math.cos(-angle) - dy * Math.sin(-angle);
+    const rz = dx * Math.sin(-angle) + dy * Math.cos(-angle);
+  
+    if (rz <= 0.1) return null;
+  
+    const screenX = (rx / rz) * 300 + canvas.width / 2;
+    const screenY = canvas.height / 2 + 50 / rz;
+  
+    return { x: screenX, y: screenY };
+  }//2025/07/15 追加
+  
   function normalizeAngle(angle) {
     return Math.atan2(Math.sin(angle), Math.cos(angle));
   } //2025/07/09 19:36 追加
@@ -1822,6 +2057,15 @@
       drawGameOverScreen();
     }
   } //2025/07/09 17:54 追加
+  
+  function drawGoalPrompt() {
+    if (isAtGoal()) {
+      ctx.fillStyle = "lime";
+      ctx.font = "84px sans-serif";
+      ctx.textAlign = "center";
+      ctx.fillText("【NEXT AREA】", canvas.width / 2, canvas.height - 480);
+    }
+  }
   
 //↑描画関連----------------------------
   
@@ -1929,6 +2173,13 @@
         initNextFloor(); // 必要ならここで階層遷移処理
       }, 100); // 100フレーム（約1.6秒）など
     }
+  }
+  
+  function isAtGoal() {
+    const dx = goal.x - posX;
+    const dy = goal.y - posY;
+    const distance = Math.sqrt(dx * dx + dy * dy);
+    return distance < 0.5; // この距離以下なら「重なっている」と判定
   }
   
   function normalizeAngle(angle) {
@@ -2133,6 +2384,8 @@
     let isStrafingLeft = false; //カニ歩き用
     let isStrafingRight = false; //カニ歩き用
     
+    lastStrafeDirection = null;//カニ歩き用 2025/07/11
+    
     //↑タッチイベント関連変数
 
   //↓タッチスタート
@@ -2269,8 +2522,28 @@
   
     const dx = touchX - touchStartX;
     const dy = touchStartY - touchY;
-  
-    // ✅ カニ歩き（左右）
+    
+    let lastStrafeDirection = null; // グローバルで宣言
+    
+
+
+
+
+  if (Math.abs(dx) > Math.abs(dy) && lastStrafeDirection === null) {
+    if (dx > 20) {
+      isStrafingRight = true;
+      isStrafingLeft = false;
+      lastStrafeDirection = "right";
+    } else if (dx < -20) {
+      isStrafingLeft = true;
+      isStrafingRight = false;
+      lastStrafeDirection = "left";
+    }
+  }
+
+
+    // カニ歩き（左右）
+    /*
     if (Math.abs(dx) > Math.abs(dy)) {
       if (dx > 20) {
         isStrafingRight = true;
@@ -2280,6 +2553,7 @@
         isStrafingRight = false;
       }
     }
+    */
     
     // ✅ 前進・後退
     if (dy > 50) {
@@ -2333,6 +2607,8 @@
     isStrafingRight = false;
     isMovingForward = false;
     isMovingBackward = false;
+    
+    lastStrateDirection = null; //カニ歩き用
   
     // --- デバッグログ
     const angleDeg = angle * 180 / Math.PI;
@@ -2428,6 +2704,7 @@
 //↑タッチイベント関連
   
   gameLoop();
+
   </script>
   
   </body>
