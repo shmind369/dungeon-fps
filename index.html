@@ -44,7 +44,15 @@
     //isCharging = false; 2025/07/10 1:56 削除
     
     chargeStartTime = null;
+    
+    if (generatedRooms.length > 0) {
+      spawnPlayerInRandomRoom();
+      console.log("🎮 ゲーム開始！ランダム部屋スポーン完了");
+    }
   }
+  
+  //let generatedRooms = [];
+
   
   // 0 = 通れる, 1 = 壁, 'D' = ダンジョン入口
   const entranceMap = [
@@ -110,14 +118,13 @@
   
   //↓マップ関連
 
-  let map = generateRandomMap(16, 16);// ここでマップとゴールを初期化
-  let goal = findRandomEmptyTile(map);
-  let explored = initializeExplored(map);
-  const mapWidth = map[0].length;
-  const mapHeight = map.length;
-  let goalReached = false; //ゴールに到達したかどうか
-  let goalInRange = false;
-  let floor = 1;
+ 
+  
+  //const currentMap = getCurrentMap(); // ← 関数で分岐管理
+
+  //if (currentMap[testY][testX] > 0) {
+  //  hit = true;
+  //}
   
   //↑マップ関連
 
@@ -156,6 +163,10 @@
   //↑プレイヤー行動関連
 
   //↓その他
+  
+  let isGameCleared = false;
+  let clearTime = 0;
+  let gameStartTime = Date.now();
   
   let shakeTimer = 0;
   let shakeIntensity = 50;
@@ -218,6 +229,38 @@
     }, 60
   );
   */
+  
+  class BSPNode {
+  constructor(x, y, width, height) {
+    this.x = x;
+    this.y = y;
+    this.width = width;
+    this.height = height;
+    this.leftChild = null;
+    this.rightChild = null;
+    this.room = null;
+  }
+}
+
+// 部屋クラス
+class Room {
+  constructor(x, y, width, height) {
+    this.x = x;
+    this.y = y;
+    this.width = width;
+    this.height = height;
+  }
+}
+
+  let map = generateRandomMap(16, 16);// ここでマップとゴールを初期化
+   let goal = findRandomEmptyTile(map);
+  let explored = initializeExplored(map);
+  const mapWidth = map[0].length;
+  const mapHeight = map.length;
+  let goalReached = false; //ゴールに到達したかどうか
+  let goalInRange = false;
+  let floor = 1;
+
   
   //↓Enemyクラス---------------------
   class Enemy {
@@ -293,6 +336,8 @@
           new Particle(this.x + offsetX, this.y + offsetY, angle, speed, lifetime)
         );
       }
+      
+
     
       if (this.hp <= 0 && !this.isDying) {
         this.isAlive = false;
@@ -493,9 +538,10 @@
   //ミイラクラス↑---------------------
 
   //ドラゴンクラス↓--------------------
+  /*
   class DragonEnemy extends Enemy {
     constructor(x, y) {
-      super(x, y, 2,20, 0.010); // HP8、ゾンビより少し遅い
+      super(x, y, 2,20, 0.010); // HP8、
       this.type = "dragon";
     }
   
@@ -503,6 +549,69 @@
       // ゾンビと同じ挙動でOK
       super.update(playerX, playerY);
     }
+    
+    if (this.hp <= 0 && !this.isDying) {
+      console.log("🐉 ドラゴン撃破！ゲームクリア！");
+      
+    }
+    */
+    class DragonEnemy extends Enemy {
+  constructor(x, y) {
+    super(x, y, 2, 20, 0.010); // HP20
+    this.type = "dragon";
+    this.isBoss = true;        // ボスフラグ追加
+    this.maxHp = 20;          // 最大HP記録
+  }
+
+  update(playerX, playerY) {
+    // ゾンビと同じ挙動でOK
+    super.update(playerX, playerY);
+  }
+
+  // ★★ ここが重要！takeDamageメソッドを追加 ★★
+  takeDamage(damage) {
+    console.log(`🐉 ドラゴンがダメージを受けた！ダメージ: ${damage}, 現在HP: ${this.hp}`);
+    
+    this.hp -= damage;
+    this.hitTimer = 10;
+  
+    // ダメージテキスト生成
+    damageTexts.push(new DamageText(this.x, this.y, `${Math.abs(damage)}`));
+  
+    let particleCount = 60; // ドラゴンなので多めに
+    const offsetX = (Math.random() - 0.5) * 0.3;
+    const offsetY = (Math.random() - 0.5) * 0.3;
+  
+    for (let j = 0; j < particleCount; j++) {
+      const angle = Math.random() * Math.PI * 2;
+      const speed = Math.random() * 0.5 + 0.1;
+      const lifetime = 20 + Math.floor(Math.random() * 10);
+      particles.push(
+        new Particle(this.x + offsetX, this.y + offsetY, angle, speed, lifetime)
+      );
+    }
+  
+    // ★★ ここでクリア判定！ ★★
+    if (this.hp <= 0 && !this.isDying) {
+      console.log("🐉 ドラゴン撃破！ゲームクリア！");
+      
+      // triggerGameClear関数が存在するかチェック
+      if (typeof triggerGameClear === 'function') {
+        triggerGameClear();
+      } else {
+        console.error("❌ triggerGameClear関数が見つかりません！");
+        // 直接クリア状態にする
+        isGameCleared = true;
+        clearTime = Date.now() - gameStartTime;
+        console.log("✅ 直接クリア状態に設定しました");
+      }
+      
+      // 死亡処理
+      this.isAlive = false;
+      this.startDying();
+    }
+  }
+
   
     drawFromRaycastView(ctx) {
       if (!this.isAlive) return;
@@ -536,6 +645,7 @@
   
       //const sx = 0 * spriteSize; // 左から何マス目
       const sy = 2 * spriteSize; // 上から何マス目
+      
     
       ctx.drawImage(
         spriteSheet,          // ←ここを単体画像じゃなくスプライトシートにする
@@ -864,7 +974,7 @@
 
     
     // 血しぶきを更新
-    updeteParticles();
+    updateParticles();
     
     updateDamageTexts();
 
@@ -924,6 +1034,8 @@
 
     castRays();
     
+    //castEntranceRays();//2025/07/18
+    
     //drawFloorGrid(ctx);//2025/07/15
 
     drawItems();
@@ -947,6 +1059,12 @@
     drawDirectionHUD();
     drawGameInfo();
     drawParticles(ctx);  // パーティクルは一番最後に描く
+    
+    if (isGameCleared) {
+      drawGameClearScreen();
+    } else if (isGameOver) {
+      drawGameOverScreen();
+    }
 
     renderGameOverScreenIfNeeded();
   
@@ -971,48 +1089,243 @@
     ctx.fill();
   }
 
-  function initNextFloor() {
-      
-    if (floor === 3) {
-      // 3Fだけ迷路生成
-      map = generateMazeMap(16, 16);
-    } else {
-      // それ以外は通常ランダムマップ
-      map = generateRandomMap(16, 16);
+  
+  function generateRandomMap(width, height) {
+    console.log(`BSP分割でマップ生成中... ${width}×${height}`);
+    
+    generatedRooms = [];
+    
+    // マップを壁で初期化
+    const map = Array(height).fill().map(() => Array(width).fill(1)); // 1 = 壁
+  
+    // BSPツリーを生成
+    const bspRoot = new BSPNode(0, 0, width, height);
+    splitNode(bspRoot, 0);
+  
+    // 部屋を生成
+    createRooms(bspRoot, map, width, height);
+  
+    // 通路を生成
+    createCorridors(bspRoot, map, width, height);
+  
+    return map;
+    }
+
+  function splitNode(node, depth) {
+    // 分割停止条件
+    if (depth > 3 || node.width < 6 || node.height < 6) {
+      return;
     }
   
-    //map = generateRandomMap(16, 16);
+    // 分割方向を決定（幅が高さより大きい場合は縦分割）
+    let splitVertically = node.width > node.height;
+    if (node.width / node.height < 1.25 && node.height / node.width < 1.25) {
+      splitVertically = Math.random() < 0.5;
+    }
+  
+    if (splitVertically) {
+      // 縦分割
+      let splitX = Math.floor(node.width * 0.3 + Math.random() * node.width * 0.4);
+      node.leftChild = new BSPNode(node.x, node.y, splitX, node.height);
+      node.rightChild = new BSPNode(node.x + splitX, node.y, node.width - splitX, node.height);
+    } else {
+      // 横分割
+      let splitY = Math.floor(node.height * 0.3 + Math.random() * node.height * 0.4);
+      node.leftChild = new BSPNode(node.x, node.y, node.width, splitY);
+      node.rightChild = new BSPNode(node.x, node.y + splitY, node.width, node.height - splitY);
+    }
+  
+    // 子ノードを再帰的に分割
+    splitNode(node.leftChild, depth + 1);
+    splitNode(node.rightChild, depth + 1);
+  }
+  
+  function createRooms(node, map, mapWidth, mapHeight) {
+    if (node.leftChild || node.rightChild) {
+      // 中間ノードの場合、子ノードを処理
+      if (node.leftChild) createRooms(node.leftChild, map, mapWidth, mapHeight);
+      if (node.rightChild) createRooms(node.rightChild, map, mapWidth, mapHeight);
+    } else {
+      // 葉ノードの場合、部屋を作成
+      let roomWidth = Math.floor(node.width * 0.6 + Math.random() * node.width * 0.3);
+      let roomHeight = Math.floor(node.height * 0.6 + Math.random() * node.height * 0.3);
+      let roomX = node.x + Math.floor((node.width - roomWidth) / 2);
+      let roomY = node.y + Math.floor((node.height - roomHeight) / 2);
+  
+      // 外周1マス分を壁として残すため、より厳しい制限を設ける
+      roomWidth = Math.max(3, Math.min(roomWidth, node.width - 2));
+      roomHeight = Math.max(3, Math.min(roomHeight, node.height - 2));
+      roomX = Math.max(node.x + 1, Math.min(roomX, node.x + node.width - roomWidth - 1));
+      roomY = Math.max(node.y + 1, Math.min(roomY, node.y + node.height - roomHeight - 1));
+  
+      // 外周に接しないよう更に制限
+      roomX = Math.max(1, Math.min(roomX, mapWidth - roomWidth - 1));
+      roomY = Math.max(1, Math.min(roomY, mapHeight - roomHeight - 1));
+      roomWidth = Math.max(2, Math.min(roomWidth, mapWidth - roomX - 1));
+      roomHeight = Math.max(2, Math.min(roomHeight, mapHeight - roomY - 1));
+  
+      node.room = new Room(roomX, roomY, roomWidth, roomHeight);
+      
+      generatedRooms.push({
+        x: roomX,
+        y: roomY,
+        width: roomWidth,
+        height: roomHeight
+      });
+  
+      // マップに部屋を描画
+      for (let y = roomY; y < roomY + roomHeight; y++) {
+        for (let x = roomX; x < roomX + roomWidth; x++) {
+          if (x >= 1 && x < mapWidth - 1 && y >= 1 && y < mapHeight - 1) {
+            map[y][x] = 0; // 0 = 床
+          }
+        }
+      }
+    }
+  }
+
+  function createCorridors(node, map, mapWidth, mapHeight) {
+    if (!node.leftChild || !node.rightChild) return;
+  
+    createCorridors(node.leftChild, map, mapWidth, mapHeight);
+    createCorridors(node.rightChild, map, mapWidth, mapHeight);
+  
+    // 子ノードの部屋を取得
+    let leftRoom = getRandomRoom(node.leftChild);
+    let rightRoom = getRandomRoom(node.rightChild);
+  
+    if (leftRoom && rightRoom) {
+      // 部屋の中心点を計算
+      let leftCenter = {
+        x: leftRoom.x + Math.floor(leftRoom.width / 2),
+        y: leftRoom.y + Math.floor(leftRoom.height / 2)
+      };
+      let rightCenter = {
+        x: rightRoom.x + Math.floor(rightRoom.width / 2),
+        y: rightRoom.y + Math.floor(rightRoom.height / 2)
+      };
+  
+      // L字型の通路を作成
+      createLCorridor(leftCenter, rightCenter, map, mapWidth, mapHeight);
+    }
+  }
+
+  function getRandomRoom(node) {
+    if (node.room) return node.room;
     
+    let rooms = [];
+    if (node.leftChild) {
+      let leftRoom = getRandomRoom(node.leftChild);
+      if (leftRoom) rooms.push(leftRoom);
+    }
+    if (node.rightChild) {
+      let rightRoom = getRandomRoom(node.rightChild);
+      if (rightRoom) rooms.push(rightRoom);
+    }
+  
+    return rooms.length > 0 ? rooms[Math.floor(Math.random() * rooms.length)] : null;
+  }
+
+  function createLCorridor(point1, point2, map, mapWidth, mapHeight) {
+    // L字型通路：横→縦 または 縦→横
+    if (Math.random() < 0.5) {
+      // 横から縦
+      createHorizontalCorridor(point1.x, point2.x, point1.y, map, mapWidth, mapHeight);
+      createVerticalCorridor(point1.y, point2.y, point2.x, map, mapWidth, mapHeight);
+    } else {
+      // 縦から横
+      createVerticalCorridor(point1.y, point2.y, point1.x, map, mapWidth, mapHeight);
+      createHorizontalCorridor(point1.x, point2.x, point2.y, map, mapWidth, mapHeight);
+    }
+  }
+
+  function createHorizontalCorridor(x1, x2, y, map, mapWidth, mapHeight) {
+    if (y <= 0 || y >= mapHeight - 1) return; // 外周を避ける
+    let startX = Math.min(x1, x2);
+    let endX = Math.max(x1, x2);
+    for (let x = startX; x <= endX; x++) {
+      if (x > 0 && x < mapWidth - 1) { // 外周を避ける
+        map[y][x] = 0; // 0 = 床
+      }
+    }
+  }
+
+  function createVerticalCorridor(y1, y2, x, map, mapWidth, mapHeight) {
+    if (x <= 0 || x >= mapWidth - 1) return; // 外周を避ける
+    let startY = Math.min(y1, y2);
+    let endY = Math.max(y1, y2);
+    for (let y = startY; y <= endY; y++) {
+      if (y > 0 && y < mapHeight - 1) { // 外周を避ける
+        map[y][x] = 0; // 0 = 床
+      }
+    }
+  }
+
+// initNextFloor関数の更新版（すべてBSP分割）
+  function initNextFloor() {
+    
+    if (floor >= 5) {
+      console.log("最終階到達！ドラゴンを倒してゲームクリア！");
+      return;
+    }
+    
+    console.log(`${floor}階: BSP分割マップを生成中...`);
+    
+    // すべての階層でBSP分割を使用
+    map = generateRandomMap(16, 16); // ← BSP分割実装
+  
     goal = findRandomEmptyTile(map);
   
     explored = Array.from({ length: map.length }, () =>
       Array.from({ length: map[0].length }, () => false)
     );
   
-    posX = 1.5;
-    posY = 1.5;
+    //posX = 1.5;
+    //posY = 1.5;
   
-    carvePath(map, { x: posX, y: posY }, goal);
+    // BSP分割では既に全ての部屋が接続されているため、パス彫りは不要
+    // carvePath(map, { x: posX, y: posY }, goal); // ← コメントアウト
+    
+  spawnPlayerInRandomRoom();
+
     
     initItems();
     initEnemies();
-    
   }
   
-  function generateRandomMap(width, height) {
-    const newMap = [];
-      for (let y = 0; y < height; y++) {
-        const row = [];
-        for (let x = 0; x < width; x++) {
-          if (x === 0 || y === 0 || x === width - 1 || y === height - 1) {
-            row.push(1); // 外周は壁
-          } else {
-            row.push(Math.random() < 0.2 ? 1 : 0); // 20%で壁
-          }
-        }
-        newMap.push(row);
+  // ========== 4. ランダム部屋スポーン関数を追加 ==========
+  function spawnPlayerInRandomRoom() {
+    console.log("🎲 ランダム部屋スポーン開始...");
+    
+    if (generatedRooms.length === 0) {
+      console.warn("⚠️ 部屋が見つかりません！デフォルト位置を使用");
+      posX = 1.5;
+      posY = 1.5;
+      return;
+    }
+    
+    // ランダムな部屋を選択
+    const randomIndex = Math.floor(Math.random() * generatedRooms.length);
+    const selectedRoom = generatedRooms[randomIndex];
+    
+    // 部屋の中央に配置
+    posX = selectedRoom.x + selectedRoom.width / 2;
+    posY = selectedRoom.y + selectedRoom.height / 2;
+  
+    console.log(`👤 部屋${randomIndex}/${generatedRooms.length}にスポーン: (${posX.toFixed(1)}, ${posY.toFixed(1)})`);
+    console.log(`📍 部屋情報: (${selectedRoom.x}, ${selectedRoom.y}) サイズ${selectedRoom.width}×${selectedRoom.height}`);
+  }
+
+// デバッグ用：マップ構造をコンソールに出力
+  function debugPrintMap(map) {
+    console.log("=== マップ構造 ===");
+    for (let y = 0; y < map.length; y++) {
+      let row = "";
+      for (let x = 0; x < map[y].length; x++) {
+        row += map[y][x] === 0 ? "." : "■";
       }
-      return newMap;
+      console.log(row);
+    }
   }
   
   function generateMazeMap(width, height) {
@@ -1098,7 +1411,7 @@
       return;
     }
     
-    let damageToApply = 1; // 素手のデフォルトダメージ
+    let damageToApply = Math.floor(Math.random()*3)+1; // 素手のデフォルトダメージ
     let cooldown = 1000;    // 素手のクールダウン(ms)
   
     if (equippedWeapon) {
@@ -1182,7 +1495,7 @@
       console.log(`階${floor}: ミイラ男 ${mummyCount}体を配置！`);
     }
   
-    if (floor === 5) {
+    if (floor === 2) {
       const dragonCount = 1;
       for (let i = 0; i < dragonCount; i++) {
         const tile = findRandomEmptyTile(map);
@@ -1308,7 +1621,7 @@
     }
   }
   
-  function updeteParticles(){
+  function updateParticles(){
     for (let i = particles.length - 1; i >= 0; i--) {
       particles[i].update();
       if (!particles[i].isAlive()) {
@@ -1411,6 +1724,44 @@
     
     //drawFloorGrid(ctx);
   } //2025/07/09 17:51 追加
+  
+/*
+  function castRays() {
+    const currentMap = getCurrentMap();
+    const mapWidth = currentMap[0].length;
+    const mapHeight = currentMap.length;
+  
+    for (let i = 0; i < numRays; i++) {
+      const rayAngle = (angle - fov / 2) + (i / numRays) * fov;
+      let dist = 0;
+      let hit = false;
+      let eyeX = Math.cos(rayAngle);
+      let eyeY = Math.sin(rayAngle);
+  
+      while (!hit && dist < maxDepth) {
+        dist += 0.01;
+        let testX = Math.floor(posX + eyeX * dist);
+        let testY = Math.floor(posY + eyeY * dist);
+  
+        if (testX < 0 || testY < 0 || testX >= mapWidth || testY >= mapHeight) {
+          hit = true;
+          dist = maxDepth;
+        } else {
+          const tile = currentMap[testY][testX];
+          if (tile === 1 || tile === 'D') {
+            hit = true;
+          }
+        }
+      }
+  
+      const wallHeight = Math.min(canvas.height, canvas.height / dist);
+      const shade = 255 - Math.min(255, dist * 50);
+      ctx.fillStyle = `rgb(${shade},${shade},${shade})`;
+      ctx.fillRect(i, (canvas.height - wallHeight) / 2, 1, wallHeight);
+    }
+  }
+*/
+
 
   function castRays() {
     
@@ -1442,6 +1793,7 @@
     
     }
   }
+  
   
   function drawFloorGrid(ctx) {
     ctx.fillRect(canvas.width / 2, canvas.height / 2, 10, 10);
@@ -2221,6 +2573,85 @@
       chargeTime = 0;
       chargeCallback = callback;
       chargeThreshold = threshold;
+  }
+  
+  function triggerGameClear() {
+  isGameCleared = true;
+  clearTime = Date.now() - gameStartTime;
+  
+  // クリア時の演出
+  shakeTimer = 100; // 大きく揺らす
+  
+  // パーティクル大量発生
+  for (let i = 0; i < 200; i++) {
+    const angle = Math.random() * Math.PI * 2;
+    const speed = Math.random() * 0.8 + 0.2;
+    const lifetime = 60 + Math.floor(Math.random() * 40);
+    particles.push(
+      new Particle(posX, posY, angle, speed, lifetime)
+    );
+  }
+  
+  console.log(`🎉 GAME CLEAR! 時間: ${Math.floor(clearTime / 1000)}秒`);
+}
+
+// ゲームクリア画面描画
+  function drawGameClearScreen() {
+    if (!isGameCleared) return;
+  
+    // 背景オーバーレイ
+    ctx.fillStyle = "rgba(0, 0, 0, 0.8)";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+  
+    // メインタイトル
+    ctx.fillStyle = "gold";
+    ctx.font = "120px sans-serif";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    
+    // 光る効果
+    ctx.save();
+    ctx.shadowColor = "gold";
+    ctx.shadowBlur = 30;
+    ctx.fillText("GAME CLEAR!", canvas.width / 2, canvas.height / 2 - 100);
+    ctx.restore();
+  
+    // ドラゴン撃破メッセージ
+    ctx.fillStyle = "#ff6b6b";
+    ctx.font = "48px sans-serif";
+    ctx.fillText("🐉 ドラゴンを討伐！", canvas.width / 2, canvas.height / 2 - 20);
+  
+    // クリア情報
+    const minutes = Math.floor(clearTime / 60000);
+    const seconds = Math.floor((clearTime % 60000) / 1000);
+    const timeString = `${minutes}:${seconds.toString().padStart(2, '0')}`;
+    
+    ctx.fillStyle = "white";
+    ctx.font = "36px sans-serif";
+    ctx.fillText(`クリア時間: ${timeString}`, canvas.width / 2, canvas.height / 2 + 40);
+    ctx.fillText(`到達階層: ${floor}F`, canvas.width / 2, canvas.height / 2 + 80);
+  
+    // 統計情報
+    ctx.font = "24px sans-serif";
+    ctx.fillText(`カウント: ${gameCount}`, canvas.width / 2, canvas.height / 2 + 130);
+  
+    // リスタートボタン
+    ctx.fillStyle = "#4CAF50";
+    const buttonWidth = 200;
+    const buttonHeight = 50;
+    const buttonX = canvas.width / 2 - buttonWidth / 2;
+    const buttonY = canvas.height / 2 + 180;
+    
+    ctx.fillRect(buttonX, buttonY, buttonWidth, buttonHeight);
+    
+    ctx.fillStyle = "white";
+    ctx.font = "24px sans-serif";
+    ctx.fillText("もう一度プレイ", canvas.width / 2, buttonY + 30);
+  
+    // タッチでリスタート
+    ctx.fillStyle = "#aaa";
+    ctx.font = "18px sans-serif";
+    ctx.fillText("画面をタッチでリスタート", canvas.width / 2, canvas.height - 50);
   }
   
   function stopCharge() {
