@@ -1,0 +1,659 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>レイキャスト迷路ゲーム</title>
+    <style>
+        body {
+            margin: 0;
+            background: black;
+            overflow: hidden;
+            touch-action: none;
+            font-family: Arial, sans-serif;
+            user-select: none;
+        }
+        
+        canvas {
+            display: block;
+        }
+        
+        .ui {
+            position: absolute;
+            top: 5px;
+            left: 10px;
+            color: white;
+            font-size: 16px;
+            z-index: 10;
+        }
+        
+        .controls {
+            position: absolute;
+            bottom: 80px;
+            left: 10px;
+            color: white;
+            font-size: 12px;
+            z-index: 10;
+        }
+        
+        .minimap {
+            position: absolute;
+            top: 5px;
+            right: 10px;
+            border: 2px solid white;
+            z-index: 10;
+        }
+        
+        .clear-screen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.8);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            flex-direction: column;
+            color: white;
+            text-align: center;
+            z-index: 20;
+        }
+        
+        .mobile-controls {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            height: 120px;
+            display: flex;
+            z-index: 15;
+        }
+        
+        .move-area {
+            flex: 1;
+            background: rgba(255, 255, 255, 0.1);
+            border-right: 1px solid rgba(255, 255, 255, 0.2);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            color: white;
+            font-size: 14px;
+        }
+        
+        .turn-area {
+            flex: 1;
+            background: rgba(255, 255, 255, 0.1);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            color: white;
+            font-size: 14px;
+        }
+        
+        .new-maze-btn {
+            position: absolute;
+            top: 50px;
+            left: 10px;
+            background: rgba(0, 100, 0, 0.8);
+            color: white;
+            border: none;
+            padding: 8px 12px;
+            border-radius: 5px;
+            font-size: 12px;
+            z-index: 10;
+        }
+        
+        @media (orientation: landscape) {
+            .mobile-controls {
+                height: 100px;
+            }
+            .controls {
+                bottom: 110px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <canvas id="gameCanvas"></canvas>
+    
+    <div class="ui">
+        <div>迷路 #<span id="mazeNumber">1</span></div>
+    </div>
+    
+    <div class="controls">
+        <div>前進/後退</div>
+        <div>左右回転</div>
+    </div>
+    
+    <button class="new-maze-btn" onclick="generateNewMazeManual()">新迷路</button>
+    
+    <canvas id="minimap" class="minimap" width="80" height="80"></canvas>
+    
+    <div class="mobile-controls">
+        <div class="move-area" id="moveArea">
+            <div>前進/後退</div>
+        </div>
+        <div class="turn-area" id="turnArea">
+            <div>左右回転</div>
+        </div>
+    </div>
+    
+    <div id="clearScreen" class="clear-screen">
+        <h1>CLEAR</h1>
+        <p></p>
+        <p></p>
+    </div>
+
+    <script>
+        // ゲーム状態
+        let currentMaze = [];
+        let mazeCount = 1;
+        let startPos = {x: 1, y: 1};
+        let goalPos = {x: 5, y: 5};
+        let isCleared = false;
+
+        // プレイヤー状態
+        let player = {
+            x: 1.5,
+            y: 1.5,
+            angle: 0,
+            speed: 0.03
+        };
+
+        // Canvas設定
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const minimapCanvas = document.getElementById('minimap');
+        const minimapCtx = minimapCanvas.getContext('2d');
+        
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+
+        // レイキャスティング設定
+        const numRays = Math.min(canvas.width / 2, 400);
+        const fov = Math.PI / 3;
+        const maxDepth = 10;
+
+        // 入力状態
+        let keys = {};
+        let isMobile = 'ontouchstart' in window;
+        
+        // モバイル操作状態
+        let mobileTouch = {
+            move: {active: false, startY: 0, currentY: 0},
+            turn: {active: false, startX: 0, currentX: 0}
+        };
+
+        // 迷路生成アルゴリズム（先ほどのものを移植）
+        function generateMaze() {
+            const width = 8, height = 8;
+            
+            // Step1: 全て壁で初期化
+            const maze = Array(height).fill().map(() => Array(width).fill(1));
+            
+            // Step2: 奇数座標を通路の候補にする
+            const pathCandidates = [];
+            for (let y = 1; y <= 5; y += 2) {
+                for (let x = 1; x <= 5; x += 2) {
+                    pathCandidates.push({x, y});
+                    maze[y][x] = 0;
+                }
+            }
+            
+            // Step3: 各通路の種から他の種への接続を作る
+            pathCandidates.forEach(current => {
+                connectToNeighbors(maze, current.x, current.y, width, height);
+            });
+            
+            // Step4: 接続性を確保
+            ensureConnectivity(maze, pathCandidates, width, height);
+            
+            return maze;
+        }
+
+        function connectToNeighbors(maze, x, y, width, height) {
+            const directions = [
+                [0, -2], [0, 2], [-2, 0], [2, 0]
+            ];
+            
+            const validDirections = directions.filter(([dx, dy]) => {
+                const nx = x + dx;
+                const ny = y + dy;
+                if (nx < 1 || nx > 5 || ny < 1 || ny > 5) return false;
+                if (y > 1 && dy === -2 && Math.random() > 0.3) return false;
+                return true;
+            });
+            
+            const connectionCount = Math.random() < 0.6 ? 1 : 2;
+            const selectedDirections = validDirections
+                .sort(() => Math.random() - 0.5)
+                .slice(0, Math.min(connectionCount, validDirections.length));
+            
+            selectedDirections.forEach(([dx, dy]) => {
+                const wallX = x + dx / 2;
+                const wallY = y + dy / 2;
+                
+                if (wallX >= 1 && wallX <= 5 && wallY >= 1 && wallY <= 5) {
+                    if (maze[wallY][wallX] === 1) {
+                        maze[wallY][wallX] = 0;
+                    }
+                }
+            });
+        }
+
+        function ensureConnectivity(maze, pathCandidates, width, height) {
+            const visited = Array(height).fill().map(() => Array(width).fill(false));
+            const components = [];
+            
+            pathCandidates.forEach(candidate => {
+                if (!visited[candidate.y][candidate.x]) {
+                    const component = [];
+                    floodFill(maze, visited, candidate.x, candidate.y, component, width, height);
+                    if (component.length > 0) {
+                        components.push(component);
+                    }
+                }
+            });
+            
+            while (components.length > 1) {
+                const comp1 = components[0];
+                const comp2 = components[1];
+                
+                if (!comp1 || !comp2 || comp1.length === 0 || comp2.length === 0) break;
+                
+                let minDist = Infinity;
+                let bestConnection = null;
+                
+                comp1.forEach(p1 => {
+                    comp2.forEach(p2 => {
+                        if (p1 && p2) {
+                            const dist = Math.abs(p1.x - p2.x) + Math.abs(p1.y - p2.y);
+                            if (dist < minDist) {
+                                minDist = dist;
+                                bestConnection = {from: p1, to: p2};
+                            }
+                        }
+                    });
+                });
+                
+                if (bestConnection && bestConnection.from && bestConnection.to) {
+                    connectTwoPoints(maze, bestConnection.from, bestConnection.to);
+                    components[0] = comp1.concat(comp2);
+                    components.splice(1, 1);
+                } else {
+                    break;
+                }
+            }
+        }
+
+        function floodFill(maze, visited, x, y, component, width, height) {
+            if (x < 0 || x >= width || y < 0 || y >= height) return;
+            if (visited[y] && visited[y][x]) return;
+            if (maze[y] && maze[y][x] === 1) return;
+            
+            if (!visited[y]) visited[y] = Array(width).fill(false);
+            visited[y][x] = true;
+            component.push({x, y});
+            
+            floodFill(maze, visited, x + 1, y, component, width, height);
+            floodFill(maze, visited, x - 1, y, component, width, height);
+            floodFill(maze, visited, x, y + 1, component, width, height);
+            floodFill(maze, visited, x, y - 1, component, width, height);
+        }
+
+        function connectTwoPoints(maze, from, to) {
+            let x = from.x;
+            let y = from.y;
+            
+            while (x !== to.x) {
+                if (x >= 1 && x <= 5 && y >= 1 && y <= 5) {
+                    maze[y][x] = 0;
+                }
+                x += (to.x > x) ? 1 : -1;
+            }
+            
+            while (y !== to.y) {
+                if (x >= 1 && x <= 5 && y >= 1 && y <= 5) {
+                    maze[y][x] = 0;
+                }
+                y += (to.y > y) ? 1 : -1;
+            }
+        }
+
+        function getRandomPositions(maze) {
+            const pathCells = [];
+            
+            for (let y = 1; y <= 5; y++) {
+                for (let x = 1; x <= 5; x++) {
+                    if (maze[y][x] === 0) {
+                        pathCells.push({x, y});
+                    }
+                }
+            }
+            
+            if (pathCells.length < 2) {
+                return {
+                    start: {x: 1, y: 1},
+                    goal: {x: 5, y: 5}
+                };
+            }
+            
+            let maxDistance = 0;
+            let bestPair = {
+                start: pathCells[0],
+                goal: pathCells[1]
+            };
+            
+            for (let i = 0; i < pathCells.length; i++) {
+                for (let j = i + 1; j < pathCells.length; j++) {
+                    const dist = Math.abs(pathCells[i].x - pathCells[j].x) +
+                                Math.abs(pathCells[i].y - pathCells[j].y);
+                    if (dist > maxDistance) {
+                        maxDistance = dist;
+                        bestPair = {
+                            start: pathCells[i],
+                            goal: pathCells[j]
+                        };
+                    }
+                }
+            }
+            
+            return bestPair;
+        }
+
+        // 新しい迷路を生成
+        function generateNewMaze() {
+            currentMaze = generateMaze();
+            const positions = getRandomPositions(currentMaze);
+            startPos = positions.start;
+            goalPos = positions.goal;
+            
+            // プレイヤーをスタート位置に配置
+            player.x = startPos.x + 0.5;
+            player.y = startPos.y + 0.5;
+            player.angle = 0;
+            
+            isCleared = false;
+            document.getElementById('clearScreen').style.display = 'none';
+            document.getElementById('mazeNumber').textContent = mazeCount;
+            
+            console.log(`🎲 迷路 #${mazeCount} を生成しました`);
+            console.log(`📍 スタート: (${startPos.x}, ${startPos.y})`);
+            console.log(`🎯 ゴール: (${goalPos.x}, ${goalPos.y})`);
+        }
+
+        // レイキャスティング
+        function castRays() {
+            const halfFov = fov / 2;
+            
+            for (let i = 0; i < numRays; i++) {
+                const rayAngle = player.angle - halfFov + (i / numRays) * fov;
+                let dist = 0;
+                let hit = false;
+                
+                const rayX = Math.cos(rayAngle);
+                const rayY = Math.sin(rayAngle);
+                
+                while (!hit && dist < maxDepth) {
+                    dist += 0.02;
+                    const testX = Math.floor(player.x + rayX * dist);
+                    const testY = Math.floor(player.y + rayY * dist);
+                    
+                    if (testX < 0 || testX >= 8 || testY < 0 || testY >= 8) {
+                        hit = true;
+                        dist = maxDepth;
+                    } else if (currentMaze[testY][testX] === 1) {
+                        hit = true;
+                    }
+                }
+                
+                // 魚眼効果補正
+                const correctedDist = dist * Math.cos(rayAngle - player.angle);
+                const wallHeight = Math.min(canvas.height, canvas.height / correctedDist);
+                const shade = Math.max(0, 255 - correctedDist * 30);
+                
+                ctx.fillStyle = `rgb(${shade},${shade},${shade})`;
+                ctx.fillRect(i * (canvas.width / numRays), (canvas.height - wallHeight) / 2,
+                           canvas.width / numRays + 1, wallHeight);
+            }
+        }
+
+        // ゴール描画
+        function drawGoal() {
+            const dx = goalPos.x + 0.5 - player.x;
+            const dy = goalPos.y + 0.5 - player.y;
+            const distance = Math.sqrt(dx * dx + dy * dy);
+            const angleToGoal = Math.atan2(dy, dx) - player.angle;
+            
+            const halfFov = fov / 2;
+            
+            if (Math.abs(angleToGoal) < halfFov && distance < 6) {
+                // 遮蔽チェック
+                const steps = Math.floor(distance * 10);
+                let blocked = false;
+                
+                for (let i = 1; i < steps; i++) {
+                    const t = i / steps;
+                    const checkX = Math.floor(player.x + dx * t);
+                    const checkY = Math.floor(player.y + dy * t);
+                    if (currentMaze[checkY] && currentMaze[checkY][checkX] === 1) {
+                        blocked = true;
+                        break;
+                    }
+                }
+                
+                if (!blocked) {
+                    const screenX = (angleToGoal + halfFov) / fov * canvas.width;
+                    const size = Math.max(20, 300 / distance);
+                    
+                    ctx.fillStyle = "lime";
+                    ctx.font = `${size}px Arial`;
+                    ctx.textAlign = "center";
+                    ctx.fillText("★", screenX, canvas.height / 2);
+                }
+            }
+        }
+
+        // ミニマップ描画（スマホ用サイズ）
+        function drawMinimap() {
+            const scale = 10;
+            minimapCtx.fillStyle = "black";
+            minimapCtx.fillRect(0, 0, 80, 80);
+            
+            // 迷路描画
+            for (let y = 0; y < 8; y++) {
+                for (let x = 0; x < 8; x++) {
+                    if (currentMaze[y][x] === 1) {
+                        minimapCtx.fillStyle = "white";
+                    } else {
+                        minimapCtx.fillStyle = "gray";
+                    }
+                    minimapCtx.fillRect(x * scale, y * scale, scale, scale);
+                }
+            }
+            
+            // プレイヤー位置
+            minimapCtx.fillStyle = "blue";
+            minimapCtx.beginPath();
+            minimapCtx.arc(player.x * scale, player.y * scale, 2, 0, Math.PI * 2);
+            minimapCtx.fill();
+            
+            // プレイヤーの向き
+            minimapCtx.strokeStyle = "blue";
+            minimapCtx.lineWidth = 1;
+            minimapCtx.beginPath();
+            minimapCtx.moveTo(player.x * scale, player.y * scale);
+            minimapCtx.lineTo(
+                player.x * scale + Math.cos(player.angle) * 8,
+                player.y * scale + Math.sin(player.angle) * 8
+            );
+            minimapCtx.stroke();
+            
+            // ゴール位置
+            minimapCtx.fillStyle = "lime";
+            minimapCtx.beginPath();
+            minimapCtx.arc((goalPos.x + 0.5) * scale, (goalPos.y + 0.5) * scale, 3, 0, Math.PI * 2);
+            minimapCtx.fill();
+        }
+
+        // プレイヤー移動
+        function movePlayer(forward) {
+            const moveSpeed = forward ? player.speed : -player.speed * 0.5;
+            const nextX = player.x + Math.cos(player.angle) * moveSpeed;
+            const nextY = player.y + Math.sin(player.angle) * moveSpeed;
+            
+            const tileX = Math.floor(nextX);
+            const tileY = Math.floor(nextY);
+            
+            if (tileX >= 0 && tileX < 8 && tileY >= 0 && tileY < 8 &&
+                currentMaze[tileY][tileX] === 0) {
+                player.x = nextX;
+                player.y = nextY;
+            }
+        }
+
+        // ゴール判定
+        function checkGoal() {
+            const dx = Math.abs(player.x - (goalPos.x + 0.5));
+            const dy = Math.abs(player.y - (goalPos.y + 0.5));
+            
+            if (dx < 0.3 && dy < 0.3 && !isCleared) {
+                isCleared = true;
+                document.getElementById('clearScreen').style.display = 'flex';
+                
+                setTimeout(() => {
+                    mazeCount++;
+                    generateNewMaze();
+                }, 2000);
+            }
+        }
+
+        // メインループ
+        function gameLoop() {
+            // 画面クリア
+            ctx.fillStyle = "black";
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            // キーボード入力処理（PC用）
+            if (keys['ArrowUp'] || keys['w'] || keys['W']) movePlayer(true);
+            if (keys['ArrowDown'] || keys['s'] || keys['S']) movePlayer(false);
+            if (keys['ArrowLeft'] || keys['a'] || keys['A']) player.angle -= 0.05;
+            if (keys['ArrowRight'] || keys['d'] || keys['D']) player.angle += 0.05;
+            if (keys['n'] || keys['N']) {
+                generateNewMazeManual();
+                keys['n'] = keys['N'] = false;
+            }
+            
+            // モバイル操作処理
+            if (mobileTouch.move.active) {
+                const diff = mobileTouch.move.startY - mobileTouch.move.currentY;
+                if (Math.abs(diff) > 20) {
+                    movePlayer(diff > 0);
+                }
+            }
+            
+            if (mobileTouch.turn.active) {
+                const diff = mobileTouch.turn.currentX - mobileTouch.turn.startX;
+                if (Math.abs(diff) > 10) {
+                    player.angle += diff * 0.003;
+                    mobileTouch.turn.startX = mobileTouch.turn.currentX;
+                }
+            }
+            
+            // レイキャスティング
+            castRays();
+            
+            // ゴール描画
+            drawGoal();
+            
+            // ミニマップ描画
+            drawMinimap();
+            
+            // ゴール判定
+            checkGoal();
+            
+            requestAnimationFrame(gameLoop);
+        }
+
+        // イベントリスナー
+        document.addEventListener('keydown', (e) => {
+            keys[e.key] = true;
+        });
+
+        document.addEventListener('keyup', (e) => {
+            keys[e.key] = false;
+        });
+
+        // モバイル操作用イベントリスナー
+        const moveArea = document.getElementById('moveArea');
+        const turnArea = document.getElementById('turnArea');
+
+        // 前進/後退エリア
+        moveArea.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            const touch = e.touches[0];
+            mobileTouch.move.active = true;
+            mobileTouch.move.startY = touch.clientY;
+            mobileTouch.move.currentY = touch.clientY;
+        });
+
+        moveArea.addEventListener('touchmove', (e) => {
+            e.preventDefault();
+            if (mobileTouch.move.active) {
+                const touch = e.touches[0];
+                mobileTouch.move.currentY = touch.clientY;
+            }
+        });
+
+        moveArea.addEventListener('touchend', (e) => {
+            e.preventDefault();
+            mobileTouch.move.active = false;
+        });
+
+        // 回転エリア
+        turnArea.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            const touch = e.touches[0];
+            mobileTouch.turn.active = true;
+            mobileTouch.turn.startX = touch.clientX;
+            mobileTouch.turn.currentX = touch.clientX;
+        });
+
+        turnArea.addEventListener('touchmove', (e) => {
+            e.preventDefault();
+            if (mobileTouch.turn.active) {
+                const touch = e.touches[0];
+                mobileTouch.turn.currentX = touch.clientX;
+            }
+        });
+
+        turnArea.addEventListener('touchend', (e) => {
+            e.preventDefault();
+            mobileTouch.turn.active = false;
+        });
+
+        // 誤タッチ防止
+        document.addEventListener('touchmove', (e) => {
+            e.preventDefault();
+        }, { passive: false });
+
+        // PC用マウス操作（残しておく）
+        canvas.addEventListener('mousedown', (e) => {
+            if (!isMobile) {
+                const centerX = canvas.width / 2;
+                const centerY = canvas.height / 2;
+                const diffX = e.clientX - centerX;
+                const diffY = centerY - e.clientY;
+                
+                if (Math.abs(diffY) > 50) movePlayer(diffY > 0);
+                if (Math.abs(diffX) > 20) player.angle += diffX * 0.01;
+            }
+        });
+
+        // ゲーム開始
+        generateNewMaze();
+        gameLoop();
+    </script>
+</body>
+</html>
