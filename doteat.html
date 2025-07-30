@@ -1,0 +1,539 @@
+<!DOCTYPE html>
+
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>パックマン</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 10px;
+            background: #000;
+            color: #fff;
+            font-family: Arial, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+            box-sizing: border-box;
+        }
+
+```
+    h1 {
+        margin: 5px 0 10px 0;
+        font-size: 24px;
+    }
+    
+    #gameContainer {
+        position: relative;
+        max-width: 100vw;
+        max-height: 70vh;
+    }
+    
+    #gameCanvas {
+        border: 2px solid #00f;
+        background: #000;
+        touch-action: none;
+        max-width: 100%;
+        max-height: 100%;
+        width: auto;
+        height: auto;
+    }
+    
+    #gameInfo {
+        margin-top: 5px;
+        text-align: center;
+    }
+    
+    #score {
+        font-size: 18px;
+        margin-bottom: 5px;
+    }
+    
+    #controls {
+        margin-top: 10px;
+        text-align: center;
+    }
+    
+    .control-btn {
+        background: #333;
+        color: #fff;
+        border: 2px solid #666;
+        padding: 8px 12px;
+        margin: 3px;
+        cursor: pointer;
+        font-size: 14px;
+        border-radius: 4px;
+    }
+    
+    .control-btn:active {
+        background: #555;
+    }
+</style>
+```
+
+</head>
+<body>
+    <h1>パックマン</h1>
+    <div id="gameContainer">
+        <canvas id="gameCanvas" width="570" height="420"></canvas>
+    </div>
+    <div id="gameInfo">
+        <div id="score">スコア: 0</div>
+        <div>WASDキー・矢印キー・スワイプで移動</div>
+    </div>
+    <div id="controls">
+        <button class="control-btn" onclick="changeDirection('up')">↑</button><br>
+        <button class="control-btn" onclick="changeDirection('left')">←</button>
+        <button class="control-btn" onclick="changeDirection('down')">↓</button>
+        <button class="control-btn" onclick="changeDirection('right')">→</button>
+    </div>
+
+```
+<script>
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    const scoreElement = document.getElementById('score');
+
+    // ゲーム設定
+    const CELL_SIZE = 15;
+    const ROWS = 28;
+    const COLS = 38;
+
+    // マップデータ (1=壁, 0=通路, 2=ドット, 3=パワーペレット)
+    const maze = [
+        [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+        [1,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,1,1,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,1],
+        [1,3,1,1,1,1,2,1,1,1,1,1,2,1,1,1,1,2,1,1,2,1,1,1,1,2,1,1,1,1,1,2,1,1,1,1,3,1],
+        [1,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,1],
+        [1,2,1,1,1,1,2,1,1,2,1,1,1,1,1,1,2,1,1,1,2,1,1,1,1,1,1,1,2,1,1,2,1,1,1,1,2,1],
+        [1,2,2,2,2,2,2,1,1,2,2,2,2,1,1,2,2,1,1,1,2,2,1,1,2,2,2,2,2,1,1,2,2,2,2,2,2,1],
+        [1,1,1,1,1,1,2,1,1,1,1,1,0,1,1,2,2,1,1,1,2,2,1,1,0,1,1,1,1,1,2,1,1,1,1,1,1,1],
+        [0,0,0,0,0,1,2,1,1,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,1,1,2,1,0,0,0,0,0,0],
+        [1,1,1,1,1,1,2,1,1,2,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,2,1,1,2,1,1,1,1,1,1],
+        [2,2,2,2,2,2,2,2,2,2,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,2,2,2,2,2,2,2,2,2,2],
+        [1,1,1,1,1,1,2,1,1,2,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,2,1,1,2,1,1,1,1,1,1],
+        [0,0,0,0,0,1,2,1,1,2,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,2,1,1,2,1,0,0,0,0,0],
+        [1,1,1,1,1,1,2,1,1,2,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,2,1,1,2,1,1,1,1,1,1],
+        [1,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,1,1,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,1],
+        [1,2,1,1,1,1,2,1,1,1,1,1,2,1,1,1,1,2,1,1,2,1,1,1,1,2,1,1,1,1,1,2,1,1,1,1,2,1],
+        [1,3,2,1,1,1,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,1,1,1,2,3,1],
+        [1,1,1,1,1,1,2,1,1,2,1,1,1,1,1,1,2,1,1,1,2,1,1,1,1,1,1,1,2,1,1,2,1,1,1,1,1,1],
+        [1,2,2,2,2,2,2,1,1,2,2,2,2,1,1,2,2,1,1,1,2,2,1,1,2,2,2,2,2,1,1,2,2,2,2,2,2,1],
+        [1,2,1,1,1,1,1,1,1,1,1,1,2,1,1,2,2,1,1,1,2,2,1,1,2,1,1,1,1,1,1,1,1,1,1,1,2,1],
+        [1,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,1],
+        [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1]
+    ];
+
+    // ゲーム状態
+    let score = 0;
+    let gameRunning = true;
+    let powerMode = false;
+    let powerModeTime = 0;
+
+    // パックマン
+    let pacman = {
+        x: 19,
+        y: 15,
+        direction: 'right',
+        nextDirection: 'right',
+        mouthOpen: true
+    };
+
+    // ゴースト
+    let ghosts = [
+        { x: 19, y: 9, direction: 'up', color: '#ff0000', targetX: 19, targetY: 9 },
+        { x: 18, y: 9, direction: 'up', color: '#ffb8ff', targetX: 18, targetY: 9 },
+        { x: 19, y: 10, direction: 'down', color: '#00ffff', targetX: 19, targetY: 10 },
+        { x: 20, y: 10, direction: 'down', color: '#ffb852', targetX: 20, targetY: 10 }
+    ];
+
+    let animationFrame = 0;
+
+    function drawMaze() {
+        ctx.fillStyle = '#0000ff';
+        for (let row = 0; row < maze.length; row++) {
+            for (let col = 0; col < maze[row].length; col++) {
+                if (maze[row][col] === 1) {
+                    ctx.fillRect(col * CELL_SIZE, row * CELL_SIZE, CELL_SIZE, CELL_SIZE);
+                }
+            }
+        }
+    }
+
+    function drawDots() {
+        for (let row = 0; row < maze.length; row++) {
+            for (let col = 0; col < maze[row].length; col++) {
+                const x = col * CELL_SIZE + CELL_SIZE / 2;
+                const y = row * CELL_SIZE + CELL_SIZE / 2;
+                
+                if (maze[row][col] === 2) {
+                    ctx.fillStyle = '#ffff00';
+                    ctx.beginPath();
+                    ctx.arc(x, y, 2, 0, Math.PI * 2);
+                    ctx.fill();
+                } else if (maze[row][col] === 3) {
+                    ctx.fillStyle = '#ffff00';
+                    ctx.beginPath();
+                    ctx.arc(x, y, 8, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+            }
+        }
+    }
+
+    function drawPacman() {
+        const x = pacman.x * CELL_SIZE + CELL_SIZE / 2;
+        const y = pacman.y * CELL_SIZE + CELL_SIZE / 2;
+        
+        ctx.fillStyle = '#ffff00';
+        ctx.beginPath();
+        
+        if (pacman.mouthOpen) {
+            let startAngle = 0;
+            let endAngle = Math.PI * 2;
+            
+            switch (pacman.direction) {
+                case 'right':
+                    startAngle = 0.2 * Math.PI;
+                    endAngle = 1.8 * Math.PI;
+                    break;
+                case 'left':
+                    startAngle = 1.2 * Math.PI;
+                    endAngle = 0.8 * Math.PI;
+                    break;
+                case 'up':
+                    startAngle = 1.7 * Math.PI;
+                    endAngle = 1.3 * Math.PI;
+                    break;
+                case 'down':
+                    startAngle = 0.7 * Math.PI;
+                    endAngle = 0.3 * Math.PI;
+                    break;
+            }
+            
+            ctx.arc(x, y, CELL_SIZE / 2 - 2, startAngle, endAngle);
+            ctx.lineTo(x, y);
+        } else {
+            ctx.arc(x, y, CELL_SIZE / 2 - 2, 0, Math.PI * 2);
+        }
+        
+        ctx.fill();
+    }
+
+    function drawGhosts() {
+        ghosts.forEach(ghost => {
+            const x = ghost.x * CELL_SIZE + CELL_SIZE / 2;
+            const y = ghost.y * CELL_SIZE + CELL_SIZE / 2;
+            
+            if (powerMode && powerModeTime > 0) {
+                ctx.fillStyle = powerModeTime < 100 && Math.floor(powerModeTime / 10) % 2 ? '#ffffff' : '#0000ff';
+            } else {
+                ctx.fillStyle = ghost.color;
+            }
+            
+            // ゴーストの体
+            ctx.beginPath();
+            ctx.arc(x, y - 2, CELL_SIZE / 2 - 2, Math.PI, 0);
+            ctx.rect(x - CELL_SIZE / 2 + 2, y - 2, CELL_SIZE - 4, CELL_SIZE / 2);
+            
+            // ゴーストの下部の波
+            for (let i = 0; i < 3; i++) {
+                const waveX = x - CELL_SIZE / 2 + 2 + i * (CELL_SIZE - 4) / 3;
+                ctx.lineTo(waveX, y + CELL_SIZE / 2 - 2);
+                ctx.lineTo(waveX + (CELL_SIZE - 4) / 6, y + CELL_SIZE / 2 - 6);
+                ctx.lineTo(waveX + (CELL_SIZE - 4) / 3, y + CELL_SIZE / 2 - 2);
+            }
+            
+            ctx.fill();
+            
+            // 目
+            if (!powerMode || powerModeTime <= 0) {
+                ctx.fillStyle = '#ffffff';
+                ctx.fillRect(x - 6, y - 6, 4, 4);
+                ctx.fillRect(x + 2, y - 6, 4, 4);
+                ctx.fillStyle = '#000000';
+                ctx.fillRect(x - 5, y - 5, 2, 2);
+                ctx.fillRect(x + 3, y - 5, 2, 2);
+            }
+        });
+    }
+
+    function canMove(x, y) {
+        if (x < 0 || x >= COLS || y < 0 || y >= maze.length) {
+            return x === -1 || x === COLS; // トンネル
+        }
+        return maze[y][x] !== 1;
+    }
+
+    function movePacman() {
+        let newX = pacman.x;
+        let newY = pacman.y;
+        
+        // 次の方向に移動可能かチェック
+        let nextX = pacman.x;
+        let nextY = pacman.y;
+        
+        switch (pacman.nextDirection) {
+            case 'up': nextY--; break;
+            case 'down': nextY++; break;
+            case 'left': nextX--; break;
+            case 'right': nextX++; break;
+        }
+        
+        if (canMove(nextX, nextY)) {
+            pacman.direction = pacman.nextDirection;
+        }
+        
+        // 現在の方向に移動
+        switch (pacman.direction) {
+            case 'up': newY--; break;
+            case 'down': newY++; break;
+            case 'left': newX--; break;
+            case 'right': newX++; break;
+        }
+        
+        // トンネル処理
+        if (newX < 0) {
+            newX = COLS - 1;
+        } else if (newX >= COLS) {
+            newX = 0;
+        }
+        
+        if (canMove(newX, newY)) {
+            pacman.x = newX;
+            pacman.y = newY;
+            
+            // ドットを食べる
+            if (maze[newY] && maze[newY][newX] === 2) {
+                maze[newY][newX] = 0;
+                score += 10;
+                scoreElement.textContent = 'スコア: ' + score;
+            } else if (maze[newY] && maze[newY][newX] === 3) {
+                maze[newY][newX] = 0;
+                score += 50;
+                scoreElement.textContent = 'スコア: ' + score;
+                powerMode = true;
+                powerModeTime = 300; // 5秒間
+            }
+        }
+    }
+
+    function moveGhosts() {
+        ghosts.forEach(ghost => {
+            const directions = ['up', 'down', 'left', 'right'];
+            const validDirections = [];
+            
+            directions.forEach(dir => {
+                let newX = ghost.x;
+                let newY = ghost.y;
+                
+                switch (dir) {
+                    case 'up': newY--; break;
+                    case 'down': newY++; break;
+                    case 'left': newX--; break;
+                    case 'right': newX++; break;
+                }
+                
+                if (newX < 0) newX = COLS - 1;
+                if (newX >= COLS) newX = 0;
+                
+                if (canMove(newX, newY)) {
+                    validDirections.push(dir);
+                }
+            });
+            
+            if (validDirections.length > 0) {
+                // ランダムに方向を選択（より自然な動き）
+                if (Math.random() < 0.7) {
+                    ghost.direction = validDirections[Math.floor(Math.random() * validDirections.length)];
+                }
+                
+                if (validDirections.includes(ghost.direction)) {
+                    let newX = ghost.x;
+                    let newY = ghost.y;
+                    
+                    switch (ghost.direction) {
+                        case 'up': newY--; break;
+                        case 'down': newY++; break;
+                        case 'left': newX--; break;
+                        case 'right': newX++; break;
+                    }
+                    
+                    if (newX < 0) newX = COLS - 1;
+                    if (newX >= COLS) newX = 0;
+                    
+                    ghost.x = newX;
+                    ghost.y = newY;
+                }
+            }
+        });
+    }
+
+    function checkCollisions() {
+        ghosts.forEach((ghost, index) => {
+            if (ghost.x === pacman.x && ghost.y === pacman.y) {
+                if (powerMode && powerModeTime > 0) {
+                    // ゴーストを食べる
+                    score += 200;
+                    scoreElement.textContent = 'スコア: ' + score;
+                    // ゴーストを初期位置に戻す
+                    ghost.x = 19;
+                    ghost.y = 9;
+                } else {
+                    // ゲームオーバー
+                    gameRunning = false;
+                    alert('ゲームオーバー！スコア: ' + score);
+                    location.reload();
+                }
+            }
+        });
+    }
+
+    function gameLoop() {
+        if (!gameRunning) return;
+        
+        // 画面をクリア
+        ctx.fillStyle = '#000000';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        
+        // マップを描画
+        drawMaze();
+        drawDots();
+        
+        // キャラクターを移動
+        if (animationFrame % 6 === 0) { // 移動速度調整
+            movePacman();
+            moveGhosts();
+            pacman.mouthOpen = !pacman.mouthOpen; // 口の開閉
+        }
+        
+        // パワーモード時間を減らす
+        if (powerMode && powerModeTime > 0) {
+            powerModeTime--;
+            if (powerModeTime <= 0) {
+                powerMode = false;
+            }
+        }
+        
+        // キャラクターを描画
+        drawPacman();
+        drawGhosts();
+        
+        // 衝突チェック
+        checkCollisions();
+        
+        // 勝利条件チェック
+        let dotsLeft = 0;
+        for (let row = 0; row < maze.length; row++) {
+            for (let col = 0; col < maze[row].length; col++) {
+                if (maze[row][col] === 2 || maze[row][col] === 3) {
+                    dotsLeft++;
+                }
+            }
+        }
+        
+        if (dotsLeft === 0) {
+            gameRunning = false;
+            alert('クリア！スコア: ' + score);
+            location.reload();
+        }
+        
+        animationFrame++;
+        requestAnimationFrame(gameLoop);
+    }
+
+    // キーボード操作
+    function changeDirection(direction) {
+        pacman.nextDirection = direction;
+    }
+
+    document.addEventListener('keydown', (e) => {
+        switch (e.key.toLowerCase()) {
+            case 'w':
+            case 'arrowup':
+                changeDirection('up');
+                e.preventDefault();
+                break;
+            case 's':
+            case 'arrowdown':
+                changeDirection('down');
+                e.preventDefault();
+                break;
+            case 'a':
+            case 'arrowleft':
+                changeDirection('left');
+                e.preventDefault();
+                break;
+            case 'd':
+            case 'arrowright':
+                changeDirection('right');
+                e.preventDefault();
+                break;
+        }
+    });
+
+    // タッチ・スワイプ操作
+    let touchStartX = 0;
+    let touchStartY = 0;
+    let touchEndX = 0;
+    let touchEndY = 0;
+    const minSwipeDistance = 30; // 最小スワイプ距離
+
+    canvas.addEventListener('touchstart', (e) => {
+        e.preventDefault();
+        const touch = e.touches[0];
+        touchStartX = touch.clientX;
+        touchStartY = touch.clientY;
+    }, { passive: false });
+
+    canvas.addEventListener('touchmove', (e) => {
+        e.preventDefault();
+    }, { passive: false });
+
+    canvas.addEventListener('touchend', (e) => {
+        e.preventDefault();
+        const touch = e.changedTouches[0];
+        touchEndX = touch.clientX;
+        touchEndY = touch.clientY;
+        
+        handleSwipe();
+    }, { passive: false });
+
+    function handleSwipe() {
+        const deltaX = touchEndX - touchStartX;
+        const deltaY = touchEndY - touchStartY;
+        const absDeltaX = Math.abs(deltaX);
+        const absDeltaY = Math.abs(deltaY);
+
+        // スワイプ距離が十分でない場合は無視
+        if (Math.max(absDeltaX, absDeltaY) < minSwipeDistance) {
+            return;
+        }
+
+        // より大きな変化量の方向を優先
+        if (absDeltaX > absDeltaY) {
+            // 水平方向のスワイプ
+            if (deltaX > 0) {
+                changeDirection('right');
+            } else {
+                changeDirection('left');
+            }
+        } else {
+            // 垂直方向のスワイプ
+            if (deltaY > 0) {
+                changeDirection('down');
+            } else {
+                changeDirection('up');
+            }
+        }
+    }
+
+    // ゲーム開始
+    gameLoop();
+</script>
+```
+
+</body>
+</html>
