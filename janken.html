@@ -1,0 +1,364 @@
+<!DOCTYPE html>
+
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>じゃんけんゲーム</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+```
+    body {
+        font-family: 'Arial', sans-serif;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        min-height: 100vh;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        color: white;
+    }
+
+    .game-container {
+        background: rgba(255, 255, 255, 0.1);
+        backdrop-filter: blur(10px);
+        border-radius: 20px;
+        padding: 40px;
+        text-align: center;
+        box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.37);
+        border: 1px solid rgba(255, 255, 255, 0.18);
+        max-width: 500px;
+        width: 90%;
+    }
+
+    h1 {
+        font-size: 2.5rem;
+        margin-bottom: 30px;
+        text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+    }
+
+    .score-board {
+        display: flex;
+        justify-content: space-around;
+        margin-bottom: 30px;
+        background: rgba(255, 255, 255, 0.1);
+        padding: 15px;
+        border-radius: 15px;
+    }
+
+    .score {
+        text-align: center;
+    }
+
+    .score h3 {
+        font-size: 1.2rem;
+        margin-bottom: 5px;
+    }
+
+    .score-number {
+        font-size: 2rem;
+        font-weight: bold;
+    }
+
+    .choices {
+        display: flex;
+        justify-content: center;
+        margin: 30px 0;
+    }
+
+    .choice {
+        font-size: 5rem;
+        margin: 0 15px;
+        opacity: 0.3;
+        transition: all 0.3s ease;
+    }
+
+    .choice.active {
+        opacity: 1;
+        transform: scale(1.2);
+    }
+
+    .buttons {
+        display: flex;
+        justify-content: space-around;
+        margin: 30px 0;
+        gap: 15px;
+    }
+
+    .btn {
+        background: linear-gradient(45deg, #ff6b6b, #ee5a52);
+        border: none;
+        color: white;
+        padding: 15px 25px;
+        font-size: 1.1rem;
+        border-radius: 25px;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+        flex: 1;
+        max-width: 120px;
+    }
+
+    .btn:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 6px 20px rgba(0,0,0,0.3);
+    }
+
+    .btn:active {
+        transform: translateY(0);
+    }
+
+    .result {
+        font-size: 1.5rem;
+        margin: 20px 0;
+        min-height: 50px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: rgba(255, 255, 255, 0.1);
+        border-radius: 10px;
+        padding: 15px;
+    }
+
+    .result.win {
+        background: rgba(76, 175, 80, 0.3);
+    }
+
+    .result.lose {
+        background: rgba(244, 67, 54, 0.3);
+    }
+
+    .result.draw {
+        background: rgba(255, 193, 7, 0.3);
+    }
+
+    .reset-btn {
+        background: linear-gradient(45deg, #4ecdc4, #44a08d);
+        border: none;
+        color: white;
+        padding: 12px 30px;
+        font-size: 1rem;
+        border-radius: 20px;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        margin-top: 20px;
+    }
+
+    .reset-btn:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+    }
+
+    @keyframes shake {
+        0%, 100% { transform: translateX(0); }
+        25% { transform: translateX(-5px); }
+        75% { transform: translateX(5px); }
+    }
+
+    .shake {
+        animation: shake 0.5s ease-in-out;
+    }
+</style>
+```
+
+</head>
+<body>
+    <div class="game-container">
+        <h1>じゃんけんゲーム</h1>
+
+```
+    <div class="score-board">
+        <div class="score">
+            <h3>あなた</h3>
+            <div class="score-number" id="playerScore">0</div>
+        </div>
+        <div class="score">
+            <h3>引き分け</h3>
+            <div class="score-number" id="drawScore">0</div>
+        </div>
+        <div class="score">
+            <h3>コンピュータ</h3>
+            <div class="score-number" id="computerScore">0</div>
+        </div>
+    </div>
+
+    <div class="choices">
+        <div class="choice" id="playerChoice">❓</div>
+        <div style="font-size: 3rem; margin: 0 20px; opacity: 0.7;">VS</div>
+        <div class="choice" id="computerChoice">❓</div>
+    </div>
+
+    <div class="buttons">
+        <button class="btn" onclick="playGame('rock')">✊<br>グー</button>
+        <button class="btn" onclick="playGame('scissors')">✌️<br>チョキ</button>
+        <button class="btn" onclick="playGame('paper')">✋<br>パー</button>
+    </div>
+
+    <div class="result" id="result">
+        じゃんけんをしよう！
+    </div>
+
+    <button class="reset-btn" onclick="resetGame()">スコアリセット</button>
+</div>
+
+<script>
+    let playerScore = 0;
+    let computerScore = 0;
+    let drawScore = 0;
+
+    // 効果音を作成する関数
+    function createSound(frequency, duration, type = 'sine', volume = 0.3) {
+        const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        const oscillator = audioContext.createOscillator();
+        const gainNode = audioContext.createGain();
+        
+        oscillator.connect(gainNode);
+        gainNode.connect(audioContext.destination);
+        
+        oscillator.frequency.setValueAtTime(frequency, audioContext.currentTime);
+        oscillator.type = type;
+        
+        gainNode.gain.setValueAtTime(0, audioContext.currentTime);
+        gainNode.gain.linearRampToValueAtTime(volume, audioContext.currentTime + 0.01);
+        gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + duration);
+        
+        oscillator.start(audioContext.currentTime);
+        oscillator.stop(audioContext.currentTime + duration);
+    }
+
+    // 効果音を再生する関数
+    function playClickSound() {
+        createSound(800, 0.1, 'square', 0.2);
+    }
+
+    function playWinSound() {
+        // 勝利のメロディー
+        setTimeout(() => createSound(523, 0.2, 'sine', 0.3), 0);   // C
+        setTimeout(() => createSound(659, 0.2, 'sine', 0.3), 200); // E
+        setTimeout(() => createSound(784, 0.3, 'sine', 0.3), 400); // G
+    }
+
+    function playLoseSound() {
+        // 失敗音
+        createSound(200, 0.5, 'sawtooth', 0.2);
+    }
+
+    function playDrawSound() {
+        // 中性的な音
+        createSound(440, 0.3, 'triangle', 0.2);
+    }
+
+    function playResetSound() {
+        // リセット音
+        createSound(660, 0.1, 'square', 0.2);
+        setTimeout(() => createSound(440, 0.1, 'square', 0.2), 100);
+    }
+
+    const choices = {
+        rock: { emoji: '✊', name: 'グー' },
+        paper: { emoji: '✋', name: 'パー' },
+        scissors: { emoji: '✌️', name: 'チョキ' }
+    };
+
+    function getComputerChoice() {
+        const choiceKeys = Object.keys(choices);
+        return choiceKeys[Math.floor(Math.random() * choiceKeys.length)];
+    }
+
+    function determineWinner(playerChoice, computerChoice) {
+        if (playerChoice === computerChoice) {
+            return 'draw';
+        }
+        
+        if (
+            (playerChoice === 'rock' && computerChoice === 'scissors') ||
+            (playerChoice === 'paper' && computerChoice === 'rock') ||
+            (playerChoice === 'scissors' && computerChoice === 'paper')
+        ) {
+            return 'win';
+        }
+        
+        return 'lose';
+    }
+
+    function updateDisplay(playerChoice, computerChoice, result) {
+        // 選択肢を表示
+        document.getElementById('playerChoice').textContent = choices[playerChoice].emoji;
+        document.getElementById('computerChoice').textContent = choices[computerChoice].emoji;
+        
+        // アクティブクラスを追加
+        document.getElementById('playerChoice').classList.add('active');
+        document.getElementById('computerChoice').classList.add('active');
+        
+        // 結果を表示
+        const resultElement = document.getElementById('result');
+        resultElement.classList.remove('win', 'lose', 'draw');
+        
+        if (result === 'win') {
+            resultElement.textContent = `あなたの勝ち！ ${choices[playerChoice].name} vs ${choices[computerChoice].name}`;
+            resultElement.classList.add('win');
+            playerScore++;
+            playWinSound();
+        } else if (result === 'lose') {
+            resultElement.textContent = `あなたの負け！ ${choices[playerChoice].name} vs ${choices[computerChoice].name}`;
+            resultElement.classList.add('lose');
+            computerScore++;
+            playLoseSound();
+            document.querySelector('.game-container').classList.add('shake');
+            setTimeout(() => {
+                document.querySelector('.game-container').classList.remove('shake');
+            }, 500);
+        } else {
+            resultElement.textContent = `引き分け！ ${choices[playerChoice].name} vs ${choices[computerChoice].name}`;
+            resultElement.classList.add('draw');
+            drawScore++;
+            playDrawSound();
+        }
+        
+        // スコアを更新
+        document.getElementById('playerScore').textContent = playerScore;
+        document.getElementById('computerScore').textContent = computerScore;
+        document.getElementById('drawScore').textContent = drawScore;
+        
+        // 3秒後にアクティブクラスを削除
+        setTimeout(() => {
+            document.getElementById('playerChoice').classList.remove('active');
+            document.getElementById('computerChoice').classList.remove('active');
+        }, 3000);
+    }
+
+    function playGame(playerChoice) {
+        playClickSound();
+        const computerChoice = getComputerChoice();
+        const result = determineWinner(playerChoice, computerChoice);
+        
+        // 少し遅延を入れて結果を表示（クリック音の後に）
+        setTimeout(() => {
+            updateDisplay(playerChoice, computerChoice, result);
+        }, 100);
+    }
+
+    function resetGame() {
+        playResetSound();
+        playerScore = 0;
+        computerScore = 0;
+        drawScore = 0;
+        document.getElementById('playerScore').textContent = '0';
+        document.getElementById('computerScore').textContent = '0';
+        document.getElementById('drawScore').textContent = '0';
+        document.getElementById('playerChoice').textContent = '❓';
+        document.getElementById('computerChoice').textContent = '❓';
+        document.getElementById('result').textContent = 'じゃんけんをしよう！';
+        document.getElementById('result').classList.remove('win', 'lose', 'draw');
+        document.getElementById('playerChoice').classList.remove('active');
+        document.getElementById('computerChoice').classList.remove('active');
+    }
+</script>
+```
+
+</body>
+</html>
