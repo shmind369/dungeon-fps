@@ -86,14 +86,16 @@
             <div>マウス: 視点回転</div>
             <div>Shift: 走る / スペース: ジャンプ</div>
             <div>クリックでマウスロック開始</div>
+            <div>Ctrl+クリック: 立方体配置</div>
             <div><strong>【モバイル】</strong></div>
             <div>↑スワイプ: 前進</div>
             <div>↓スワイプ: 後進</div>
             <div>←→スワイプ: 方向転換</div>
-            <div>タップ: ジャンプ</div>
+            <div>短タップ: ジャンプ</div>
+            <div>長押し: 立方体配置</div>
         </div>
         <div id="touchControls">
-            スワイプで移動・方向転換 | タップでジャンプ
+            スワイプで移動・方向転換 | 短タップでジャンプ | 長押しで立方体配置
         </div>
         <div id="crosshair"></div>
     </div>
@@ -119,6 +121,12 @@
     let moveDirection = 0; // 0: 停止, 1: 前進, -1: 後進
     let turnDirection = 0; // 0: 直進, 1: 右, -1: 左
     let isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+    let touchStartTime = 0;
+    
+    // 立方体配置
+    let raycaster, mouse;
+    let placedCubes = new Map(); // グリッド座標をキーとして立方体を管理
+    let floorPlane;
     
     // 物理パラメータ
     const WALK_SPEED = 20;
@@ -127,6 +135,7 @@
     const GRAVITY = -50;
     const CAMERA_HEIGHT = 1.8;
     const TURN_SPEED = 2.0;
+    const GRID_SIZE = 5; // グリッドの間隔
     
     init();
     animate();
@@ -154,6 +163,10 @@
         // 照明を追加
         addLights();
         
+        // レイキャスター初期化
+        raycaster = new THREE.Raycaster();
+        mouse = new THREE.Vector2();
+        
         // イベントリスナー設定
         setupEventListeners();
     }
@@ -166,10 +179,11 @@
             transparent: true,
             opacity: 0.8
         });
-        const floor = new THREE.Mesh(floorGeometry, floorMaterial);
-        floor.rotation.x = -Math.PI / 2;
-        floor.receiveShadow = true;
-        scene.add(floor);
+        floorPlane = new THREE.Mesh(floorGeometry, floorMaterial);
+        floorPlane.rotation.x = -Math.PI / 2;
+        floorPlane.receiveShadow = true;
+        floorPlane.name = 'floor';
+        scene.add(floorPlane);
         
         // グリッドライン
         const gridHelper = new THREE.GridHelper(500, 100, 0x666666, 0x444444);
@@ -238,9 +252,7 @@
         
         // マウスイベント（PC）
         if (!isMobile) {
-            renderer.domElement.addEventListener('click', () => {
-                renderer.domElement.requestPointerLock();
-            });
+            renderer.domElement.addEventListener('click', onMouseClick);
             
             document.addEventListener('pointerlockchange', () => {
                 isMouseLocked = document.pointerLockElement === renderer.domElement;
@@ -315,6 +327,69 @@
         }
     }
     
+    function onMouseClick(event) {
+        if (event.ctrlKey || event.metaKey) {
+            // Ctrl+クリックで立方体配置
+            placeCubeAtMouse(event);
+        } else if (!isMouseLocked) {
+            // マウスロック開始
+            renderer.domElement.requestPointerLock();
+        }
+    }
+    
+    function placeCubeAtMouse(event) {
+        // マウス座標を正規化座標に変換
+        const rect = renderer.domElement.getBoundingClientRect();
+        mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+        mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+        
+        placeCubeAtPosition();
+    }
+    
+    function placeCubeAtTouch(touch) {
+        // タッチ座標を正規化座標に変換
+        const rect = renderer.domElement.getBoundingClientRect();
+        mouse.x = ((touch.clientX - rect.left) / rect.width) * 2 - 1;
+        mouse.y = -((touch.clientY - rect.top) / rect.height) * 2 + 1;
+        
+        placeCubeAtPosition();
+    }
+    
+    function placeCubeAtPosition() {
+        // レイキャスターでクリック位置を計算
+        raycaster.setFromCamera(mouse, camera);
+        const intersects = raycaster.intersectObject(floorPlane);
+        
+        if (intersects.length > 0) {
+            const intersectPoint = intersects[0].point;
+            
+            // グリッドに合わせて座標を調整
+            const gridX = Math.round(intersectPoint.x / GRID_SIZE) * GRID_SIZE;
+            const gridZ = Math.round(intersectPoint.z / GRID_SIZE) * GRID_SIZE;
+            const gridKey = `${gridX},${gridZ}`;
+            
+            // 既に立方体がある場合は削除、ない場合は追加
+            if (placedCubes.has(gridKey)) {
+                scene.remove(placedCubes.get(gridKey));
+                placedCubes.delete(gridKey);
+            } else {
+                // 立方体を作成
+                const cubeGeometry = new THREE.BoxGeometry(GRID_SIZE * 0.8, GRID_SIZE * 0.8, GRID_SIZE * 0.8);
+                const cubeMaterial = new THREE.MeshLambertMaterial({ 
+                    color: Math.random() * 0xffffff 
+                });
+                const cube = new THREE.Mesh(cubeGeometry, cubeMaterial);
+                
+                cube.position.set(gridX, GRID_SIZE * 0.4, gridZ);
+                cube.castShadow = true;
+                cube.receiveShadow = true;
+                
+                scene.add(cube);
+                placedCubes.set(gridKey, cube);
+            }
+        }
+    }
+        
     function onMouseMove(event) {
         if (!isMouseLocked || isMobile) return;
         
@@ -335,6 +410,7 @@
         const touch = event.touches[0];
         touchStartX = touch.clientX;
         touchStartY = touch.clientY;
+        touchStartTime = Date.now();
     }
     
     function onTouchMove(event) {
@@ -385,9 +461,14 @@
         const deltaX = touchEndX - touchStartX;
         const deltaY = touchEndY - touchStartY;
         const distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
+        const touchDuration = Date.now() - touchStartTime;
         
+        // 長押し判定（500ms以上）
+        if (touchDuration > 500 && distance < 20) {
+            placeCubeAtTouch(touch);
+        }
         // タップ判定（短距離の場合）
-        if (distance < 10 && canJump) {
+        else if (distance < 10 && touchDuration < 300 && canJump) {
             velocity.y = JUMP_VELOCITY;
             canJump = false;
         }
