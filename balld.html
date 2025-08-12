@@ -1,0 +1,265 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+<title>コイン落とし対戦（ターン制）</title>
+<style>
+  html,body{margin:0;height:100%;background:#1a1a1a;color:#eaf2ff;font-family:system-ui,-apple-system,"Hiragino Sans JP",sans-serif;overflow:hidden}
+  #cv{display:block}
+  #hud{position:fixed;left:10px;right:10px;top:10px;display:flex;justify-content:space-between;align-items:center;gap:10px;pointer-events:none}
+  .pill{background:#0f1524aa;border:1px solid #233047;border-radius:999px;padding:6px 10px;font-size:12px;backdrop-filter:blur(6px)}
+  #powerBar{position:fixed;right:10px;bottom:10px;width:10px;height:120px;border:1px solid #2b3547;border-radius:8px;background:#0f1420;overflow:hidden}
+  #powerFill{width:100%;height:0;background:linear-gradient(#66d9ff,#3aa6ff)}
+  #tip{position:fixed;left:50%;bottom:12px;transform:translateX(-50%);font-size:12px;opacity:.85}
+  #overlay{position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.55);z-index:10}
+  #overlay .card{background:#0f1420;border:1px solid #2b3547;border-radius:12px;padding:16px 18px;text-align:center}
+  #overlay button{margin-top:10px;padding:8px 12px;border-radius:8px;border:1px solid #2b3547;background:#121a29;color:#eaf2ff}
+</style>
+</head>
+<body>
+<canvas id="cv"></canvas>
+<div id="hud">
+  <div class="pill">TURN <span id="turn">PLAYER</span></div>
+  <div class="pill">PLAYER SHOTS <span id="ps">0</span></div>
+  <div class="pill">ENEMY SHOTS <span id="es">0</span></div>
+</div>
+<div id="powerBar"><div id="powerFill"></div></div>
+<div id="tip">自機（緑）を<strong>引っぱって</strong>離すと発射。机から相手（赤）を落とせ！</div>
+
+<div id="overlay">
+  <div class="card">
+    <div id="result" style="font-size:20px;margin-bottom:6px"></div>
+    <button id="retry">Retry</button>
+  </div>
+</div>
+
+<script>
+
+
+// ★ 先頭付近の定数群の近くに追加
+let phase = 'input';                   // 'input' or 'resolving'（入力中/決着待ち）
+const STOP_SPEED  = 4;                 // これ未満を“ほぼ停止”とみなす(px/s)
+const STOP_FRAMES = 24;                // 連続このフレーム数止まっていたら交代
+let settleCount = 0;
+let lastPosP = {x:0, y:0}, lastPosE = {x:0, y:0};
+const POS_EPS = 0.25;                  // ほぼ動いてない距離判定
+
+
+const cv = document.getElementById('cv'), ctx = cv.getContext('2d');
+const turnEl = document.getElementById('turn'), psEl = document.getElementById('ps'), esEl = document.getElementById('es');
+const powerFill = document.getElementById('powerFill');
+const overlay = document.getElementById('overlay'), resultEl = document.getElementById('result');
+document.getElementById('retry').onclick=()=>location.reload();
+
+let W=0,H=0;
+const desk = {x:0,y:0,w:0,h:0};
+
+function resize(){
+  W=innerWidth; H=innerHeight; cv.width=W; cv.height=H;
+  desk.x=Math.round(W*0.08); desk.y=Math.round(H*0.08);
+  desk.w=Math.round(W*0.84); desk.h=Math.round(H*0.78);
+}
+addEventListener('resize', resize); resize();
+
+const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+const rnd=(a,b)=>a+Math.random()*(b-a);
+
+class Coin{
+  constructor(x,y,r,color,who){ this.x=x; this.y=y; this.r=r; this.vx=0; this.vy=0; this.color=color; this.who=who; }
+  step(dt){ const fr=0.986; this.x+=this.vx*dt; this.y+=this.vy*dt; this.vx*=fr; this.vy*=fr; }
+  speed(){ return Math.hypot(this.vx,this.vy); }
+  draw(){
+    const g=ctx.createRadialGradient(this.x-this.r*.4,this.y-this.r*.4,this.r*.2, this.x,this.y,this.r);
+    g.addColorStop(0,"#ffffffaa"); g.addColorStop(0,this.color); g.addColorStop(1,"rgba(0,0,0,.25)");
+    ctx.fillStyle=g; ctx.beginPath(); ctx.arc(this.x,this.y,this.r,0,Math.PI*2); ctx.fill();
+    ctx.strokeStyle="rgba(0,0,0,.35)"; ctx.lineWidth=2; ctx.stroke();
+  }
+}
+
+const world = {
+  player:new Coin(0,0,18,"#7cffb3","player"),
+  enemy:new Coin(0,0,18,"#ff7b91","enemy"),
+  turn:"player",
+  ps:0, es:0,
+  over:false
+};
+function resetPositions(){
+  world.player.x=desk.x+desk.w*0.3; world.player.y=desk.y+desk.h*0.75;
+  world.enemy.x =desk.x+desk.w*0.7; world.enemy.y =desk.y+desk.h*0.35;
+  world.player.vx=world.player.vy=0; world.enemy.vx=world.enemy.vy=0;
+}
+resetPositions(); updateHud();
+
+function updateHud(){ turnEl.textContent = world.turn.toUpperCase(); psEl.textContent=world.ps; esEl.textContent=world.es; }
+
+function isOffDesk(o){
+  if(o.x+o.r<desk.x) return true;
+  if(o.x-o.r>desk.x+desk.w) return true;
+  if(o.y+o.r<desk.y) return true;
+  if(o.y-o.r>desk.y+desk.h) return true;
+  return false;
+}
+
+/* --- ターン管理 --- */
+let settling=0; // コマが止まったフレーム数
+function nextTurn(){
+  world.turn = (world.turn==="player") ? "enemy" : "player";
+  updateHud();
+  if(world.turn==="enemy") planEnemyShot();
+}
+
+/* --- 衝突（等質量の弾性） --- */
+function collide(a,b){
+  const dx=b.x-a.x, dy=b.y-a.y, r=a.r+b.r; const d2=dx*dx+dy*dy;
+  if(d2>r*r||d2===0) return;
+  const d=Math.sqrt(d2), nx=dx/d, ny=dy/d, pen=r-d, push=pen/2;
+  a.x-=nx*push; a.y-=ny*push; b.x+=nx*push; b.y+=ny*push;
+  const rvx=b.vx-a.vx, rvy=b.vy-a.vy, vn=rvx*nx+rvy*ny; if(vn>0) return;
+  const e=0.95, imp=-(1+e)*vn/2;
+  a.vx-=imp*nx; a.vy-=imp*ny; b.vx+=imp*nx; b.vy+=imp*ny;
+}
+
+/* --- プレイヤー操作 --- */
+let dragging=false, dragStart=null, lastDrag=null;
+const MAX_POWER=1400, POWER_PIXELS=200;
+function inCoin(x,y,c){ const dx=x-c.x, dy=y-c.y; return dx*dx+dy*dy<= (c.r*c.r*1.6); }
+function getPt(e){ const t=(e.touches&&e.touches[0])||e; return {x:t.clientX,y:t.clientY}; }
+function onDown(e){
+
+if (world.over || world.turn !== "player" || phase !== 'input') return; // ★ 追加
+
+  
+  const p=getPt(e); if(inCoin(p.x,p.y,world.player)) { dragging=true; dragStart=p; lastDrag=p; }
+}
+function onMove(e){ if(!dragging) return; lastDrag=getPt(e);
+  const pow = clamp( Math.hypot(lastDrag.x-dragStart.x,lastDrag.y-dragStart.y)/POWER_PIXELS, 0, 1 );
+  powerFill.style.height = Math.round(pow*120)+"px";
+}
+
+
+
+function onUp(e){
+  if(!dragging) return;
+  dragging=false; powerFill.style.height="0px";
+  const end=lastDrag||dragStart; const dx=end.x-dragStart.x, dy=end.y-dragStart.y;
+  const len=Math.hypot(dx,dy); if(len<6) return;
+  const pow = clamp(len/POWER_PIXELS,0,1), speed=pow*MAX_POWER;
+  const nx=-dx/len, ny=-dy/len;
+  world.player.vx += nx*speed; world.player.vy += ny*speed;
+  world.ps++; updateHud();
+  phase = 'resolving';          
+
+  // プレイヤーが撃ったら、駒が止まるのを待って自動で敵ターンへ
+}
+cv.addEventListener('pointerdown', onDown);
+cv.addEventListener('pointermove', onMove);
+addEventListener('pointerup', onUp);
+cv.addEventListener('touchstart', onDown, {passive:false});
+cv.addEventListener('touchmove', onMove, {passive:false});
+addEventListener('touchend', onUp);
+
+/* --- 敵AI（狙って弾く） --- */
+function planEnemyShot(){
+  setTimeout(()=>{
+    const e=world.enemy, p=world.player;
+    const dx=p.x-e.x, dy=p.y-e.y, dist=Math.hypot(dx,dy)||1;
+    let dirX=dx/dist, dirY=dy/dist;
+    const ang = Math.atan2(dirY,dirX) + rnd(-0.18,0.18);
+    dirX=Math.cos(ang); dirY=Math.sin(ang);
+    const speed = clamp(dist*6.5, 500, 1300);
+    e.vx += dirX*speed; e.vy += dirY*speed;
+    world.es++; updateHud();
+    phase = 'resolving';                   // ★ 追加：敵も撃ったら待つ
+  }, 550);
+}
+
+/* --- メインループ --- */
+
+let last = performance.now();
+function loop(now){
+  requestAnimationFrame(loop);
+  const dt = Math.min(0.033, (now - last) / 1000); last = now;
+  if (world.over) { draw(); return; }
+
+  // 進行
+  world.player.step(dt);
+  world.enemy.step(dt);
+  collide(world.player, world.enemy);
+
+  // 落下チェック（決着は即終了）
+  if (isOffDesk(world.player)) { world.over = true; resultEl.textContent = "YOU LOSE"; overlay.style.display='flex'; }
+  if (isOffDesk(world.enemy))  { world.over = true; resultEl.textContent = "YOU WIN!";  overlay.style.display='flex'; }
+
+  // --- ★ 停止判定：物理＆落下チェックの“後” ---
+  const spP = world.player.speed();
+  const spE = world.enemy.speed();
+
+  const movedP = Math.hypot(world.player.x - lastPosP.x, world.player.y - lastPosP.y);
+  const movedE = Math.hypot(world.enemy.x  - lastPosE.x,  world.enemy.y  - lastPosE.y);
+  lastPosP = { x: world.player.x, y: world.player.y };
+  lastPosE = { x: world.enemy.x,  y: world.enemy.y };
+
+  const someoneMoving =
+    spP > STOP_SPEED || spE > STOP_SPEED ||
+    movedP > POS_EPS || movedE > POS_EPS ||
+    dragging; // プレイヤーが引っぱり中は動作中扱い
+
+  if (phase === 'resolving') {
+    if (!someoneMoving) settleCount++; else settleCount = 0;
+
+    if (settleCount >= STOP_FRAMES) {
+      settleCount = 0;
+
+      // 縁で止まった誤判定を避けるため内側へ軽く寄せる
+      for (const c of [world.player, world.enemy]) {
+        c.x = clamp(c.x, desk.x + c.r + 2, desk.x + desk.w - c.r - 2);
+        c.y = clamp(c.y, desk.y + c.r + 2, desk.y + desk.h - c.r - 2);
+        c.vx = 0; c.vy = 0;
+      }
+
+      phase = 'input';   // 入力解禁
+      nextTurn();        // ★ここでターン交代
+    }
+  }
+
+  // ← 毎フレーム最後に1回だけ描画
+  draw();
+}
+
+requestAnimationFrame(loop);
+
+/* --- 描画 --- */
+function drawDesk(){
+  const wood = ctx.createLinearGradient(0,0,0,H);
+  wood.addColorStop(0,"#6a4e3b"); wood.addColorStop(1,"#4e382a");
+  ctx.fillStyle=wood; ctx.fillRect(0,0,W,H);
+  ctx.fillStyle="rgba(0,0,0,.25)"; ctx.fillRect(desk.x-6,desk.y-6,desk.w+12,desk.h+12);
+  const felt = ctx.createLinearGradient(desk.x,desk.y,desk.x,desk.y+desk.h);
+  felt.addColorStop(0,"#1e3b2f"); felt.addColorStop(1,"#152a22");
+  ctx.fillStyle=felt; ctx.fillRect(desk.x,desk.y,desk.w,desk.h);
+  ctx.strokeStyle="rgba(255,255,255,.12)"; ctx.lineWidth=2; ctx.strokeRect(desk.x+1.5,desk.y+1.5,desk.w-3,desk.h-3);
+  ctx.strokeStyle="rgba(0,0,0,.35)"; ctx.lineWidth=3; ctx.strokeRect(desk.x,desk.y,desk.w,desk.h);
+}
+function drawAim(){
+  if(world.turn!=="player" || !dragging || !dragStart || !lastDrag) return;
+  const p=world.player, dx=lastDrag.x-dragStart.x, dy=lastDrag.y-dragStart.y;
+  const len=clamp(Math.hypot(dx,dy),0,POWER_PIXELS), nx=-dx/(len||1), ny=-dy/(len||1);
+  const headX=p.x+nx*60, headY=p.y+ny*60;
+  ctx.strokeStyle="#66d9ff"; ctx.lineWidth=2; ctx.setLineDash([6,6]);
+  ctx.beginPath(); ctx.moveTo(p.x,p.y); ctx.lineTo(headX,headY); ctx.stroke(); ctx.setLineDash([]);
+  ctx.fillStyle="#66d9ff";
+  ctx.beginPath(); ctx.moveTo(headX,headY);
+  ctx.lineTo(headX - ny*10 - nx*6, headY + nx*10 - ny*6);
+  ctx.lineTo(headX + ny*10 - nx*6, headY - nx*10 - ny*6);
+  ctx.closePath(); ctx.fill();
+}
+function draw(){
+  drawDesk();
+  drawAim();
+  world.enemy.draw();
+  world.player.draw();
+}
+</script>
+</body>
+</html>
