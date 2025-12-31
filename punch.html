@@ -1,0 +1,683 @@
+<!DOCTYPE html>
+
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🥊 ボクシング チャンピオン 🥊</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: Arial, sans-serif;
+            background: linear-gradient(to bottom, #1a1a2e, #16213e);
+            color: #fff;
+            overflow: hidden;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+        #game-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            padding: 10px;
+        }
+        h1 {
+            font-size: 28px;
+            margin-bottom: 15px;
+            color: #ffd700;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
+        }
+        #game-screen {
+            background: linear-gradient(to bottom, #2c3e50, #34495e);
+            border: 5px solid #95a5a6;
+            border-radius: 10px;
+            width: 100%;
+            max-width: 600px;
+            position: relative;
+            overflow: hidden;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+        }
+        #ring {
+            width: 100%;
+            height: 400px;
+            background: linear-gradient(to bottom, #34495e 0%, #2c3e50 50%, #1a252f 100%);
+            position: relative;
+            border-bottom: 3px solid #7f8c8d;
+        }
+        #opponent {
+            position: absolute;
+            top: 50px;
+            left: 50%;
+            transform: translateX(-50%);
+            text-align: center;
+            transition: all 0.2s;
+        }
+        .opponent-body {
+            width: 120px;
+            height: 150px;
+            background: linear-gradient(to bottom, #e74c3c, #c0392b);
+            border-radius: 20px;
+            position: relative;
+            margin: 0 auto;
+            border: 3px solid #000;
+        }
+        .opponent-head {
+            width: 80px;
+            height: 80px;
+            background: #f39c12;
+            border-radius: 50%;
+            position: absolute;
+            top: -70px;
+            left: 50%;
+            transform: translateX(-50%);
+            border: 3px solid #000;
+        }
+        .opponent-eye {
+            width: 15px;
+            height: 15px;
+            background: #000;
+            border-radius: 50%;
+            position: absolute;
+            top: 30px;
+        }
+        .eye-left { left: 20px; }
+        .eye-right { right: 20px; }
+        .opponent-glove {
+            width: 40px;
+            height: 40px;
+            background: #c0392b;
+            border-radius: 50%;
+            position: absolute;
+            top: 30px;
+            border: 3px solid #000;
+        }
+        .glove-left { left: -45px; }
+        .glove-right { right: -45px; }
+        .opponent-punching-left .glove-left {
+            animation: punchLeft 0.3s;
+        }
+        .opponent-punching-right .glove-right {
+            animation: punchRight 0.3s;
+        }
+        @keyframes punchLeft {
+            50% { left: -80px; top: 60px; transform: scale(1.5); }
+        }
+        @keyframes punchRight {
+            50% { right: -80px; top: 60px; transform: scale(1.5); }
+        }
+        .opponent-telegraph {
+            position: absolute;
+            top: -30px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 24px;
+            animation: blink 0.5s infinite;
+        }
+        @keyframes blink {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.3; }
+        }
+        #player {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            text-align: center;
+            transition: all 0.15s;
+        }
+        .player-body {
+            width: 100px;
+            height: 120px;
+            background: linear-gradient(to bottom, #3498db, #2980b9);
+            border-radius: 15px;
+            position: relative;
+            margin: 0 auto;
+            border: 3px solid #000;
+        }
+        .player-head {
+            width: 60px;
+            height: 60px;
+            background: #f39c12;
+            border-radius: 50%;
+            position: absolute;
+            top: -55px;
+            left: 50%;
+            transform: translateX(-50%);
+            border: 3px solid #000;
+        }
+        .player-glove {
+            width: 30px;
+            height: 30px;
+            background: #2980b9;
+            border-radius: 50%;
+            position: absolute;
+            top: 20px;
+            border: 3px solid #000;
+        }
+        .player-glove-left { left: -35px; }
+        .player-glove-right { right: -35px; }
+        .dodging-left {
+            transform: translateX(-120px);
+        }
+        .dodging-right {
+            transform: translateX(80px);
+        }
+        .punching-left .player-glove-left {
+            animation: playerPunchLeft 0.2s;
+        }
+        .punching-right .player-glove-right {
+            animation: playerPunchRight 0.2s;
+        }
+        @keyframes playerPunchLeft {
+            50% { left: -60px; top: -20px; transform: scale(1.3); }
+        }
+        @keyframes playerPunchRight {
+            50% { right: -60px; top: -20px; transform: scale(1.3); }
+        }
+        #hp-bars {
+            padding: 15px;
+            background: rgba(0,0,0,0.7);
+            display: flex;
+            justify-content: space-between;
+            gap: 20px;
+        }
+        .hp-container {
+            flex: 1;
+        }
+        .hp-label {
+            font-size: 14px;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        .hp-bar {
+            height: 25px;
+            background: #34495e;
+            border: 2px solid #000;
+            border-radius: 5px;
+            overflow: hidden;
+        }
+        .hp-fill {
+            height: 100%;
+            transition: width 0.3s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+            font-weight: bold;
+            color: #000;
+        }
+        .player-hp { background: linear-gradient(to right, #3498db, #5dade2); }
+        .opponent-hp { background: linear-gradient(to right, #e74c3c, #ec7063); }
+        #controls {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 10px;
+            padding: 15px;
+            background: rgba(0,0,0,0.5);
+        }
+        .btn {
+            padding: 20px;
+            font-size: 16px;
+            font-weight: bold;
+            border: 3px solid #000;
+            border-radius: 10px;
+            cursor: pointer;
+            touch-action: manipulation;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+            transition: transform 0.1s;
+        }
+        .btn:active {
+            transform: scale(0.95);
+        }
+        .btn-punch-left {
+            background: linear-gradient(to bottom, #e74c3c, #c0392b);
+            color: #fff;
+        }
+        .btn-punch-right {
+            background: linear-gradient(to bottom, #e67e22, #d35400);
+            color: #fff;
+        }
+        .btn-dodge-left {
+            background: linear-gradient(to bottom, #f39c12, #d68910);
+            color: #000;
+        }
+        .btn-dodge-right {
+            background: linear-gradient(to bottom, #16a085, #138d75);
+            color: #fff;
+        }
+        .btn-block {
+            background: linear-gradient(to bottom, #95a5a6, #7f8c8d);
+            color: #fff;
+            grid-column: 2;
+        }
+        #message {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0,0,0,0.95);
+            padding: 30px;
+            border-radius: 15px;
+            text-align: center;
+            display: none;
+            z-index: 10;
+            border: 4px solid #ffd700;
+            box-shadow: 0 0 30px rgba(255, 215, 0, 0.5);
+        }
+        #message h2 {
+            font-size: 36px;
+            margin-bottom: 15px;
+            color: #ffd700;
+        }
+        #message button {
+            padding: 15px 30px;
+            font-size: 18px;
+            background: linear-gradient(to bottom, #2ecc71, #27ae60);
+            color: #fff;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: bold;
+            margin-top: 15px;
+            border: 2px solid #000;
+        }
+        #round-indicator {
+            position: absolute;
+            top: 10px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0,0,0,0.8);
+            padding: 5px 15px;
+            border-radius: 20px;
+            font-size: 14px;
+            font-weight: bold;
+            color: #ffd700;
+            z-index: 5;
+        }
+        .hit-effect {
+            position: absolute;
+            font-size: 24px;
+            font-weight: bold;
+            color: #fff;
+            text-shadow: 2px 2px 4px #000;
+            animation: hitAnim 0.5s forwards;
+            pointer-events: none;
+        }
+        @keyframes hitAnim {
+            0% { opacity: 1; transform: scale(1); }
+            100% { opacity: 0; transform: scale(2); }
+        }
+    </style>
+</head>
+<body>
+    <div id="game-container">
+        <h1>🥊 ボクシング チャンピオン 🥊</h1>
+        <div id="game-screen">
+            <div id="round-indicator">ラウンド <span id="round-num">1</span></div>
+            <div id="hp-bars">
+                <div class="hp-container">
+                    <div class="hp-label">あなた</div>
+                    <div class="hp-bar">
+                        <div class="hp-fill player-hp" id="player-hp"></div>
+                    </div>
+                </div>
+                <div class="hp-container">
+                    <div class="hp-label" id="opponent-name">対戦相手</div>
+                    <div class="hp-bar">
+                        <div class="hp-fill opponent-hp" id="opponent-hp"></div>
+                    </div>
+                </div>
+            </div>
+            <div id="ring">
+                <div id="opponent">
+                    <div class="opponent-body">
+                        <div class="opponent-head">
+                            <div class="opponent-eye eye-left"></div>
+                            <div class="opponent-eye eye-right"></div>
+                        </div>
+                        <div class="opponent-glove glove-left"></div>
+                        <div class="opponent-glove glove-right"></div>
+                    </div>
+                </div>
+                <div id="player">
+                    <div class="player-body">
+                        <div class="player-head"></div>
+                        <div class="player-glove player-glove-left"></div>
+                        <div class="player-glove player-glove-right"></div>
+                    </div>
+                </div>
+            </div>
+            <div id="controls">
+                <button class="btn btn-punch-left" id="punch-left">👊<br>左パンチ</button>
+                <button class="btn btn-block" id="block">🛡️<br>ガード</button>
+                <button class="btn btn-punch-right" id="punch-right">👊<br>右パンチ</button>
+                <button class="btn btn-dodge-left" id="dodge-left">⬅️<br>左回避</button>
+                <div></div>
+                <button class="btn btn-dodge-right" id="dodge-right">➡️<br>右回避</button>
+            </div>
+            <div id="message">
+                <h2 id="message-title"></h2>
+                <p id="message-text"></p>
+                <button onclick="nextRound()">次のラウンド</button>
+            </div>
+        </div>
+    </div>
+
+```
+<script>
+    let player, opponent, round, gameState;
+    let opponentAction = null;
+    let playerAction = null;
+    let isBlocking = false;
+    let audioContext = null;
+
+    const opponents = [
+        { name: 'グラス・ジョー', hp: 60, attack: 8, speed: 2000 },
+        { name: 'フォン・カイザー', hp: 80, attack: 12, speed: 1700 },
+        { name: 'ピストン・ホンダ', hp: 100, attack: 15, speed: 1500 },
+        { name: 'マイク・タイソン', hp: 120, attack: 20, speed: 1200 }
+    ];
+
+    function initAudio() {
+        if (!audioContext) {
+            audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        }
+    }
+
+    function playSound(frequency, duration, type = 'sine') {
+        initAudio();
+        const osc = audioContext.createOscillator();
+        const gain = audioContext.createGain();
+        osc.connect(gain);
+        gain.connect(audioContext.destination);
+        osc.frequency.value = frequency;
+        osc.type = type;
+        gain.gain.setValueAtTime(0.2, audioContext.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + duration);
+        osc.start(audioContext.currentTime);
+        osc.stop(audioContext.currentTime + duration);
+    }
+
+    function playPunchSound() {
+        playSound(200, 0.1, 'square');
+    }
+
+    function playHitSound() {
+        playSound(150, 0.15, 'sawtooth');
+    }
+
+    function playWinSound() {
+        playSound(523, 0.15);
+        setTimeout(() => playSound(659, 0.15), 150);
+        setTimeout(() => playSound(784, 0.3), 300);
+    }
+
+    function playLoseSound() {
+        playSound(200, 0.5, 'sawtooth');
+    }
+
+    function init() {
+        round = 1;
+        gameState = 'playing';
+        startRound();
+    }
+
+    function startRound() {
+        const opponentData = opponents[Math.min(round - 1, opponents.length - 1)];
+        
+        player = {
+            hp: 100,
+            maxHp: 100
+        };
+
+        opponent = {
+            ...opponentData,
+            maxHp: opponentData.hp
+        };
+
+        document.getElementById('round-num').textContent = round;
+        document.getElementById('opponent-name').textContent = opponent.name;
+        document.getElementById('message').style.display = 'none';
+        
+        updateHP();
+        startOpponentAI();
+    }
+
+    function updateHP() {
+        const playerPercent = (player.hp / player.maxHp) * 100;
+        const opponentPercent = (opponent.hp / opponent.maxHp) * 100;
+        
+        document.getElementById('player-hp').style.width = playerPercent + '%';
+        document.getElementById('player-hp').textContent = player.hp;
+        
+        document.getElementById('opponent-hp').style.width = opponentPercent + '%';
+        document.getElementById('opponent-hp').textContent = opponent.hp;
+    }
+
+    function startOpponentAI() {
+        if (gameState !== 'playing') return;
+
+        setTimeout(() => {
+            if (gameState !== 'playing') return;
+
+            const actions = ['left', 'right', 'left', 'right', 'uppercut'];
+            opponentAction = actions[Math.floor(Math.random() * actions.length)];
+            
+            // 予告表示
+            const opponentDiv = document.getElementById('opponent');
+            const telegraph = document.createElement('div');
+            telegraph.className = 'opponent-telegraph';
+            telegraph.textContent = '!';
+            opponentDiv.appendChild(telegraph);
+
+            setTimeout(() => {
+                telegraph.remove();
+                executeOpponentAttack();
+            }, 500);
+
+        }, opponent.speed + Math.random() * 1000);
+    }
+
+    function executeOpponentAttack() {
+        if (gameState !== 'playing') return;
+
+        const opponentDiv = document.getElementById('opponent');
+        
+        if (opponentAction === 'left') {
+            opponentDiv.classList.add('opponent-punching-left');
+            playPunchSound();
+        } else if (opponentAction === 'right') {
+            opponentDiv.classList.add('opponent-punching-right');
+            playPunchSound();
+        }
+
+        setTimeout(() => {
+            // ダメージ判定
+            if (!playerAction && !isBlocking) {
+                const damage = opponent.attack;
+                player.hp -= damage;
+                playHitSound();
+                showHitEffect('HIT!', '#ff4444');
+                
+                if (player.hp <= 0) {
+                    player.hp = 0;
+                    endRound(false);
+                }
+                updateHP();
+            } else if (playerAction) {
+                showHitEffect('MISS!', '#ffd700');
+            } else if (isBlocking) {
+                showHitEffect('BLOCK!', '#3498db');
+            }
+
+            opponentDiv.classList.remove('opponent-punching-left', 'opponent-punching-right');
+            opponentAction = null;
+            playerAction = null;
+            isBlocking = false;
+
+            if (gameState === 'playing') {
+                startOpponentAI();
+            }
+        }, 300);
+    }
+
+    function playerPunch(side) {
+        if (gameState !== 'playing' || playerAction) return;
+
+        const playerDiv = document.getElementById('player');
+        playerAction = 'punch-' + side;
+        
+        playerDiv.classList.add('punching-' + side);
+        playPunchSound();
+
+        setTimeout(() => {
+            playerDiv.classList.remove('punching-' + side);
+            
+            // ダメージ判定
+            if (!opponentAction) {
+                const damage = 15;
+                opponent.hp -= damage;
+                playHitSound();
+                showHitEffect('HIT!', '#2ecc71');
+                
+                if (opponent.hp <= 0) {
+                    opponent.hp = 0;
+                    endRound(true);
+                }
+                updateHP();
+            }
+            
+            playerAction = null;
+        }, 200);
+    }
+
+    function playerDodge(direction) {
+        if (gameState !== 'playing' || playerAction) return;
+
+        const playerDiv = document.getElementById('player');
+        playerAction = 'dodge-' + direction;
+        
+        playerDiv.classList.add('dodging-' + direction);
+
+        setTimeout(() => {
+            playerDiv.classList.remove('dodging-' + direction);
+            playerAction = null;
+        }, 400);
+    }
+
+    function playerBlock() {
+        if (gameState !== 'playing') return;
+        isBlocking = true;
+        
+        setTimeout(() => {
+            isBlocking = false;
+        }, 500);
+    }
+
+    function showHitEffect(text, color) {
+        const ring = document.getElementById('ring');
+        const effect = document.createElement('div');
+        effect.className = 'hit-effect';
+        effect.textContent = text;
+        effect.style.color = color;
+        effect.style.top = '40%';
+        effect.style.left = '50%';
+        effect.style.transform = 'translate(-50%, -50%)';
+        ring.appendChild(effect);
+
+        setTimeout(() => effect.remove(), 500);
+    }
+
+    function endRound(playerWon) {
+        gameState = 'roundOver';
+
+        if (playerWon) {
+            playWinSound();
+            if (round >= opponents.length) {
+                document.getElementById('message-title').textContent = '🏆 チャンピオン！ 🏆';
+                document.getElementById('message-text').textContent = '全ての対戦相手を倒した！';
+                document.getElementById('message').querySelector('button').textContent = '最初から';
+            } else {
+                document.getElementById('message-title').textContent = '🎉 勝利！ 🎉';
+                document.getElementById('message-text').textContent = opponent.name + 'を倒した！';
+                document.getElementById('message').querySelector('button').textContent = '次のラウンド';
+            }
+        } else {
+            playLoseSound();
+            document.getElementById('message-title').textContent = '💀 KO負け 💀';
+            document.getElementById('message-text').textContent = 'もう一度挑戦しよう！';
+            document.getElementById('message').querySelector('button').textContent = 'やり直す';
+        }
+
+        document.getElementById('message').style.display = 'block';
+    }
+
+    function nextRound() {
+        const button = document.getElementById('message').querySelector('button');
+        
+        if (button.textContent === '最初から') {
+            round = 1;
+            gameState = 'playing';
+            startRound();
+        } else if (button.textContent === 'やり直す') {
+            gameState = 'playing';
+            startRound();
+        } else {
+            round++;
+            gameState = 'playing';
+            startRound();
+        }
+    }
+
+    // コントロール
+    document.getElementById('punch-left').addEventListener('click', () => playerPunch('left'));
+    document.getElementById('punch-left').addEventListener('touchstart', (e) => {
+        e.preventDefault();
+        playerPunch('left');
+    });
+
+    document.getElementById('punch-right').addEventListener('click', () => playerPunch('right'));
+    document.getElementById('punch-right').addEventListener('touchstart', (e) => {
+        e.preventDefault();
+        playerPunch('right');
+    });
+
+    document.getElementById('dodge-left').addEventListener('click', () => playerDodge('left'));
+    document.getElementById('dodge-left').addEventListener('touchstart', (e) => {
+        e.preventDefault();
+        playerDodge('left');
+    });
+
+    document.getElementById('dodge-right').addEventListener('click', () => playerDodge('right'));
+    document.getElementById('dodge-right').addEventListener('touchstart', (e) => {
+        e.preventDefault();
+        playerDodge('right');
+    });
+
+    document.getElementById('block').addEventListener('click', playerBlock);
+    document.getElementById('block').addEventListener('touchstart', (e) => {
+        e.preventDefault();
+        playerBlock();
+    });
+
+    // キーボード操作
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'a' || e.key === 'A') playerPunch('left');
+        if (e.key === 'd' || e.key === 'D') playerPunch('right');
+        if (e.key === 'ArrowLeft') playerDodge('left');
+        if (e.key === 'ArrowRight') playerDodge('right');
+        if (e.key === ' ') playerBlock();
+    });
+
+    init();
+</script>
+```
+
+</body>
+</html>
