@@ -1,0 +1,643 @@
+import React, { useState, useEffect, useRef } from ‘react’;
+
+const FamicomQuiz = () => {
+const [currentQuestion, setCurrentQuestion] = useState(0);
+const [score, setScore] = useState(0);
+const [mistakes, setMistakes] = useState(0);
+const [gameStatus, setGameStatus] = useState(‘playing’); // ‘playing’, ‘win’, ‘lose’
+const [selectedAnswer, setSelectedAnswer] = useState(null);
+const [showResult, setShowResult] = useState(false);
+const [usedQuestions, setUsedQuestions] = useState([]);
+const [question, setQuestion] = useState(null);
+
+// 効果音の生成
+const audioContextRef = useRef(null);
+
+useEffect(() => {
+audioContextRef.current = new (window.AudioContext || window.webkitAudioContext)();
+}, []);
+
+const playCorrectSound = () => {
+const ctx = audioContextRef.current;
+if (!ctx) return;
+
+```
+// ピンポン音（2回）
+const playPing = (startTime) => {
+  const osc = ctx.createOscillator();
+  const gain = ctx.createGain();
+  
+  osc.connect(gain);
+  gain.connect(ctx.destination);
+  
+  osc.frequency.value = 880; // A5
+  osc.type = 'sine';
+  
+  gain.gain.setValueAtTime(0.3, startTime);
+  gain.gain.exponentialRampToValueAtTime(0.01, startTime + 0.15);
+  
+  osc.start(startTime);
+  osc.stop(startTime + 0.15);
+};
+
+playPing(ctx.currentTime);
+playPing(ctx.currentTime + 0.15);
+```
+
+};
+
+const playIncorrectSound = () => {
+const ctx = audioContextRef.current;
+if (!ctx) return;
+
+```
+// ブー音
+const osc = ctx.createOscillator();
+const gain = ctx.createGain();
+
+osc.connect(gain);
+gain.connect(ctx.destination);
+
+osc.frequency.value = 200; // 低い音
+osc.type = 'sawtooth';
+
+gain.gain.setValueAtTime(0.3, ctx.currentTime);
+gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.5);
+
+osc.start(ctx.currentTime);
+osc.stop(ctx.currentTime + 0.5);
+```
+
+};
+
+const questions = [
+{
+question: ‘ファミコンが発売されたのは何年？’,
+choices: [‘1981年’, ‘1983年’, ‘1985年’, ‘1987年’],
+correct: 1,
+explanation: ‘ファミコンは1983年7月15日に発売されました。’
+},
+{
+question: ‘ファミコンの正式名称は？’,
+choices: [‘ファミリーコンピュータ’, ‘ファミリーコンソール’, ‘ファーストコンピュータ’, ‘ファンコンピュータ’],
+correct: 0,
+explanation: ‘正式名称は「ファミリーコンピュータ」です。’
+},
+{
+question: ‘スーパーマリオブラザーズが発売されたのは？’,
+choices: [‘1983年’, ‘1984年’, ‘1985年’, ‘1986年’],
+correct: 2,
+explanation: ‘スーパーマリオブラザーズは1985年9月13日に発売されました。’
+},
+{
+question: ‘ファミコンのコントローラーのボタンは何個？’,
+choices: [‘2個’, ‘4個’, ‘6個’, ‘8個’],
+correct: 1,
+explanation: ‘A、B、SELECT、STARTの4個のボタンがあります。’
+},
+{
+question: ‘ドラゴンクエストシリーズを開発した会社は？’,
+choices: [‘任天堂’, ‘エニックス’, ‘ナムコ’, ‘カプコン’],
+correct: 1,
+explanation: ‘ドラゴンクエストはエニックス（現スクウェア・エニックス）が開発しました。’
+},
+{
+question: ‘ファミコンのカセットの色は主に何色？’,
+choices: [‘黒’, ‘赤’, ‘グレー’, ‘青’],
+correct: 2,
+explanation: ‘ファミコンのカセットは主にグレー色でした。’
+},
+{
+question: ‘ファミコンで初めて発売されたゲームは？’,
+choices: [‘ドンキーコング’, ‘ポパイ’, ‘マリオブラザーズ’, ‘パックマン’],
+correct: 0,
+explanation: ‘ドンキーコング、ドンキーコングJR、ポパイの3本が最初に発売されました。’
+},
+{
+question: ‘ファミコンのCPUは何ビット？’,
+choices: [‘4ビット’, ‘8ビット’, ‘16ビット’, ‘32ビット’],
+correct: 1,
+explanation: ‘ファミコンは8ビットのCPUを搭載していました。’
+},
+{
+question: ‘ロックマンシリーズを開発した会社は？’,
+choices: [‘コナミ’, ‘カプコン’, ‘タイトー’, ‘ハドソン’],
+correct: 1,
+explanation: ‘ロックマンはカプコンが開発したゲームです。’
+},
+{
+question: ‘ファミコンの発売価格は？’,
+choices: [‘9,800円’, ‘12,500円’, ‘14,800円’, ‘19,800円’],
+correct: 2,
+explanation: ‘ファミコンの発売時の価格は14,800円でした。’
+},
+{
+question: ‘ファミリーコンピュータ ディスクシステムが発売されたのは？’,
+choices: [‘1984年’, ‘1985年’, ‘1986年’, ‘1987年’],
+correct: 2,
+explanation: ‘ディスクシステムは1986年2月21日に発売されました。’
+},
+{
+question: ‘グラディウスを開発した会社は？’,
+choices: [‘ナムコ’, ‘コナミ’, ‘タイトー’, ‘セガ’],
+correct: 1,
+explanation: ‘グラディウスはコナミが開発したシューティングゲームです。’
+},
+{
+question: ‘ゼルダの伝説の主人公の名前は？’,
+choices: [‘ゼルダ’, ‘リンク’, ‘ガノン’, ‘トライフォース’],
+correct: 1,
+explanation: ‘主人公はリンクです。ゼルダは姫の名前です。’
+},
+{
+question: ‘ファミコンで最も売れたゲームは？’,
+choices: [‘ドラゴンクエストIII’, ‘スーパーマリオブラザーズ’, ‘ファイナルファンタジーIII’, ‘ドラゴンクエストIV’],
+correct: 1,
+explanation: ‘スーパーマリオブラザーズが約681万本で最多販売本数です。’
+},
+{
+question: ‘ファミコンのカセットに使われたメモリーバックアップ用の電池は？’,
+choices: [‘単三電池’, ‘ボタン電池’, ‘リチウム電池’, ‘充電池’],
+correct: 1,
+explanation: ‘CR2032などのボタン電池が使われていました。’
+},
+{
+question: ‘メトロイドの主人公サムスの性別は？’,
+choices: [‘男性’, ‘女性’, ‘ロボット’, ‘不明’],
+correct: 1,
+explanation: ‘サムス・アランは女性です。当時は衝撃的な事実でした。’
+},
+{
+question: ‘高橋名人の16連射で有名なゲームは？’,
+choices: [‘スターソルジャー’, ‘ギャラガ’, ‘ゼビウス’, ‘グラディウス’],
+correct: 0,
+explanation: ‘スターソルジャーで高橋名人の16連射が有名になりました。’
+},
+{
+question: ‘ファミコンの画面解像度は？’,
+choices: [‘256×224’, ‘320×240’, ‘512×448’, ‘640×480’],
+correct: 0,
+explanation: ‘ファミコンの解像度は256×224ピクセルでした。’
+},
+{
+question: ‘ファイナルファンタジーを開発した会社は？’,
+choices: [‘エニックス’, ‘スクウェア’, ‘ナムコ’, ‘カプコン’],
+correct: 1,
+explanation: ‘ファイナルファンタジーはスクウェア（現スクウェア・エニックス）が開発しました。’
+},
+{
+question: ‘パックマンの生みの親は？’,
+choices: [‘宮本茂’, ‘岩谷徹’, ‘堀井雄二’, ‘坂口博信’],
+correct: 1,
+explanation: ‘パックマンはナムコの岩谷徹氏が開発しました。’
+},
+{
+question: ‘初代ドラゴンクエストの発売年は？’,
+choices: [‘1984年’, ‘1985年’, ‘1986年’, ‘1987年’],
+correct: 2,
+explanation: ‘初代ドラゴンクエストは1986年5月27日に発売されました。’
+},
+{
+question: ‘魂斗羅の協力プレイは最大何人？’,
+choices: [‘1人’, ‘2人’, ‘3人’, ‘4人’],
+correct: 1,
+explanation: ‘魂斗羅は2人同時プレイが可能でした。’
+},
+{
+question: ‘ファミコンのカセットの最大容量（初期）は？’,
+choices: [‘256KB’, ‘512KB’, ‘1MB’, ‘2MB’],
+correct: 1,
+explanation: ‘初期のファミコンカセットは512KB程度でした。’
+},
+{
+question: ‘ファミコンロボットが発売されたのは？’,
+choices: [‘1983年’, ‘1984年’, ‘1985年’, ‘1986年’],
+correct: 2,
+explanation: ‘ファミコンロボットは1985年に発売されました。’
+},
+{
+question: ‘バルーンファイトのキャラクターがつかんでいるものは？’,
+choices: [‘ヘリウム風船’, ‘気球’, ‘浮き輪’, ‘パラシュート’],
+correct: 0,
+explanation: ‘2つの風船をつかんで空を飛びます。’
+},
+{
+question: ‘ファミコンのコントローラーの十字キーを開発したのは？’,
+choices: [‘横井軍平’, ‘宮本茂’, ‘岩田聡’, ‘山内溥’],
+correct: 0,
+explanation: ‘横井軍平氏が十字キーを開発しました。’
+},
+{
+question: ‘アイスクライマーの主人公は？’,
+choices: [‘マリオとルイージ’, ‘ポポとナナ’, ‘リンクとゼルダ’, ‘カービィとワドルディ’],
+correct: 1,
+explanation: ‘ポポとナナがアイスクライマーの主人公です。’
+},
+{
+question: ‘エキサイトバイクで有名な操作は？’,
+choices: [‘ドリフト’, ‘ウィリー’, ‘ジャンプ’, ‘ターボ’],
+correct: 3,
+explanation: ‘ターボボタンを駆使したレースが特徴でした。’
+},
+{
+question: ‘ファミコンのカセット差し込み口は？’,
+choices: [‘前面’, ‘上面’, ‘側面’, ‘背面’],
+correct: 1,
+explanation: ‘ファミコンは上面にカセットを差し込む形式でした。’
+},
+{
+question: ‘ファミコン版テトリスを発売した会社は？’,
+choices: [‘任天堂’, ‘セガ’, ‘BPS’, ‘ハドソン’],
+correct: 2,
+explanation: ‘BPS（ビーピーエス）から発売されました。’
+},
+{
+question: ‘スペランカーで有名なのは？’,
+choices: [‘高難易度’, ‘美しいグラフィック’, ‘長いストーリー’, ‘多彩なキャラ’],
+correct: 0,
+explanation: ‘ちょっとした段差で死ぬ高難易度で有名です。’
+},
+{
+question: ‘マリオの職業は？’,
+choices: [‘大工’, ‘配管工’, ‘医者’, ‘教師’],
+correct: 1,
+explanation: ‘マリオは配管工です。’
+}
+];
+
+const getRandomQuestion = () => {
+const availableQuestions = questions.filter((_, index) => !usedQuestions.includes(index));
+if (availableQuestions.length === 0) {
+setUsedQuestions([]);
+return questions[Math.floor(Math.random() * questions.length)];
+}
+const randomQuestion = availableQuestions[Math.floor(Math.random() * availableQuestions.length)];
+const questionIndex = questions.indexOf(randomQuestion);
+setUsedQuestions([…usedQuestions, questionIndex]);
+return randomQuestion;
+};
+
+// 初回レンダリング時に最初の問題を設定
+useEffect(() => {
+if (!question) {
+const availableQuestions = questions.filter((_, index) => !usedQuestions.includes(index));
+const randomQuestion = availableQuestions[Math.floor(Math.random() * availableQuestions.length)];
+const questionIndex = questions.indexOf(randomQuestion);
+setUsedQuestions([questionIndex]);
+setQuestion(randomQuestion);
+}
+}, []);
+
+const handleAnswer = (index) => {
+if (showResult) return;
+
+```
+setSelectedAnswer(index);
+setShowResult(true);
+
+if (index === question.correct) {
+  playCorrectSound(); // 正解音
+  const newScore = score + 1;
+  setScore(newScore);
+  
+  if (newScore >= 5) {
+    setGameStatus('win');
+  }
+} else {
+  playIncorrectSound(); // 不正解音
+  const newMistakes = mistakes + 1;
+  setMistakes(newMistakes);
+  
+  if (newMistakes >= 3) {
+    setGameStatus('lose');
+  }
+}
+```
+
+};
+
+const nextQuestion = () => {
+setSelectedAnswer(null);
+setShowResult(false);
+setQuestion(getRandomQuestion());
+setCurrentQuestion(currentQuestion + 1);
+};
+
+const resetGame = () => {
+setScore(0);
+setMistakes(0);
+setGameStatus(‘playing’);
+setSelectedAnswer(null);
+setShowResult(false);
+setCurrentQuestion(0);
+setUsedQuestions([]);
+
+```
+// 新しい問題を選択
+const randomQuestion = questions[Math.floor(Math.random() * questions.length)];
+const questionIndex = questions.indexOf(randomQuestion);
+setUsedQuestions([questionIndex]);
+setQuestion(randomQuestion);
+```
+
+};
+
+const buttonStyle = (index) => ({
+padding: ‘20px’,
+fontSize: ‘18px’,
+backgroundColor: showResult
+? index === question.correct
+? ‘#00f000’
+: index === selectedAnswer
+? ‘#f00’
+: ‘#444’
+: ‘#00f0f0’,
+color: showResult && (index === question.correct || index === selectedAnswer) ? ‘#000’ : ‘#000’,
+border: ‘none’,
+borderRadius: ‘10px’,
+cursor: showResult ? ‘default’ : ‘pointer’,
+fontWeight: ‘bold’,
+textAlign: ‘left’,
+width: ‘100%’,
+boxShadow: ‘0 4px 6px rgba(0,0,0,0.3)’,
+transition: ‘all 0.2s’,
+touchAction: ‘manipulation’,
+userSelect: ‘none’,
+opacity: showResult && index !== question.correct && index !== selectedAnswer ? 0.5 : 1
+});
+
+if (gameStatus === ‘win’) {
+return (
+<div style={{
+display: ‘flex’,
+flexDirection: ‘column’,
+alignItems: ‘center’,
+justifyContent: ‘center’,
+padding: ‘20px’,
+fontFamily: ‘Arial, sans-serif’,
+backgroundColor: ‘#1a1a1a’,
+minHeight: ‘100vh’,
+color: ‘#fff’,
+textAlign: ‘center’
+}}>
+<h1 style={{ fontSize: ‘48px’, marginBottom: ‘20px’, color: ‘#00f000’ }}>🎉 クリア！ 🎉</h1>
+<p style={{ fontSize: ‘24px’, marginBottom: ‘30px’ }}>
+5問正解しました！<br />
+ファミコンマスターです！
+</p>
+<div style={{ fontSize: ‘20px’, marginBottom: ‘30px’, color: ‘#aaa’ }}>
+正解数: <span style={{ color: ‘#00f000’, fontWeight: ‘bold’ }}>{score}</span> /
+不正解数: <span style={{ color: ‘#f00’, fontWeight: ‘bold’ }}>{mistakes}</span>
+</div>
+<button
+onClick={resetGame}
+onTouchStart={(e) => { e.preventDefault(); resetGame(); }}
+style={{
+padding: ‘20px 40px’,
+fontSize: ‘20px’,
+backgroundColor: ‘#00f0f0’,
+color: ‘#000’,
+border: ‘none’,
+borderRadius: ‘10px’,
+cursor: ‘pointer’,
+fontWeight: ‘bold’,
+touchAction: ‘manipulation’
+}}
+>
+もう一度プレイ
+</button>
+</div>
+);
+}
+
+if (gameStatus === ‘lose’) {
+return (
+<div style={{
+display: ‘flex’,
+flexDirection: ‘column’,
+alignItems: ‘center’,
+justifyContent: ‘center’,
+padding: ‘20px’,
+fontFamily: ‘Arial, sans-serif’,
+backgroundColor: ‘#1a1a1a’,
+minHeight: ‘100vh’,
+color: ‘#fff’,
+textAlign: ‘center’
+}}>
+<h1 style={{ fontSize: ‘48px’, marginBottom: ‘20px’, color: ‘#f00’ }}>ゲームオーバー</h1>
+<p style={{ fontSize: ‘24px’, marginBottom: ‘30px’ }}>
+3回間違えてしまいました…<br />
+もう一度チャレンジしよう！
+</p>
+<div style={{ fontSize: ‘20px’, marginBottom: ‘30px’, color: ‘#aaa’ }}>
+正解数: <span style={{ color: ‘#00f000’, fontWeight: ‘bold’ }}>{score}</span> /
+不正解数: <span style={{ color: ‘#f00’, fontWeight: ‘bold’ }}>{mistakes}</span>
+</div>
+<button
+onClick={resetGame}
+onTouchStart={(e) => { e.preventDefault(); resetGame(); }}
+style={{
+padding: ‘20px 40px’,
+fontSize: ‘20px’,
+backgroundColor: ‘#00f0f0’,
+color: ‘#000’,
+border: ‘none’,
+borderRadius: ‘10px’,
+cursor: ‘pointer’,
+fontWeight: ‘bold’,
+touchAction: ‘manipulation’
+}}
+>
+もう一度プレイ
+</button>
+</div>
+);
+}
+
+// 問題が読み込まれていない場合
+if (!question) {
+return (
+<div style={{
+display: ‘flex’,
+alignItems: ‘center’,
+justifyContent: ‘center’,
+minHeight: ‘100vh’,
+backgroundColor: ‘#1a1a1a’,
+color: ‘#fff’,
+fontSize: ‘24px’
+}}>
+読み込み中…
+</div>
+);
+}
+
+return (
+<div style={{
+display: ‘flex’,
+flexDirection: ‘column’,
+alignItems: ‘center’,
+justifyContent: ‘center’,
+padding: ‘10px’,
+fontFamily: ‘Arial, sans-serif’,
+backgroundColor: ‘#1a1a1a’,
+minHeight: ‘100vh’,
+color: ‘#fff’,
+userSelect: ‘none’,
+boxSizing: ‘border-box’
+}}>
+<h1 style={{ margin: ‘0 0 10px 0’, color: ‘#f00’, fontSize: ‘24px’ }}>
+🎮 ファミコンクイズ 🎮
+</h1>
+
+```
+  {/* スコアボード */}
+  <div style={{
+    backgroundColor: '#222',
+    padding: '8px 20px',
+    borderRadius: '8px',
+    marginBottom: '10px',
+    display: 'flex',
+    gap: '30px',
+    width: '100%',
+    maxWidth: '500px',
+    justifyContent: 'center'
+  }}>
+    <div style={{ textAlign: 'center' }}>
+      <div style={{ fontSize: '11px', color: '#aaa', marginBottom: '2px' }}>正解</div>
+      <div style={{ fontSize: '20px', fontWeight: 'bold', color: '#00f000' }}>
+        {score} / 5
+      </div>
+    </div>
+    <div style={{
+      width: '2px',
+      backgroundColor: '#444'
+    }} />
+    <div style={{ textAlign: 'center' }}>
+      <div style={{ fontSize: '11px', color: '#aaa', marginBottom: '2px' }}>ミス</div>
+      <div style={{ fontSize: '20px', fontWeight: 'bold', color: '#f00' }}>
+        {mistakes} / 3
+      </div>
+    </div>
+  </div>
+
+  {/* ステータス表示 */}
+  {showResult && (
+    <div style={{
+      padding: '8px 15px',
+      borderRadius: '5px',
+      fontSize: '14px',
+      marginBottom: '10px',
+      fontWeight: 'bold',
+      backgroundColor: selectedAnswer === question.correct ? '#00f000' : '#f00',
+      color: '#000'
+    }}>
+      {selectedAnswer === question.correct ? '🎉 正解！' : '❌ 不正解...'}
+    </div>
+  )}
+
+  {/* 問題カード */}
+  <div style={{
+    backgroundColor: '#222',
+    padding: '15px',
+    borderRadius: '10px',
+    width: '100%',
+    maxWidth: '500px',
+    marginBottom: '10px',
+    boxShadow: '0 4px 8px rgba(0,0,0,0.5)'
+  }}>
+    <div style={{
+      fontSize: '12px',
+      color: '#aaa',
+      marginBottom: '8px'
+    }}>
+      問題 {currentQuestion + 1}
+    </div>
+    <h2 style={{
+      fontSize: '16px',
+      marginBottom: '15px',
+      lineHeight: '1.4'
+    }}>
+      {question.question}
+    </h2>
+
+    <div style={{
+      display: 'flex',
+      flexDirection: 'column',
+      gap: '8px'
+    }}>
+      {question.choices.map((choice, index) => (
+        <button
+          key={index}
+          onClick={() => handleAnswer(index)}
+          onTouchStart={(e) => { e.preventDefault(); handleAnswer(index); }}
+          style={{
+            padding: '12px',
+            fontSize: '14px',
+            backgroundColor: showResult
+              ? index === question.correct
+                ? '#00f000'
+                : index === selectedAnswer
+                ? '#f00'
+                : '#444'
+              : '#00f0f0',
+            color: showResult && (index === question.correct || index === selectedAnswer) ? '#000' : '#000',
+            border: 'none',
+            borderRadius: '8px',
+            cursor: showResult ? 'default' : 'pointer',
+            fontWeight: 'bold',
+            textAlign: 'left',
+            width: '100%',
+            boxShadow: '0 2px 4px rgba(0,0,0,0.3)',
+            transition: 'all 0.2s',
+            touchAction: 'manipulation',
+            userSelect: 'none',
+            opacity: showResult && index !== question.correct && index !== selectedAnswer ? 0.5 : 1
+          }}
+        >
+          {String.fromCharCode(65 + index)}. {choice}
+        </button>
+      ))}
+    </div>
+
+    {showResult && (
+      <div style={{
+        marginTop: '15px',
+        padding: '12px',
+        backgroundColor: selectedAnswer === question.correct ? 'rgba(0, 240, 0, 0.1)' : 'rgba(240, 0, 0, 0.1)',
+        borderRadius: '8px',
+        border: selectedAnswer === question.correct ? '2px solid #00f000' : '2px solid #f00'
+      }}>
+        <div style={{ fontSize: '13px', lineHeight: '1.5' }}>
+          {question.explanation}
+        </div>
+      </div>
+    )}
+  </div>
+
+  {showResult && gameStatus === 'playing' && (
+    <button
+      onClick={nextQuestion}
+      onTouchStart={(e) => { e.preventDefault(); nextQuestion(); }}
+      style={{
+        padding: '12px 30px',
+        fontSize: '16px',
+        backgroundColor: '#00f0f0',
+        color: '#000',
+        border: 'none',
+        borderRadius: '8px',
+        cursor: 'pointer',
+        fontWeight: 'bold',
+        touchAction: 'manipulation',
+        boxShadow: '0 2px 4px rgba(0,0,0,0.3)'
+      }}
+    >
+      次の問題へ ➜
+    </button>
+  )}
+</div>
+```
+
+);
+};
+
+export default FamicomQuiz;
