@@ -1,0 +1,553 @@
+<!DOCTYPE html>
+
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🎮 ファミコンクイズ 🎮</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #1a1a1a;
+            color: #fff;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+        #app {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 10px;
+            min-height: 100vh;
+        }
+        h1 {
+            margin: 0 0 10px 0;
+            color: #f00;
+            font-size: 24px;
+        }
+        .scoreboard {
+            background-color: #222;
+            padding: 8px 20px;
+            border-radius: 8px;
+            margin-bottom: 10px;
+            display: flex;
+            gap: 30px;
+            width: 100%;
+            max-width: 500px;
+            justify-content: center;
+        }
+        .score-item {
+            text-align: center;
+        }
+        .score-label {
+            font-size: 11px;
+            color: #aaa;
+            margin-bottom: 2px;
+        }
+        .score-value {
+            font-size: 20px;
+            font-weight: bold;
+        }
+        .divider {
+            width: 2px;
+            background-color: #444;
+        }
+        .status-message {
+            padding: 8px 15px;
+            border-radius: 5px;
+            font-size: 14px;
+            margin-bottom: 10px;
+            font-weight: bold;
+        }
+        .question-card {
+            background-color: #222;
+            padding: 15px;
+            border-radius: 10px;
+            width: 100%;
+            max-width: 500px;
+            margin-bottom: 10px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.5);
+        }
+        .question-number {
+            font-size: 12px;
+            color: #aaa;
+            margin-bottom: 8px;
+        }
+        .question-text {
+            font-size: 16px;
+            margin-bottom: 15px;
+            line-height: 1.4;
+        }
+        .choices {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        .choice-btn {
+            padding: 12px;
+            font-size: 14px;
+            border: none;
+            border-radius: 8px;
+            font-weight: bold;
+            text-align: left;
+            width: 100%;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+            transition: all 0.2s;
+            cursor: pointer;
+            touch-action: manipulation;
+        }
+        .choice-btn.default {
+            background-color: #00f0f0;
+            color: #000;
+        }
+        .choice-btn.correct {
+            background-color: #00f000;
+            color: #000;
+        }
+        .choice-btn.incorrect {
+            background-color: #f00;
+            color: #000;
+        }
+        .choice-btn.disabled {
+            background-color: #444;
+            color: #000;
+            opacity: 0.5;
+            cursor: default;
+        }
+        .explanation {
+            margin-top: 15px;
+            padding: 12px;
+            border-radius: 8px;
+            font-size: 13px;
+            line-height: 1.5;
+        }
+        .explanation.correct {
+            background-color: rgba(0, 240, 0, 0.1);
+            border: 2px solid #00f000;
+        }
+        .explanation.incorrect {
+            background-color: rgba(240, 0, 0, 0.1);
+            border: 2px solid #f00;
+        }
+        .next-btn {
+            padding: 12px 30px;
+            font-size: 16px;
+            background-color: #00f0f0;
+            color: #000;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: bold;
+            touch-action: manipulation;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+        }
+        .game-over {
+            text-align: center;
+            padding: 20px;
+        }
+        .game-over h1 {
+            font-size: 48px;
+            margin-bottom: 20px;
+        }
+        .game-over p {
+            font-size: 24px;
+            margin-bottom: 30px;
+        }
+        .game-over .final-score {
+            font-size: 20px;
+            margin-bottom: 30px;
+            color: #aaa;
+        }
+        .reset-btn {
+            padding: 20px 40px;
+            font-size: 20px;
+            background-color: #00f0f0;
+            color: #000;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            font-weight: bold;
+            touch-action: manipulation;
+        }
+    </style>
+</head>
+<body>
+    <div id="app"></div>
+
+```
+<script>
+    const questions = [
+        {
+            question: 'ファミコンが発売されたのは何年？',
+            choices: ['1981年', '1983年', '1985年', '1987年'],
+            correct: 1,
+            explanation: 'ファミコンは1983年7月15日に発売されました。'
+        },
+        {
+            question: 'ファミコンの正式名称は？',
+            choices: ['ファミリーコンピュータ', 'ファミリーコンソール', 'ファーストコンピュータ', 'ファンコンピュータ'],
+            correct: 0,
+            explanation: '正式名称は「ファミリーコンピュータ」です。'
+        },
+        {
+            question: 'スーパーマリオブラザーズが発売されたのは？',
+            choices: ['1983年', '1984年', '1985年', '1986年'],
+            correct: 2,
+            explanation: 'スーパーマリオブラザーズは1985年9月13日に発売されました。'
+        },
+        {
+            question: 'ファミコンのコントローラーのボタンは何個？',
+            choices: ['2個', '4個', '6個', '8個'],
+            correct: 1,
+            explanation: 'A、B、SELECT、STARTの4個のボタンがあります。'
+        },
+        {
+            question: 'ドラゴンクエストシリーズを開発した会社は？',
+            choices: ['任天堂', 'エニックス', 'ナムコ', 'カプコン'],
+            correct: 1,
+            explanation: 'ドラゴンクエストはエニックス（現スクウェア・エニックス）が開発しました。'
+        },
+        {
+            question: 'ファミコンのカセットの色は主に何色？',
+            choices: ['黒', '赤', 'グレー', '青'],
+            correct: 2,
+            explanation: 'ファミコンのカセットは主にグレー色でした。'
+        },
+        {
+            question: 'ファミコンで初めて発売されたゲームは？',
+            choices: ['ドンキーコング', 'ポパイ', 'マリオブラザーズ', 'パックマン'],
+            correct: 0,
+            explanation: 'ドンキーコング、ドンキーコングJR、ポパイの3本が最初に発売されました。'
+        },
+        {
+            question: 'ファミコンのCPUは何ビット？',
+            choices: ['4ビット', '8ビット', '16ビット', '32ビット'],
+            correct: 1,
+            explanation: 'ファミコンは8ビットのCPUを搭載していました。'
+        },
+        {
+            question: 'ロックマンシリーズを開発した会社は？',
+            choices: ['コナミ', 'カプコン', 'タイトー', 'ハドソン'],
+            correct: 1,
+            explanation: 'ロックマンはカプコンが開発したゲームです。'
+        },
+        {
+            question: 'ファミコンの発売価格は？',
+            choices: ['9,800円', '12,500円', '14,800円', '19,800円'],
+            correct: 2,
+            explanation: 'ファミコンの発売時の価格は14,800円でした。'
+        },
+        {
+            question: 'ファミリーコンピュータ ディスクシステムが発売されたのは？',
+            choices: ['1984年', '1985年', '1986年', '1987年'],
+            correct: 2,
+            explanation: 'ディスクシステムは1986年2月21日に発売されました。'
+        },
+        {
+            question: 'グラディウスを開発した会社は？',
+            choices: ['ナムコ', 'コナミ', 'タイトー', 'セガ'],
+            correct: 1,
+            explanation: 'グラディウスはコナミが開発したシューティングゲームです。'
+        },
+        {
+            question: 'ゼルダの伝説の主人公の名前は？',
+            choices: ['ゼルダ', 'リンク', 'ガノン', 'トライフォース'],
+            correct: 1,
+            explanation: '主人公はリンクです。ゼルダは姫の名前です。'
+        },
+        {
+            question: 'ファミコンで最も売れたゲームは？',
+            choices: ['ドラゴンクエストIII', 'スーパーマリオブラザーズ', 'ファイナルファンタジーIII', 'ドラゴンクエストIV'],
+            correct: 1,
+            explanation: 'スーパーマリオブラザーズが約681万本で最多販売本数です。'
+        },
+        {
+            question: 'ファミコンのカセットに使われたメモリーバックアップ用の電池は？',
+            choices: ['単三電池', 'ボタン電池', 'リチウム電池', '充電池'],
+            correct: 1,
+            explanation: 'CR2032などのボタン電池が使われていました。'
+        },
+        {
+            question: 'メトロイドの主人公サムスの性別は？',
+            choices: ['男性', '女性', 'ロボット', '不明'],
+            correct: 1,
+            explanation: 'サムス・アランは女性です。当時は衝撃的な事実でした。'
+        },
+        {
+            question: '高橋名人の16連射で有名なゲームは？',
+            choices: ['スターソルジャー', 'ギャラガ', 'ゼビウス', 'グラディウス'],
+            correct: 0,
+            explanation: 'スターソルジャーで高橋名人の16連射が有名になりました。'
+        },
+        {
+            question: 'ファミコンの画面解像度は？',
+            choices: ['256×224', '320×240', '512×448', '640×480'],
+            correct: 0,
+            explanation: 'ファミコンの解像度は256×224ピクセルでした。'
+        },
+        {
+            question: 'ファイナルファンタジーを開発した会社は？',
+            choices: ['エニックス', 'スクウェア', 'ナムコ', 'カプコン'],
+            correct: 1,
+            explanation: 'ファイナルファンタジーはスクウェア（現スクウェア・エニックス）が開発しました。'
+        },
+        {
+            question: 'パックマンの生みの親は？',
+            choices: ['宮本茂', '岩谷徹', '堀井雄二', '坂口博信'],
+            correct: 1,
+            explanation: 'パックマンはナムコの岩谷徹氏が開発しました。'
+        },
+        {
+            question: '初代ドラゴンクエストの発売年は？',
+            choices: ['1984年', '1985年', '1986年', '1987年'],
+            correct: 2,
+            explanation: '初代ドラゴンクエストは1986年5月27日に発売されました。'
+        },
+        {
+            question: '魂斗羅の協力プレイは最大何人？',
+            choices: ['1人', '2人', '3人', '4人'],
+            correct: 1,
+            explanation: '魂斗羅は2人同時プレイが可能でした。'
+        },
+        {
+            question: 'ファミコンのカセットの最大容量（初期）は？',
+            choices: ['256KB', '512KB', '1MB', '2MB'],
+            correct: 1,
+            explanation: '初期のファミコンカセットは512KB程度でした。'
+        },
+        {
+            question: 'ファミコンロボットが発売されたのは？',
+            choices: ['1983年', '1984年', '1985年', '1986年'],
+            correct: 2,
+            explanation: 'ファミコンロボットは1985年に発売されました。'
+        },
+        {
+            question: 'バルーンファイトのキャラクターがつかんでいるものは？',
+            choices: ['ヘリウム風船', '気球', '浮き輪', 'パラシュート'],
+            correct: 0,
+            explanation: '2つの風船をつかんで空を飛びます。'
+        },
+        {
+            question: 'ファミコンのコントローラーの十字キーを開発したのは？',
+            choices: ['横井軍平', '宮本茂', '岩田聡', '山内溥'],
+            correct: 0,
+            explanation: '横井軍平氏が十字キーを開発しました。'
+        }
+    ];
+
+    let currentQuestionIndex = 0;
+    let score = 0;
+    let mistakes = 0;
+    let gameStatus = 'playing';
+    let selectedAnswer = null;
+    let showResult = false;
+    let usedQuestions = [];
+    let currentQuestion = null;
+    let audioContext = null;
+
+    function initAudio() {
+        audioContext = new (window.AudioContext || window.webkitAudioContext)();
+    }
+
+    function playCorrectSound() {
+        if (!audioContext) return;
+        const playPing = (startTime) => {
+            const osc = audioContext.createOscillator();
+            const gain = audioContext.createGain();
+            osc.connect(gain);
+            gain.connect(audioContext.destination);
+            osc.frequency.value = 880;
+            osc.type = 'sine';
+            gain.gain.setValueAtTime(0.3, startTime);
+            gain.gain.exponentialRampToValueAtTime(0.01, startTime + 0.15);
+            osc.start(startTime);
+            osc.stop(startTime + 0.15);
+        };
+        playPing(audioContext.currentTime);
+        playPing(audioContext.currentTime + 0.15);
+    }
+
+    function playIncorrectSound() {
+        if (!audioContext) return;
+        const osc = audioContext.createOscillator();
+        const gain = audioContext.createGain();
+        osc.connect(gain);
+        gain.connect(audioContext.destination);
+        osc.frequency.value = 200;
+        osc.type = 'sawtooth';
+        gain.gain.setValueAtTime(0.3, audioContext.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.5);
+        osc.start(audioContext.currentTime);
+        osc.stop(audioContext.currentTime + 0.5);
+    }
+
+    function getRandomQuestion() {
+        const availableQuestions = questions.filter((_, index) => !usedQuestions.includes(index));
+        if (availableQuestions.length === 0) {
+            usedQuestions = [];
+            return questions[Math.floor(Math.random() * questions.length)];
+        }
+        const randomQuestion = availableQuestions[Math.floor(Math.random() * availableQuestions.length)];
+        const questionIndex = questions.indexOf(randomQuestion);
+        usedQuestions.push(questionIndex);
+        return randomQuestion;
+    }
+
+    function handleAnswer(index) {
+        if (showResult) return;
+        if (!audioContext) initAudio();
+
+        selectedAnswer = index;
+        showResult = true;
+
+        if (index === currentQuestion.correct) {
+            playCorrectSound();
+            score++;
+            if (score >= 5) {
+                gameStatus = 'win';
+            }
+        } else {
+            playIncorrectSound();
+            mistakes++;
+            if (mistakes >= 3) {
+                gameStatus = 'lose';
+            }
+        }
+        render();
+    }
+
+    function nextQuestion() {
+        selectedAnswer = null;
+        showResult = false;
+        currentQuestion = getRandomQuestion();
+        currentQuestionIndex++;
+        render();
+    }
+
+    function resetGame() {
+        score = 0;
+        mistakes = 0;
+        gameStatus = 'playing';
+        selectedAnswer = null;
+        showResult = false;
+        currentQuestionIndex = 0;
+        usedQuestions = [];
+        currentQuestion = getRandomQuestion();
+        render();
+    }
+
+    function render() {
+        const app = document.getElementById('app');
+
+        if (gameStatus === 'win') {
+            app.innerHTML = `
+                <div class="game-over">
+                    <h1 style="color: #00f000;">🎉 クリア！ 🎉</h1>
+                    <p>5問正解しました！<br>ファミコンマスターです！</p>
+                    <div class="final-score">
+                        正解数: <span style="color: #00f000; font-weight: bold;">${score}</span> / 
+                        不正解数: <span style="color: #f00; font-weight: bold;">${mistakes}</span>
+                    </div>
+                    <button class="reset-btn" onclick="resetGame()">もう一度プレイ</button>
+                </div>
+            `;
+            return;
+        }
+
+        if (gameStatus === 'lose') {
+            app.innerHTML = `
+                <div class="game-over">
+                    <h1 style="color: #f00;">ゲームオーバー</h1>
+                    <p>3回間違えてしまいました...<br>もう一度チャレンジしよう！</p>
+                    <div class="final-score">
+                        正解数: <span style="color: #00f000; font-weight: bold;">${score}</span> / 
+                        不正解数: <span style="color: #f00; font-weight: bold;">${mistakes}</span>
+                    </div>
+                    <button class="reset-btn" onclick="resetGame()">もう一度プレイ</button>
+                </div>
+            `;
+            return;
+        }
+
+        let html = '<h1>🎮 ファミコンクイズ 🎮</h1>';
+
+        html += `
+            <div class="scoreboard">
+                <div class="score-item">
+                    <div class="score-label">正解</div>
+                    <div class="score-value" style="color: #00f000;">${score} / 5</div>
+                </div>
+                <div class="divider"></div>
+                <div class="score-item">
+                    <div class="score-label">ミス</div>
+                    <div class="score-value" style="color: #f00;">${mistakes} / 3</div>
+                </div>
+            </div>
+        `;
+
+        if (showResult) {
+            html += `
+                <div class="status-message" style="background-color: ${selectedAnswer === currentQuestion.correct ? '#00f000' : '#f00'}; color: #000;">
+                    ${selectedAnswer === currentQuestion.correct ? '🎉 正解！' : '❌ 不正解...'}
+                </div>
+            `;
+        }
+
+        html += `
+            <div class="question-card">
+                <div class="question-number">問題 ${currentQuestionIndex + 1}</div>
+                <h2 class="question-text">${currentQuestion.question}</h2>
+                <div class="choices">
+        `;
+
+        currentQuestion.choices.forEach((choice, index) => {
+            let btnClass = 'default';
+            if (showResult) {
+                if (index === currentQuestion.correct) {
+                    btnClass = 'correct';
+                } else if (index === selectedAnswer) {
+                    btnClass = 'incorrect';
+                } else {
+                    btnClass = 'disabled';
+                }
+            }
+            html += `
+                <button class="choice-btn ${btnClass}" onclick="handleAnswer(${index})">
+                    ${String.fromCharCode(65 + index)}. ${choice}
+                </button>
+            `;
+        });
+
+        html += '</div>';
+
+        if (showResult) {
+            html += `
+                <div class="explanation ${selectedAnswer === currentQuestion.correct ? 'correct' : 'incorrect'}">
+                    ${currentQuestion.explanation}
+                </div>
+            `;
+        }
+
+        html += '</div>';
+
+        if (showResult && gameStatus === 'playing') {
+            html += '<button class="next-btn" onclick="nextQuestion()">次の問題へ ➜</button>';
+        }
+
+        app.innerHTML = html;
+    }
+
+    // 初期化
+    currentQuestion = getRandomQuestion();
+    render();
+</script>
+```
+
+</body>
+</html>
