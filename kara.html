@@ -1,0 +1,508 @@
+<!DOCTYPE html>
+
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>第３回山陰地区空手道選手権大会</title>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;500;700;900&family=Zen+Antique&display=swap" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+```
+    :root {
+        --primary-red: #C41E3A;
+        --dark-red: #8B0000;
+        --cream: #F5F1E8;
+        --black: #1a1a1a;
+        --gold: #D4AF37;
+    }
+
+    body {
+        font-family: 'Noto Sans JP', sans-serif;
+        background: var(--cream);
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        min-height: 100vh;
+        padding: 20px;
+    }
+
+    .poster {
+        width: 800px;
+        height: 1200px;
+        background: linear-gradient(135deg, var(--cream) 0%, #e8dcc8 100%);
+        position: relative;
+        overflow: hidden;
+        box-shadow: 0 30px 80px rgba(0,0,0,0.3);
+    }
+
+    /* Red accent bars */
+    .accent-top {
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 25px;
+        background: linear-gradient(90deg, var(--primary-red) 0%, var(--dark-red) 100%);
+        animation: slideInTop 1s ease-out;
+    }
+
+    .accent-bottom {
+        position: absolute;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        height: 25px;
+        background: linear-gradient(90deg, var(--dark-red) 0%, var(--primary-red) 100%);
+        animation: slideInBottom 1s ease-out;
+    }
+
+    /* Background pattern */
+    .background-pattern {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        opacity: 0.03;
+        background-image: 
+            repeating-linear-gradient(45deg, transparent, transparent 35px, var(--black) 35px, var(--black) 70px),
+            repeating-linear-gradient(-45deg, transparent, transparent 35px, var(--black) 35px, var(--black) 70px);
+    }
+
+    /* Background karate figures */
+    .bg-karate-figures {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        opacity: 0.06;
+        z-index: 1;
+    }
+
+    .bg-figure {
+        position: absolute;
+        animation: floatFigure 6s ease-in-out infinite;
+    }
+
+    .bg-figure-1 {
+        top: 15%;
+        left: 5%;
+        animation-delay: 0s;
+    }
+
+    .bg-figure-2 {
+        top: 40%;
+        right: 8%;
+        animation-delay: 2s;
+    }
+
+    .bg-figure-3 {
+        bottom: 20%;
+        left: 10%;
+        animation-delay: 4s;
+    }
+
+    /* Main content container */
+    .content {
+        position: relative;
+        z-index: 2;
+        padding: 80px 60px;
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+    }
+
+    /* Title section */
+    .title-section {
+        text-align: center;
+        margin-bottom: 60px;
+        animation: fadeInUp 1.2s ease-out 0.3s both;
+    }
+
+    .round-number {
+        font-family: 'Zen Antique', serif;
+        font-size: 36px;
+        color: var(--dark-red);
+        letter-spacing: 8px;
+        margin-bottom: 20px;
+        font-weight: 400;
+    }
+
+    .main-title {
+        font-size: 58px;
+        font-weight: 900;
+        color: var(--black);
+        line-height: 1.2;
+        letter-spacing: 6px;
+        text-shadow: 3px 3px 0 rgba(196, 30, 58, 0.1);
+        margin-bottom: 15px;
+    }
+
+    .subtitle {
+        font-size: 28px;
+        font-weight: 500;
+        color: var(--primary-red);
+        letter-spacing: 14px;
+        margin-top: 10px;
+    }
+
+    /* Karate illustration container */
+    .illustration-container {
+        flex: 1;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin: 40px 0;
+        position: relative;
+    }
+
+    .circle-bg {
+        position: absolute;
+        width: 450px;
+        height: 450px;
+        border-radius: 50%;
+        background: radial-gradient(circle, rgba(196, 30, 58, 0.08) 0%, transparent 70%);
+        border: 3px solid var(--primary-red);
+        animation: pulseCircle 3s ease-in-out infinite;
+    }
+
+    /* Karate figure SVG */
+    .karate-figure {
+        position: relative;
+        z-index: 3;
+        animation: fadeInScale 1.5s ease-out 0.6s both;
+    }
+
+    /* Event details */
+    .details {
+        text-align: center;
+        animation: fadeInUp 1.2s ease-out 0.9s both;
+    }
+
+    .date-container {
+        background: linear-gradient(135deg, var(--primary-red) 0%, var(--dark-red) 100%);
+        color: white;
+        padding: 30px;
+        margin-bottom: 30px;
+        position: relative;
+        overflow: hidden;
+    }
+
+    .date-container::before {
+        content: '';
+        position: absolute;
+        top: -50%;
+        left: -50%;
+        width: 200%;
+        height: 200%;
+        background: linear-gradient(45deg, transparent, rgba(255,255,255,0.1), transparent);
+        animation: shimmer 3s infinite;
+    }
+
+    .date {
+        font-size: 48px;
+        font-weight: 700;
+        letter-spacing: 4px;
+        position: relative;
+        z-index: 2;
+    }
+
+    .venue {
+        font-size: 40px;
+        font-weight: 500;
+        color: var(--black);
+        letter-spacing: 8px;
+        padding: 25px;
+        border: 3px solid var(--primary-red);
+        background: rgba(255, 255, 255, 0.6);
+        backdrop-filter: blur(10px);
+    }
+
+    /* Decorative elements */
+    .corner-decoration {
+        position: absolute;
+        width: 100px;
+        height: 100px;
+        border: 3px solid var(--gold);
+    }
+
+    .corner-tl {
+        top: 40px;
+        left: 40px;
+        border-right: none;
+        border-bottom: none;
+        animation: drawBorder 1s ease-out 1.2s both;
+    }
+
+    .corner-tr {
+        top: 40px;
+        right: 40px;
+        border-left: none;
+        border-bottom: none;
+        animation: drawBorder 1s ease-out 1.3s both;
+    }
+
+    .corner-bl {
+        bottom: 40px;
+        left: 40px;
+        border-right: none;
+        border-top: none;
+        animation: drawBorder 1s ease-out 1.4s both;
+    }
+
+    .corner-br {
+        bottom: 40px;
+        right: 40px;
+        border-left: none;
+        border-top: none;
+        animation: drawBorder 1s ease-out 1.5s both;
+    }
+
+    /* Animations */
+    @keyframes fadeInUp {
+        from {
+            opacity: 0;
+            transform: translateY(30px);
+        }
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+
+    @keyframes fadeInScale {
+        from {
+            opacity: 0;
+            transform: scale(0.8);
+        }
+        to {
+            opacity: 1;
+            transform: scale(1);
+        }
+    }
+
+    @keyframes slideInTop {
+        from {
+            transform: translateY(-100%);
+        }
+        to {
+            transform: translateY(0);
+        }
+    }
+
+    @keyframes slideInBottom {
+        from {
+            transform: translateY(100%);
+        }
+        to {
+            transform: translateY(0);
+        }
+    }
+
+    @keyframes pulseCircle {
+        0%, 100% {
+            transform: scale(1);
+            opacity: 1;
+        }
+        50% {
+            transform: scale(1.05);
+            opacity: 0.8;
+        }
+    }
+
+    @keyframes shimmer {
+        0% {
+            transform: translateX(-100%) translateY(-100%);
+        }
+        100% {
+            transform: translateX(100%) translateY(100%);
+        }
+    }
+
+    @keyframes drawBorder {
+        from {
+            opacity: 0;
+            transform: scale(0.5);
+        }
+        to {
+            opacity: 1;
+            transform: scale(1);
+        }
+    }
+
+    @keyframes floatFigure {
+        0%, 100% {
+            transform: translateY(0) rotate(0deg);
+        }
+        50% {
+            transform: translateY(-20px) rotate(2deg);
+        }
+    }
+
+    /* Responsive adjustments */
+    @media (max-width: 900px) {
+        .poster {
+            width: 100%;
+            max-width: 600px;
+            height: auto;
+            aspect-ratio: 2/3;
+        }
+
+        .content {
+            padding: 60px 40px;
+        }
+
+        .main-title {
+            font-size: 42px;
+        }
+
+        .subtitle {
+            font-size: 22px;
+        }
+
+        .date {
+            font-size: 36px;
+        }
+
+        .venue {
+            font-size: 32px;
+        }
+
+        .circle-bg {
+            width: 350px;
+            height: 350px;
+        }
+    }
+</style>
+```
+
+</head>
+<body>
+    <div class="poster">
+        <div class="accent-top"></div>
+        <div class="accent-bottom"></div>
+        <div class="background-pattern"></div>
+
+```
+    <!-- Background Karate Figures -->
+    <div class="bg-karate-figures">
+        <!-- Figure 1: Punch pose -->
+        <svg class="bg-figure bg-figure-1" width="200" height="200" viewBox="0 0 200 200" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <circle cx="100" cy="40" r="18" fill="#1a1a1a"/>
+            <path d="M 100 58 L 85 68 L 80 120 L 95 120 L 98 145 L 102 145 L 105 120 L 120 120 L 115 68 Z" fill="#1a1a1a"/>
+            <rect x="82" y="100" width="36" height="8" fill="#C41E3A"/>
+            <path d="M 85 68 L 50 75 L 45 85 L 55 88 L 82 78" fill="#1a1a1a"/>
+            <circle cx="45" cy="85" r="9" fill="#1a1a1a"/>
+            <path d="M 115 68 L 155 70 L 160 78 L 152 82 L 118 75" fill="#1a1a1a"/>
+            <circle cx="158" cy="78" r="8" fill="#1a1a1a"/>
+            <path d="M 95 145 L 92 170 L 88 185 L 96 186 L 98 168" fill="#1a1a1a"/>
+            <path d="M 105 145 L 108 170 L 112 185 L 104 186 L 102 168" fill="#1a1a1a"/>
+        </svg>
+
+        <!-- Figure 2: High kick pose -->
+        <svg class="bg-figure bg-figure-2" width="200" height="200" viewBox="0 0 200 200" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <circle cx="80" cy="45" r="18" fill="#1a1a1a"/>
+            <path d="M 80 63 L 68 73 L 62 120 L 75 122 L 77 148 L 83 148 L 85 122 L 98 120 L 92 73 Z" fill="#1a1a1a"/>
+            <rect x="64" y="102" width="34" height="8" fill="#C41E3A"/>
+            <path d="M 68 73 L 55 80 L 52 90 L 60 92 L 65 82" fill="#1a1a1a"/>
+            <circle cx="52" cy="90" r="8" fill="#1a1a1a"/>
+            <path d="M 92 73 L 105 78 L 145 55 L 155 50 L 152 42 L 142 48 L 98 75" fill="#1a1a1a"/>
+            <ellipse cx="153" cy="46" rx="12" ry="7" fill="#1a1a1a" transform="rotate(-25 153 46)"/>
+            <path d="M 77 148 L 75 168 L 72 185 L 80 186 L 80 165" fill="#1a1a1a"/>
+            <path d="M 83 148 L 85 168 L 88 185 L 80 186 L 80 165" fill="#1a1a1a"/>
+        </svg>
+
+        <!-- Figure 3: Defensive stance -->
+        <svg class="bg-figure bg-figure-3" width="200" height="200" viewBox="0 0 200 200" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <circle cx="100" cy="35" r="18" fill="#1a1a1a"/>
+            <path d="M 100 53 L 88 63 L 82 110 L 95 112 L 97 138 L 103 138 L 105 112 L 118 110 L 112 63 Z" fill="#1a1a1a"/>
+            <rect x="84" y="92" width="32" height="8" fill="#C41E3A"/>
+            <path d="M 88 63 L 75 70 L 68 78 L 75 85 L 85 72" fill="#1a1a1a"/>
+            <circle cx="70" cy="80" r="9" fill="#1a1a1a"/>
+            <path d="M 112 63 L 125 70 L 132 78 L 125 85 L 115 72" fill="#1a1a1a"/>
+            <circle cx="130" cy="80" r="9" fill="#1a1a1a"/>
+            <path d="M 95 138 L 88 158 L 82 175 L 90 176 L 94 155" fill="#1a1a1a"/>
+            <ellipse cx="85" cy="176" rx="14" ry="7" fill="#1a1a1a"/>
+            <path d="M 105 138 L 112 158 L 118 175 L 110 176 L 106 155" fill="#1a1a1a"/>
+            <ellipse cx="115" cy="176" rx="14" ry="7" fill="#1a1a1a"/>
+        </svg>
+    </div>
+    
+    <div class="corner-decoration corner-tl"></div>
+    <div class="corner-decoration corner-tr"></div>
+    <div class="corner-decoration corner-bl"></div>
+    <div class="corner-decoration corner-br"></div>
+
+    <div class="content">
+        <div class="title-section">
+            <div class="round-number">第３回</div>
+            <h1 class="main-title">山陰地区<br>空手道選手権大会</h1>
+            <div class="subtitle">KARATE</div>
+        </div>
+
+        <div class="illustration-container">
+            <div class="circle-bg"></div>
+            <svg class="karate-figure" width="300" height="300" viewBox="0 0 300 300" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <!-- Karate practitioner in dynamic pose -->
+                
+                <!-- Head -->
+                <circle cx="150" cy="70" r="25" fill="#1a1a1a"/>
+                
+                <!-- Body/Gi -->
+                <path d="M 150 95 L 130 110 L 120 180 L 140 180 L 145 200 L 155 200 L 160 180 L 180 180 L 170 110 Z" fill="white" stroke="#1a1a1a" stroke-width="3"/>
+                
+                <!-- Belt -->
+                <rect x="125" y="155" width="50" height="12" fill="#1a1a1a"/>
+                <path d="M 125 161 L 115 165 L 115 172 L 125 167 Z" fill="#1a1a1a"/>
+                <path d="M 175 161 L 185 165 L 185 172 L 175 167 Z" fill="#1a1a1a"/>
+                
+                <!-- Left arm (extended) -->
+                <path d="M 130 110 L 70 130 L 65 145 L 75 150 L 125 130" fill="white" stroke="#1a1a1a" stroke-width="3"/>
+                <!-- Fist -->
+                <circle cx="65" cy="145" r="12" fill="#F5D5C0" stroke="#1a1a1a" stroke-width="2"/>
+                
+                <!-- Right arm (pulled back) -->
+                <path d="M 170 110 L 200 105 L 210 110 L 208 120 L 175 125" fill="white" stroke="#1a1a1a" stroke-width="3"/>
+                <!-- Fist -->
+                <circle cx="210" cy="110" r="11" fill="#F5D5C0" stroke="#1a1a1a" stroke-width="2"/>
+                
+                <!-- Left leg (kicking) -->
+                <path d="M 140 200 L 120 220 L 80 210 L 70 200 L 75 195 L 110 202 L 125 215 L 138 210" fill="white" stroke="#1a1a1a" stroke-width="3"/>
+                <!-- Foot -->
+                <ellipse cx="72" cy="197" rx="15" ry="8" fill="#F5D5C0" stroke="#1a1a1a" stroke-width="2" transform="rotate(-10 72 197)"/>
+                
+                <!-- Right leg (supporting) -->
+                <path d="M 160 200 L 165 230 L 170 260 L 160 262 L 155 232 L 152 200" fill="white" stroke="#1a1a1a" stroke-width="3"/>
+                <!-- Foot -->
+                <ellipse cx="165" cy="262" rx="18" ry="9" fill="#F5D5C0" stroke="#1a1a1a" stroke-width="2"/>
+                
+                <!-- Motion lines for dynamic effect -->
+                <path d="M 50 145 L 40 142" stroke="#C41E3A" stroke-width="3" stroke-linecap="round" opacity="0.7"/>
+                <path d="M 48 150 L 35 150" stroke="#C41E3A" stroke-width="3" stroke-linecap="round" opacity="0.7"/>
+                <path d="M 52 155 L 42 158" stroke="#C41E3A" stroke-width="3" stroke-linecap="round" opacity="0.7"/>
+                
+                <path d="M 60 195 L 45 185" stroke="#C41E3A" stroke-width="3" stroke-linecap="round" opacity="0.6"/>
+                <path d="M 65 200 L 50 195" stroke="#C41E3A" stroke-width="3" stroke-linecap="round" opacity="0.6"/>
+                <path d="M 68 205 L 53 203" stroke="#C41E3A" stroke-width="3" stroke-linecap="round" opacity="0.6"/>
+            </svg>
+        </div>
+
+        <div class="details">
+            <div class="date-container">
+                <div class="date">2030年1月23日(日)</div>
+            </div>
+            <div class="venue">米子体育館</div>
+        </div>
+    </div>
+</div>
+```
+
+</body>
+</html>
