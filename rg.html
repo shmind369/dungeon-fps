@@ -276,6 +276,7 @@ body { background:#0a0a0f; overflow:hidden; font-family:'Courier New',monospace;
 }
 #dialogue-text {
   color:#e8d4a0; font-size:13.5px; line-height:1.6; letter-spacing:0.5px;
+  white-space:pre-line;
 }
 #dialogue-hint {
   color:#8a7a58; font-size:10px; text-align:right; margin-top:8px;
@@ -1742,7 +1743,7 @@ function spawnWarehouseNPC(room){
   // 倉庫は入れる部屋なので、通路をふさがない位置（部屋内の隅）に配置
   const npcX=room.x+room.w-2, npcY=room.cy-2;
   spawnNPC(npcX,npcY,'倉庫の案内人',
-    'ここは倉庫じゃ。色の変わった床にアイテムを『置く』と、次に来た時もそのまま残っておるよ。まだ使えん床もあるが、そのうち広がるかもしれんのう。',
+    'ここは倉庫じゃ。\n色の変わった床にアイテムを『置く』と、\n次に来た時もそのまま残っておるよ。\nまだ使えん床もあるが、\nそのうち広がるかもしれんのう。',
     0x6a4a28, Math.PI*0.75);
 }
 
@@ -2347,7 +2348,7 @@ function applyPotionToEnemy(eff, e){
 function totalDef(){return state.def+(equippedArmor?(ITEM_DB[equippedArmor.key].def||0)+equippedArmor.plus:0);}
 
 function pickupItem(key,gx,gy){
-  if(inventory.length>=MAX_INV){showAction('持ち物がいっぱい！',1500);return false;}
+  if(inventory.length>=MAX_INV){showAction(`持ち物がいっぱい！${ITEM_DB[key].name}の上に乗った。`,1500);return false;}
   const it=makeItem(key);
   // エントランスの倉庫マスから拾う場合は保存されていたplus/chargesを復元
   if(state.inEntrance && gx!==undefined){
@@ -3570,7 +3571,7 @@ function closeUnderfootMenu(){ underfootModal.classList.remove('show'); underfoo
 // （拾えない＝持ち物満杯の場合は false）
 function moveUnderfootToInventory(it, allowOverflow){
   // 拾う場合は満杯チェックあり。使う/投げるは消費前提なので満杯でも一時的に入れる
-  if(!allowOverflow && inventory.length>=MAX_INV){ showAction('持ち物がいっぱい！',1500); return null; }
+  if(!allowOverflow && inventory.length>=MAX_INV){ showAction(`持ち物がいっぱい！${ITEM_DB[it.key].name}の上に乗った。`,1500); return null; }
   const newItem=makeItem(it.key);
   // 倉庫マスから来た場合の plus/charges 復元（通常フロアでは無関係）
   if(state.inEntrance){
