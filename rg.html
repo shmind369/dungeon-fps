@@ -1051,7 +1051,12 @@ function useScroll(it){
       break;
     }
     case 'return':
-      showAction('エントランスへの帰還は準備中…',1200);
+      if(state.inEntrance){ showAction('ここでは使えない…',1200); break; }
+      setLog('帰還');
+      fadeTransition(()=>{
+        resetPlayerStatsForEntrance();
+        initEntrance();
+      }, 'エントランス');
       break;
     case 'pitfall':
       if(state.floor>=10){ showAction('これ以上は落ちられない…',1200); break; }
@@ -3365,22 +3370,30 @@ function throwItem(it){
     }
     // 着地点にアイテム/階段があれば隣にずらす
     let finalX=landX, finalY=landY;
+    let lost=false;
     const occupied=floorItems.find(f=>f.x===landX&&f.y===landY)||
                    (stairsPos&&stairsPos.x===landX&&stairsPos.y===landY)||
                    (returnPos&&returnPos.x===landX&&returnPos.y===landY);
     if(occupied){
       const dirs=[[0,-1],[1,0],[0,1],[-1,0],[1,-1],[1,1],[-1,1],[-1,-1]].sort(()=>Math.random()-0.5);
+      let foundSpot=false;
       for(const [ox,oy] of dirs){
         if(isWalkable(landX+ox,landY+oy)&&!floorItems.find(f=>f.x===landX+ox&&f.y===landY+oy)){
-          finalX=landX+ox; finalY=landY+oy; break;
+          finalX=landX+ox; finalY=landY+oy; foundSpot=true; break;
         }
       }
+      // 周囲も全て埋まっていて置き場がない場合は、重ねて置かずロストさせる
+      if(!foundSpot) lost=true;
     }
     removeFromInv(it);
     renderInventory();updateUI();
     spawnThrowTrail(state.x*CELL,state.y*CELL,finalX*CELL,finalY*CELL,db,()=>{
-      spawnObject('item',finalX,finalY,it.key);
-      if(!hitEnemy) showAction(`${db.name}を投げた`,1200);
+      if(lost){
+        showAction('投げたアイテムは床に落ちて使いものにならなくなった…',1500);
+      } else {
+        spawnObject('item',finalX,finalY,it.key);
+        if(!hitEnemy) showAction(`${db.name}を投げた`,1200);
+      }
       enemyTurn();
     });
   }
