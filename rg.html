@@ -1676,7 +1676,7 @@ function initEntrance(){
   state.inEntrance=true;
   stairsPos=null; returnPos=null;
   floorTurnCount=0; updateTurnCounterDisplay();
-  const keep=new Set([playerGroup,playerLight,fillLight]);
+  const keep=new Set([playerGroup,playerLight,fillLight,guideLine]);
   const rem=[];scene.children.forEach(c=>{if(!keep.has(c)&&!(c instanceof THREE.AmbientLight))rem.push(c);});
   rem.forEach(c=>scene.remove(c));
   wallMeshes.length=0;fadedWalls.clear();objectMeshes.length=0;floorItems=[];enemies=[];
@@ -1797,7 +1797,7 @@ function initFloor(floor){
   state.floor=floor;
   npcList=[];
   floorTurnCount=0; updateTurnCounterDisplay(); // このフロアでのターン数をリセット
-  const keep=new Set([playerGroup,playerLight,fillLight]);
+  const keep=new Set([playerGroup,playerLight,fillLight,guideLine]);
   const rem=[];scene.children.forEach(c=>{if(!keep.has(c)&&!(c instanceof THREE.AmbientLight))rem.push(c);});
   rem.forEach(c=>scene.remove(c));
   wallMeshes.length=0;fadedWalls.clear();objectMeshes.length=0;floorItems=[];enemies=[];
@@ -2056,7 +2056,7 @@ function restoreFloor(floorData){
   state.inEntrance=false;
   npcList=[];
   floorTurnCount=0; updateTurnCounterDisplay();
-  const keep=new Set([playerGroup,playerLight,fillLight]);
+  const keep=new Set([playerGroup,playerLight,fillLight,guideLine]);
   const rem=[];scene.children.forEach(c=>{if(!keep.has(c)&&!(c instanceof THREE.AmbientLight))rem.push(c);});
   rem.forEach(c=>scene.remove(c));
   wallMeshes.length=0;fadedWalls.clear();objectMeshes.length=0;floorItems=[];enemies=[];
@@ -2522,11 +2522,11 @@ function drawFloatingNums(){
       drawY=f.y-t*60;
       size=Math.round(28+t*6);
     } else {
-      // ダメージ：下に落ちて激しくバウンドしてから消える
+      // ダメージ：下に落ちて激しくバウンドし、フェードなしでバウンド終了後にパッと消える
       const fall=50*t;
       const bounce=Math.abs(Math.sin(t*Math.PI*4))*Math.pow(1-t,1.4)*26;
       drawY=f.y+fall-bounce;
-      alpha=t<0.7?1:Math.max(0,1-(t-0.7)/0.3);
+      alpha=1;
       size=Math.round(30-t*4);
     }
     octx.save();
@@ -2834,14 +2834,22 @@ function enemyTurn(){
     if(state.invis>0){ e.aware=false; return; }
     // 気づき判定
     if(!e.aware){
-      // 徘徊型：気づいていなくてもランダムにうろつく
+      // 徘徊型：気づいていなくてもランダムにうろつく（同じ方向へ進み続けやすくして、
+      // 部屋の中だけでなく通路を抜けてフロア全体を移動できるようにする）
       if(e.type==='wander'){
         if(Math.random()<0.6){ // 60%の確率で1歩動く
-          const dirs=[[0,-1],[0,1],[-1,0],[1,0]].sort(()=>Math.random()-0.5);
+          let dirs;
+          if(e.wanderDir&&Math.random()<0.75){
+            // 大体は今の進行方向を優先し、行き止まりなら他方向を試す
+            dirs=[e.wanderDir,...[[0,-1],[0,1],[-1,0],[1,0]].sort(()=>Math.random()-0.5)];
+          } else {
+            dirs=[[0,-1],[0,1],[-1,0],[1,0]].sort(()=>Math.random()-0.5);
+          }
           for(const [wx,wy] of dirs){
             const nx=e.x+wx, ny=e.y+wy;
             if(isWalkable(nx,ny)&&!enemies.some(o=>o!==e&&o.x===nx&&o.y===ny)&&!(nx===state.x&&ny===state.y)){
               e.x=nx; e.y=ny;
+              e.wanderDir=[wx,wy];
               e.mesh.position.set(e.x*CELL,0,e.y*CELL);
               e.roomIdx=rooms.findIndex(r=>nx>=r.x&&nx<r.x+r.w&&ny>=r.y&&ny<r.y+r.h);
               break;
@@ -2953,15 +2961,16 @@ function enemyTurn(){
         candidates.push([0,sy]);
         candidates.push([sx,0]);
       }
-    } else {
-      // 縦か横に真っ直ぐ
-      if(Math.abs(dx)>=Math.abs(dy)){
-        if(dx!==0)candidates.push([sx,0]);
-        if(dy!==0)candidates.push([0,sy]);
-      } else {
-        if(dy!==0)candidates.push([0,sy]);
-        if(dx!==0)candidates.push([sx,0]);
-      }
+    } else if(sy!==0){
+      // 縦一直線：他の敵に塞がれて進めない時は斜めに迂回して追い越そうとする
+      candidates.push([0,sy]);
+      candidates.push([1,sy]);
+      candidates.push([-1,sy]);
+    } else if(sx!==0){
+      // 横一直線：他の敵に塞がれて進めない時は斜めに迂回して追い越そうとする
+      candidates.push([sx,0]);
+      candidates.push([sx,1]);
+      candidates.push([sx,-1]);
     }
 
     let attacked=false;
@@ -3343,9 +3352,10 @@ function throwItem(it){
         applyWandEffect(db.effect, hitEnemy, dx, dy);
         showAction(`${db.name}が命中！`,1200);
       } else {
-        damageEnemy(hitEnemy, 2+Math.floor(Math.random()*2));
+        damageEnemy(hitEnemy, 1+Math.floor(Math.random()*2));
         showAction(`命中！`,1200);
       }
+      enemyTurn();
     });
   } else {
     // 外れ or 何もない：外れた場合はモンスターの足元に落ちる
@@ -3371,6 +3381,7 @@ function throwItem(it){
     spawnThrowTrail(state.x*CELL,state.y*CELL,finalX*CELL,finalY*CELL,db,()=>{
       spawnObject('item',finalX,finalY,it.key);
       if(!hitEnemy) showAction(`${db.name}を投げた`,1200);
+      enemyTurn();
     });
   }
 }
