@@ -766,6 +766,8 @@ const fadedWalls=new Set();
 
 // プレイヤー (Three.js初期化後に作成)
 const playerGroup=new THREE.Group();scene.add(playerGroup);
+// カメラ追従用座標（攻撃突進などplayerGroupの演出用モーションには追従させない）
+let camX=0, camZ=0;
 // 人間らしいボクセル自機
 const playerParts=[];
 function pvox(w,h,d,col,x,y,z){
@@ -893,9 +895,12 @@ function updatePlayerPos(){
 // 表示座標を論理座標へ滑らかに近づける
 function updatePlayerSmooth(dt){
   const tx=state.x*CELL, tz=state.y*CELL;
+  const k=Math.min(dt*7,1); // 補間速度（小さいほど滑らか）
+  // カメラは攻撃突進などの演出モーションを無視し、論理座標だけを追従する
+  camX+=(tx-camX)*k;
+  camZ+=(tz-camZ)*k;
   // 突進アニメ中はそちらに任せる（干渉回避）
   if(anims.some(a=>a.mesh===playerGroup))return;
-  const k=Math.min(dt*7,1); // 補間速度（小さいほど滑らか）
   playerGroup.position.x+=(tx-playerGroup.position.x)*k;
   playerGroup.position.z+=(tz-playerGroup.position.z)*k;
 }
@@ -1044,6 +1049,7 @@ function useScroll(it){
       const p=rndInRoom(room);
       state.x=p.x; state.y=p.y;
       playerGroup.position.set(state.x*CELL,0,state.y*CELL);
+      camX=state.x*CELL;camZ=state.y*CELL;
       updatePlayerPos();updateExplored();
       showAction('体がふわっと浮いて移動した！',1500);
       break;
@@ -1729,6 +1735,7 @@ function initEntrance(){
 
   state.x=res.startX; state.y=res.startY;
   playerGroup.position.set(state.x*CELL,0,state.y*CELL);
+  camX=state.x*CELL;camZ=state.y*CELL;
   updatePlayerPos();updateExplored();
 
   // ダンジョン入口オブジェクト
@@ -1849,6 +1856,7 @@ function initFloor(floor){
   const startRoom=rooms[Math.floor(Math.random()*rooms.length)];
   const sp=rndInRoom(startRoom);state.x=sp.x;state.y=sp.y;
   playerGroup.position.set(state.x*CELL,0,state.y*CELL); // 初期位置は即セット
+  camX=state.x*CELL;camZ=state.y*CELL;
   updateExplored();
 
   const otherRooms=rooms.filter(r=>r!==startRoom);
@@ -2040,6 +2048,7 @@ function applySave(data){
     initEntrance(); // 内部でsaveGame()が再度走るが問題ない
     state.x=sx; state.y=sy;
     playerGroup.position.set(state.x*CELL,0,state.y*CELL);
+    camX=state.x*CELL;camZ=state.y*CELL;
     updatePlayerPos();updateExplored();
   } else {
     restoreFloor(data.floor);
@@ -2071,6 +2080,7 @@ function rebuildCurrentScene(){
     initEntrance();
     state.x=sx; state.y=sy;
     playerGroup.position.set(state.x*CELL,0,state.y*CELL);
+    camX=state.x*CELL;camZ=state.y*CELL;
     updatePlayerPos();updateExplored();updateCamera();
   } else {
     const floorSnapshot={
@@ -2107,6 +2117,7 @@ function restoreFloor(floorData){
   // カメラ・自機位置は最優先で確定させる（この後の敵/アイテム復元で
   // 何か失敗しても、画面が真っ暗にならないようにするため）
   playerGroup.position.set(state.x*CELL,0,state.y*CELL);
+  camX=state.x*CELL;camZ=state.y*CELL;
   updatePlayerPos();updateExplored();updateCamera();
 
   try{
@@ -2140,8 +2151,8 @@ function restoreFloor(floorData){
 // カメラ
 const _v=new THREE.Vector3();
 function updateCamera(){
-  // 自機の表示座標（補間後）にカメラを追従させて滑らかに
-  const px=playerGroup.position.x, pz=playerGroup.position.z;
+  // 自機の論理座標（補間後）にカメラを追従させる（攻撃突進などの演出では動かさない）
+  const px=camX, pz=camZ;
   camera.position.set(px, 11, pz+5.5);
   camera.lookAt(px, 0.5, pz-0.5);
 
@@ -3665,14 +3676,16 @@ function updateTurnCounterDisplay(){
   el.style.top=top+'px';
 }
 
-// その場で待機（1ターン経過）
+// その場で待機（1ターン経過。歩行と同様にHP回復・満腹度減少を行う）
 function doWait(){
   if(playerSleepTurns>0){
     playerSleepTurns--;
     showAction(playerSleepTurns>0?'眠っている…zzZ':'目が覚めた！',800);
+    stepHeal();
     enemyTurn();
     return;
   }
+  stepHeal();
   enemyTurn();
 }
 
