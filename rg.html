@@ -1,0 +1,4013 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>ダンジョン 3D プロトタイプ</title>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+body { background:#0a0a0f; overflow:hidden; font-family:'Courier New',monospace; color:#c8b89a; user-select:none; -webkit-user-select:none; display:flex; flex-direction:column; height:100dvh; }
+
+/* 上エリア：プレイ画面 */
+#game-area {
+  position:relative;
+  width:100%;
+  height:calc(100dvh - 230px);
+  overflow:hidden;
+  background:#080810;
+}
+
+/* 下エリア：操作パネル */
+#ctrl-area {
+  flex-shrink:0;
+  background:#1a1008;
+  border-top:2px solid #4a3418;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  padding:8px 12px;
+  gap:8px;
+  height:230px;
+}
+
+#ui { position:absolute; top:0; left:0; right:0; pointer-events:none; z-index:10; }
+#topbar {
+  display:flex; flex-wrap:wrap; align-items:center; gap:4px 12px;
+  background:rgba(10,8,4,0.82); border-bottom:1px solid #4a3418;
+  padding:6px 10px; font-size:13px; color:#e8d4a0;
+}
+.tb-item { display:flex; align-items:center; gap:3px; white-space:nowrap; }
+.tb-label { color:#9a8458; font-size:11px; }
+.stat-bar {
+  display:inline-block; width:38px; height:7px;
+  background:#000; border:1px solid #4a3418; border-radius:2px;
+  margin-left:4px; overflow:hidden; vertical-align:middle;
+}
+.stat-bar-fill {
+  display:block; height:100%; width:100%;
+  transition:width 0.3s ease, background-color 0.3s ease;
+}
+#status { display:none; }
+#action-label {
+  position:absolute; bottom:14px; left:50%; transform:translateX(-50%);
+  min-width:160px; max-width:86%; box-sizing:border-box;
+  background:transparent;
+  border:2px solid #f8f8f8;
+  box-shadow:0 0 0 1px #000818, 0 4px 10px rgba(0,0,0,0.5);
+  border-radius:2px;
+  padding:9px 18px;
+  font-size:14px; letter-spacing:1px; line-height:1.5;
+  color:#fff; text-shadow:1px 1px 2px #000, -1px -1px 2px #000, 1px -1px 2px #000, -1px 1px 2px #000;
+  text-align:center; white-space:normal;
+  pointer-events:none; transition:opacity 0.45s ease; z-index:10;
+  opacity:0;
+}
+#guide { display:none; }
+
+/* ダッシュモード表示（右上・ステータスバー下、常時） */
+#dash-indicator {
+  position:absolute; top:0; right:8px;
+  background:rgba(20,60,36,0.85); border:1px solid #40e080; border-radius:4px;
+  color:#60ff90; font-size:11px; letter-spacing:1px;
+  padding:4px 10px; z-index:11;
+  display:none; pointer-events:none;
+  text-shadow:0 0 4px rgba(96,255,144,0.5);
+}
+#dash-indicator.show { display:block; }
+
+/* ターン数表示（テスト用、右上・ステータスバー下） */
+#turn-counter {
+  position:absolute; right:8px;
+  background:rgba(20,20,24,0.6); border:1px solid #4a3a20; border-radius:4px;
+  color:#8a7a58; font-size:10px; letter-spacing:1px;
+  padding:3px 8px; z-index:11; pointer-events:none;
+}
+
+/* 8方向パッド */
+#dpad {
+  display:grid;
+  grid-template-columns:repeat(3,62px);
+  grid-template-rows:repeat(3,62px);
+  gap:3px;
+  flex-shrink:0;
+}
+.dp {
+  width:62px; height:62px; border-radius:10px;
+  background:#2a1c0c; border:2px solid #6a5430;
+  color:#f0d080; font-size:22px;
+  cursor:pointer; display:flex; align-items:center; justify-content:center;
+  -webkit-tap-highlight-color:transparent;
+  user-select:none; -webkit-user-select:none;
+}
+.dp:active { background:#5a3c1c; border-color:#f0d080; }
+.dp-neutral { font-size:14px; color:#a09060; }
+.dp-neutral.turn-on { background:#5a3c1c; border-color:#f0d080; color:#f0d080; }
+.dp-neutral.dash-on { background:#1c4a2c; border-color:#40e080; color:#40e080; }
+.dp-neutral.dash-on.turn-on { background:#1c4a2c; border-color:#40e080; color:#40e080; }
+
+/* 右側の攻撃・待機ボタン */
+#right-btns {
+  display:flex; flex-direction:column; gap:8px; flex-shrink:0;
+}
+#attack-btn, #wait-btn {
+  width:70px; border-radius:10px;
+  font-family:'Courier New',monospace; cursor:pointer;
+  -webkit-tap-highlight-color:transparent;
+}
+#attack-btn {
+  height:88px; background:#3a1414; border:2px solid #8a4030;
+  color:#ff9070; font-size:17px; letter-spacing:2px;
+}
+#attack-btn:active { background:#6a2418; border-color:#ff9070; }
+#wait-btn {
+  height:56px; background:#2a1c0c; border:2px solid #6a5430;
+  color:#e0c890; font-size:14px; letter-spacing:2px;
+}
+#wait-btn:active { background:#5a3c1c; border-color:#f0d080; }
+
+/* インベントリボタン（操作パネル内） */
+#inv-btn {
+  width:70px; height:70px; border-radius:50%;
+  background:#2a1c0c; border:2px solid #6a5430;
+  color:#f0d080; font-size:12px; font-family:'Courier New',monospace;
+  cursor:pointer; line-height:1.3; flex-shrink:0;
+  display:flex; flex-direction:column; align-items:center; justify-content:center;
+}
+#inv-btn:active { background:#5a3c1c; }
+#inv-count { font-size:11px; color:#c0a860; }
+
+#overlay { position:absolute; top:0; left:0; right:0; bottom:0; pointer-events:none; z-index:20; }
+#tuning-toggle { position:absolute; top:8px; right:8px; background:#1a1510; border:1px solid #3a3020; color:#f0d080; font-size:10px; padding:4px 8px; cursor:pointer; z-index:31; letter-spacing:1px; font-family:'Courier New',monospace; }
+#tuning { position:absolute; top:36px; right:0; background:rgba(0,0,0,0.88); border-left:1px solid #3a3020; border-bottom:1px solid #3a3020; padding:10px 14px; font-size:11px; z-index:30; min-width:185px; font-family:'Courier New',monospace; }
+#tuning h3 { color:#f0d080; margin-bottom:8px; font-size:11px; letter-spacing:2px; }
+.tune-row { display:flex; align-items:center; justify-content:space-between; margin-bottom:6px; gap:8px; }
+.tune-row label { color:#8a7a60; font-size:10px; }
+.tune-row input[type=range] { width:80px; accent-color:#f0d080; }
+.tune-val { color:#f0d080; font-size:10px; min-width:30px; text-align:right; }
+
+/* モーダル共通 */
+#inv-modal, #action-modal {
+  position:fixed; inset:0; z-index:40;
+  background:rgba(0,0,0,0.6);
+  display:none; align-items:center; justify-content:center;
+}
+#inv-modal.show, #action-modal.show { display:flex; }
+
+#underfoot-modal {
+  position:fixed; inset:0; z-index:42;
+  background:rgba(0,0,0,0.6);
+  display:none; align-items:center; justify-content:center;
+}
+#underfoot-modal.show { display:flex; }
+
+#inv-panel {
+  width:88%; max-width:440px; max-height:70vh;
+  background:#15110a; border:1px solid #4a3a20; border-radius:8px;
+  display:flex; flex-direction:column; overflow:hidden;
+}
+#inv-header {
+  display:flex; justify-content:space-between; align-items:center;
+  padding:12px 16px; border-bottom:1px solid #3a2c18;
+  color:#f0d080; font-size:15px; letter-spacing:2px;
+}
+#inv-header button {
+  background:#2a2010; border:1px solid #4a3a20; color:#f0d080;
+  font-size:12px; padding:4px 10px; margin-left:6px; cursor:pointer;
+  font-family:'Courier New',monospace; border-radius:4px;
+}
+#inv-list { overflow-y:auto; padding:8px; flex:1 1 auto; min-height:0; }
+.inv-item {
+  display:flex; align-items:center; gap:10px;
+  padding:10px 12px; margin-bottom:4px;
+  background:#1c1610; border:1px solid #2a2014; border-radius:5px;
+  cursor:pointer; color:#c8b89a; font-size:14px;
+}
+.inv-item:active { background:#2a2014; }
+.inv-item.equipped { border-color:#c0a040; background:#241c10; }
+.inv-icon { font-size:20px; width:28px; text-align:center; }
+.inv-name { flex:1; }
+.inv-eq { color:#ffd040; font-weight:bold; font-size:12px; border:1px solid #c0a040; border-radius:3px; padding:1px 5px; }
+.inv-plus { color:#80c0ff; font-size:13px; }
+.inv-empty { text-align:center; color:#6a5a40; padding:30px; font-size:13px; }
+
+#inv-footer {
+  padding:10px 12px; border-top:1px solid #3a2c18; flex-shrink:0;
+  display:flex; flex-direction:column; gap:8px;
+}
+#inv-underfoot {
+  width:100%; background:#1c2a1a; border:1px solid #3a6a30; color:#90d080;
+  font-size:13px; letter-spacing:1px; padding:11px; border-radius:6px;
+  font-family:'Courier New',monospace; cursor:pointer;
+  display:flex; align-items:center; gap:10px;
+}
+#inv-underfoot:active { background:#2a4a24; }
+#inv-underfoot .uf-label {
+  flex-shrink:0; color:#90d080; border:1px solid #3a6a30; border-radius:4px;
+  padding:2px 8px; font-size:12px;
+}
+#inv-underfoot .uf-item { flex:1; text-align:left; color:#e8d4a0; }
+#inv-underfoot.empty { opacity:0.5; }
+#inv-underfoot.empty .uf-item { color:#6a5a40; }
+#inv-suspend {
+  width:100%; background:#1a2a2c; border:1px solid #3a6a68; color:#80d0c8;
+  font-size:13px; letter-spacing:2px; padding:11px; border-radius:6px;
+  font-family:'Courier New',monospace; cursor:pointer;
+}
+#inv-suspend:active { background:#2a4a48; }
+
+/* アクションメニュー */
+#action-panel, .action-panel-box {
+  width:80%; max-width:320px;
+  background:#15110a; border:1px solid #4a3a20; border-radius:8px;
+  padding:16px; display:flex; flex-direction:column; gap:8px;
+}
+#action-title, #underfoot-title {
+  color:#f0d080; font-size:15px; text-align:center;
+  padding-bottom:10px; border-bottom:1px solid #3a2c18; margin-bottom:4px;
+}
+.act-btn {
+  background:#2a2010; border:1px solid #4a3a20; color:#e0c890;
+  font-size:14px; padding:12px; cursor:pointer; border-radius:5px;
+  font-family:'Courier New',monospace;
+}
+.act-btn[data-act="cancel"], .act-btn[data-uf="cancel"] { color:#a08860; }
+.act-btn[data-uf="pick"] { color:#90d080; }
+.act-btn:active { background:#3a2c18; }
+
+/* 確認モーダル（YES/NO） */
+#confirm-modal {
+  position:fixed; inset:0; z-index:45;
+  background:rgba(0,0,0,0.65);
+  display:none; align-items:center; justify-content:center;
+}
+#confirm-modal.show { display:flex; }
+#confirm-panel {
+  width:76%; max-width:300px;
+  background:#15110a; border:1px solid #4a3a20; border-radius:8px;
+  padding:18px; display:flex; flex-direction:column; gap:10px;
+}
+#confirm-title {
+  color:#f0d080; font-size:15px; text-align:center;
+  padding-bottom:10px; border-bottom:1px solid #3a2c18; margin-bottom:4px;
+  line-height:1.5;
+}
+.confirm-btn {
+  background:#2a2010; border:1px solid #4a3a20; color:#e0c890;
+  font-size:14px; padding:12px; cursor:pointer; border-radius:5px;
+  font-family:'Courier New',monospace;
+}
+.confirm-btn:active { background:#3a2c18; }
+#confirm-yes { color:#80e090; border-color:#3a6040; }
+#confirm-no { color:#a08860; }
+
+/* セリフウィンドウ */
+#dialogue-box {
+  position:absolute; left:10px; right:10px; bottom:10px;
+  background:rgba(10,8,4,0.92); border:2px solid #6a5430; border-radius:8px;
+  padding:12px 14px 10px; z-index:25;
+  box-shadow:0 4px 14px rgba(0,0,0,0.5);
+  pointer-events:none;
+  opacity:0; transition:opacity 0.35s ease;
+}
+#dialogue-box.show { opacity:1; pointer-events:auto; }
+#dialogue-name {
+  color:#f0d080; font-size:12px; letter-spacing:2px; margin-bottom:6px;
+  border-bottom:1px solid #3a2c18; padding-bottom:5px;
+}
+#dialogue-text {
+  color:#e8d4a0; font-size:13.5px; line-height:1.6; letter-spacing:0.5px;
+}
+#dialogue-hint {
+  color:#8a7a58; font-size:10px; text-align:right; margin-top:8px;
+}
+
+/* タイトル画面 */
+#title-screen {
+  position:fixed; inset:0; z-index:100;
+  background:radial-gradient(ellipse at center, #1a140c 0%, #050403 100%);
+  display:flex; flex-direction:column; align-items:center; justify-content:center;
+  gap:34px; font-family:'Courier New',monospace;
+}
+#title-screen.hide { display:none; }
+#title-logo {
+  color:#f0d080; font-size:32px; letter-spacing:2px; text-align:center;
+  text-shadow:0 0 18px rgba(240,208,128,0.35), 0 2px 3px rgba(0,0,0,0.6);
+  line-height:1.4;
+}
+#title-logo .sub-jp {
+  display:block; font-size:12px; color:#9a8458; letter-spacing:4px; margin-top:10px;
+}
+#title-buttons { display:flex; flex-direction:column; gap:14px; width:72%; max-width:280px; }
+.title-btn {
+  background:#1c1610; border:2px solid #6a5430; color:#e8d4a0;
+  font-size:15px; letter-spacing:4px; padding:14px; border-radius:8px;
+  font-family:'Courier New',monospace; cursor:pointer;
+}
+.title-btn:active { background:#3a2c18; }
+.title-btn:disabled { opacity:0.32; color:#5a4e38; cursor:default; }
+#title-footer { color:#5a4e38; font-size:10px; letter-spacing:1px; }
+
+/* セーブスロット表示 */
+.slot-btn { text-align:left; padding:0; overflow:hidden; }
+.slot-head {
+  display:flex; justify-content:space-between; align-items:baseline;
+  padding:10px 12px 8px; border-bottom:1px solid #4a3a20;
+}
+.slot-name { color:#f0d080; font-size:14px; letter-spacing:2px; }
+.slot-date { color:#7ac89a; font-size:11px; letter-spacing:0.5px; }
+.slot-body { padding:9px 12px; display:flex; flex-direction:column; gap:4px; }
+.slot-row { display:flex; justify-content:space-between; font-size:12px; }
+.slot-k { color:#9a8458; letter-spacing:1px; }
+.slot-v { color:#e8d4a0; letter-spacing:1px; }
+.slot-empty { padding:16px 12px; text-align:center; color:#6a5a40; font-size:12px; display:none; }
+.slot-btn.empty .slot-body { display:none; }
+.slot-btn.empty .slot-date { display:none; }
+.slot-btn.empty .slot-empty { display:block; }
+.slot-btn.empty .slot-name { color:#8a7a58; }
+
+/* 暗転フェード（死亡時など） */
+#fade-overlay {
+  position:fixed; inset:0; z-index:90;
+  background:#000; opacity:0; pointer-events:none;
+  transition:opacity 0.5s ease;
+}
+#fade-overlay.show { opacity:1; }
+#fade-overlay.fast { transition:opacity 0.22s ease; }
+#fade-overlay.floor-fade { transition:opacity 0.4s ease; }
+
+/* フロア遷移時の階数表示 */
+#floor-announce {
+  position:fixed; inset:0; z-index:91;
+  display:flex; align-items:center; justify-content:center;
+  color:#f0d080; font-family:'Courier New',monospace;
+  font-size:34px; letter-spacing:4px;
+  text-shadow:0 0 16px rgba(240,208,128,0.5), 0 2px 4px #000;
+  opacity:0; pointer-events:none;
+  transition:opacity 0.4s ease;
+}
+#floor-announce.show { opacity:1; }
+</style>
+</head>
+<body>
+<div id="fade-overlay"></div>
+<div id="floor-announce"></div>
+<div id="title-screen">
+  <div id="title-logo">Wanderer's Dungeon<span class="sub-jp">さすらいのダンジョン</span></div>
+  <div id="title-buttons">
+    <button id="title-continue" class="title-btn slot-btn">
+      <div class="slot-head">
+        <span class="slot-name">つづきから</span>
+        <span class="slot-date" id="slot-date"></span>
+      </div>
+      <div class="slot-body" id="slot-body">
+        <div class="slot-row"><span class="slot-k">現在地</span><span class="slot-v" id="slot-loc">—</span></div>
+        <div class="slot-row"><span class="slot-k">Lv</span><span class="slot-v" id="slot-lv">—</span></div>
+        <div class="slot-row"><span class="slot-k">所持金</span><span class="slot-v" id="slot-gold">—</span></div>
+        <div class="slot-row"><span class="slot-k">プレイ時間</span><span class="slot-v" id="slot-time">—</span></div>
+      </div>
+      <div class="slot-empty" id="slot-empty">（セーブデータなし）</div>
+    </button>
+    <button id="title-newgame" class="title-btn">はじめから</button>
+  </div>
+  <div id="title-footer">Three.js Voxel Roguelike</div>
+</div>
+<div id="game-area">
+  <div id="ui">
+    <div id="topbar">
+      <div class="tb-item" id="floor-item"><span class="tb-label">階</span><span id="floor-disp">1</span>F</div>
+      <div class="tb-item"><span class="tb-label">Lv</span><span id="lv-disp">1</span></div>
+      <div class="tb-item"><span class="tb-label">HP</span><span id="hp-disp">15/15</span><span class="stat-bar"><span class="stat-bar-fill" id="hp-bar"></span></span></div>
+      <div class="tb-item"><span class="tb-label">満腹</span><span id="food-disp">100</span>%<span class="stat-bar"><span class="stat-bar-fill" id="food-bar"></span></span></div>
+      <div class="tb-item"><span class="tb-label">攻</span><span id="atk-disp">5</span></div>
+      <div class="tb-item"><span class="tb-label">防</span><span id="def-disp">2</span></div>
+      <div class="tb-item"><span class="tb-label">EXP</span><span id="exp-disp">0/10</span></div>
+      <div class="tb-item"><span class="tb-label">💰</span><span id="gold-disp">0</span></div>
+    </div>
+  </div>
+  <div id="action-label"></div>
+  <div id="dash-indicator">▶ ダッシュモード中</div>
+  <div id="turn-counter">Turn 0</div>
+  <div id="guide">方向パッドで移動・攻撃</div>
+  <canvas id="overlay"></canvas>
+  <div id="dialogue-box">
+    <div id="dialogue-name"></div>
+    <div id="dialogue-text"></div>
+    <div id="dialogue-hint">タップで閉じる</div>
+  </div>
+  <button id="tuning-toggle">&#9881;</button>
+  <div id="tuning" style="display:none">
+    <h3>&#9646; 調整</h3>
+    <div class="tune-row"><label>チャージ時間(ms)</label><input type="range" id="t-charge" min="500" max="3000" value="1500" step="100"><span class="tune-val" id="v-charge">1500</span></div>
+    <div class="tune-row"><label>カメラ距離</label><input type="range" id="t-camdist" min="1" max="8" value="4" step="0.5"><span class="tune-val" id="v-camdist">4</span></div>
+    <div class="tune-row"><label>カメラ高さ</label><input type="range" id="t-camh" min="0.5" max="7" value="4" step="0.5"><span class="tune-val" id="v-camh">4</span></div>
+  </div>
+</div>
+
+<!-- 操作パネル -->
+<div id="ctrl-area">
+  <!-- インベントリボタン -->
+  <button id="inv-btn">袋<br><span id="inv-count">0</span>/20</button>
+  <!-- 8方向パッド -->
+  <div id="dpad">
+    <button class="dp" data-dir="7">↖</button>
+    <button class="dp" data-dir="0">↑</button>
+    <button class="dp" data-dir="1">↗</button>
+    <button class="dp" data-dir="6">←</button>
+    <button class="dp dp-neutral" data-dir="-1">●</button>
+    <button class="dp" data-dir="2">→</button>
+    <button class="dp" data-dir="5">↙</button>
+    <button class="dp" data-dir="4">↓</button>
+    <button class="dp" data-dir="3">↘</button>
+  </div>
+  <!-- 右側：攻撃・待機ボタン -->
+  <div id="right-btns">
+    <button id="attack-btn">攻撃</button>
+    <button id="wait-btn">待機</button>
+  </div>
+</div>
+
+<!-- インベントリモーダル -->
+<div id="inv-modal">
+  <div id="inv-panel">
+    <div id="inv-header">
+      <span>持ち物</span>
+      <div>
+        <button id="inv-sort">種別整理</button>
+        <button id="inv-close">×</button>
+      </div>
+    </div>
+    <div id="inv-list"></div>
+    <div id="inv-footer">
+      <button id="inv-underfoot"><span class="uf-label">足元</span><span class="uf-item" id="uf-item">なし</span></button>
+    </div>
+  </div>
+</div>
+
+<!-- アクションメニュー -->
+<div id="action-modal">
+  <div id="action-panel">
+    <div id="action-title">アイテム</div>
+    <button class="act-btn" data-act="use">使う / 装備する</button>
+    <button class="act-btn" data-act="throw">投げる</button>
+    <button class="act-btn" data-act="drop">置く</button>
+    <button class="act-btn" data-act="cancel">やめる</button>
+  </div>
+</div>
+
+<!-- 足元アイテム用アクションメニュー -->
+<div id="underfoot-modal">
+  <div class="action-panel-box">
+    <div id="underfoot-title">足元のアイテム</div>
+    <button class="act-btn" data-uf="pick">拾う</button>
+    <button class="act-btn" data-uf="use">使う / 装備する</button>
+    <button class="act-btn" data-uf="throw">投げる</button>
+    <button class="act-btn" data-uf="cancel">やめる</button>
+  </div>
+</div>
+
+<!-- YES/NO確認モーダル -->
+<div id="confirm-modal">
+  <div id="confirm-panel">
+    <div id="confirm-title">確認</div>
+    <button class="confirm-btn" id="confirm-yes">YES</button>
+    <button class="confirm-btn" id="confirm-no">NO</button>
+  </div>
+</div>
+<script src="https://cdn.jsdelivr.net/npm/three@0.158.0/build/three.min.js"></script>
+<script>
+const P={TAP_MAX:150,ROT_START:150,SWIPE_DIST:50,ROT_SPEED:3,CHARGE_TIME:1500,CAM_DIST:4,CAM_H:4};
+if(typeof THREE==='undefined'){
+  const d=document.createElement('div');
+  d.style.cssText='position:fixed;top:120px;left:10px;right:10px;background:#600;color:#fff;padding:14px;z-index:99999;font-size:14px;font-family:monospace;';
+  d.textContent='THREE.jsの読み込みに失敗しました。ネットワーク接続を確認してリロードしてください。';
+  document.body.appendChild(d);
+  throw new Error('THREE not loaded');
+}
+document.getElementById('tuning-toggle').onclick=()=>{const t=document.getElementById('tuning');t.style.display=t.style.display==='none'?'block':'none';};
+function bindRange(id,vid,key){const el=document.getElementById(id),vl=document.getElementById(vid);if(!el)return;el.addEventListener('input',()=>{P[key]=parseFloat(el.value);vl.textContent=el.value;});}
+bindRange('t-charge','v-charge','CHARGE_TIME');bindRange('t-camdist','v-camdist','CAM_DIST');bindRange('t-camh','v-camh','CAM_H');
+
+const MAP_W=30,MAP_H=30,CELL=2,WALL_H=2.6;
+const RETURN_FLOORS=[3,6,9];
+const DIRS=['北','北東','東','南東','南','南西','西','北西'];
+const DIR_DX=[0,1,1,1,0,-1,-1,-1];
+const DIR_DY=[-1,-1,0,1,1,1,0,-1];
+const state={x:0,y:0,dir:0,angle:-Math.PI/2,targetAngle:-Math.PI/2,actionTimer:0,floor:1,
+  hp:15,maxHp:15,atk:5,def:2,lv:1,exp:0,nextExp:10,stepCount:0,
+  food:100,maxFood:100,foodStep:0,gold:0,
+  haste:0,charge:false,invis:0,confuse:0,inEntrance:false,playTimeMs:0};
+let MAP=[],rooms=[],stairsPos=null,returnPos=null,floorItems=[],explored=[];
+// 倉庫（永続データ）：25マス分のスロット、初期は9マスのみ解放
+let warehouseUnlocked=9; // 解放済みスロット数（3x3=9が初期）
+let warehouseData={}; // key: "sx,sy" -> {itemKey, plus, charges}
+let entranceInfo=null; // generateEntranceMapの戻り値を保持
+let npcList=[]; // エントランスのNPC群 [{x,y,mesh,name,text}]
+let enemies=[];
+
+// アイテムマスタ定義
+const ITEM_DB={
+  // === 武器 ===
+  club:     {name:'こん棒',      type:'weapon', icon:'🏏', color:'#c0c0c0', atk:2},
+  copper:   {name:'銅の剣',      type:'weapon', icon:'⚔️', color:'#c0c0c0', atk:4},
+  iron:     {name:'鉄の剣',      type:'weapon', icon:'⚔️', color:'#c0c0c0', atk:6},
+  steel:    {name:'鋼の剣',      type:'weapon', icon:'⚔️', color:'#c0c0c0', atk:9},
+  flame:    {name:'炎の剣',      type:'weapon', icon:'🗡️', color:'#c0c0c0', atk:8, effect:{onhit:'fire'}},
+  ice:      {name:'まどろみの剣',type:'weapon', icon:'🗡️', color:'#c0c0c0', atk:8, effect:{onhit:'sleep'}},
+  poison:   {name:'毒の短剣',    type:'weapon', icon:'🗡️', color:'#c0c0c0', atk:5, effect:{onhit:'poison'}},
+  greatsw:  {name:'両手剣',      type:'weapon', icon:'⚔️', color:'#c0c0c0', atk:13, effect:{miss:0.2}},
+  dragon:   {name:'龍殺しの剣',  type:'weapon', icon:'🗡️', color:'#c0c0c0', atk:11, effect:{slayer:'dragon'}},
+  murasama: {name:'妖刀ムラマサ',type:'weapon', icon:'🗡️', color:'#c0c0c0', atk:16, effect:{recoil:0.15}},
+  // === 防具（盾） ===
+  woodsh:   {name:'木の盾',      type:'shield', icon:'🛡️', color:'#c0c0c0', def:2},
+  bronzesh: {name:'青銅の盾',    type:'shield', icon:'🛡️', color:'#c0c0c0', def:4},
+  ironsh:   {name:'鉄の盾',      type:'shield', icon:'🛡️', color:'#c0c0c0', def:6},
+  steelsh:  {name:'鋼の盾',      type:'shield', icon:'🛡️', color:'#c0c0c0', def:9},
+  flamesh:  {name:'炎よけの盾',  type:'shield', icon:'🛡️', color:'#c0c0c0', def:5, effect:{resist:'magic'}},
+  poisonsh: {name:'毒よけの盾',  type:'shield', icon:'🛡️', color:'#c0c0c0', def:5, effect:{resist:'poison'}},
+  heavysh:  {name:'重装の盾',    type:'shield', icon:'🛡️', color:'#c0c0c0', def:13, effect:{hungry:1.5}},
+  reflectsh:{name:'反射の盾',    type:'shield', icon:'🛡️', color:'#c0c0c0', def:7, effect:{reflect:0.3}},
+  mirrorsh: {name:'鏡の盾',      type:'shield', icon:'🛡️', color:'#c0c0c0', def:6, effect:{thorns:0.3}},
+  holysh:   {name:'聖なる盾',    type:'shield', icon:'🛡️', color:'#c0c0c0', def:10, effect:{regen:true}},
+  // === 薬（potion） ===
+  herb:     {name:'薬草',        type:'potion', icon:'🧪', color:'#c0c0c0', effect:{heal:20}},
+  hiherb:   {name:'高級薬草',    type:'potion', icon:'🧪', color:'#c0c0c0', effect:{heal:50}},
+  powerp:   {name:'ちからの薬',  type:'potion', icon:'🧪', color:'#c0c0c0', effect:{buff:'atk'}},
+  guardp:   {name:'まもりの薬',  type:'potion', icon:'🧪', color:'#c0c0c0', effect:{buff:'def'}},
+  lifep:    {name:'命の薬',      type:'potion', icon:'🧪', color:'#c0c0c0', effect:{buff:'maxhp'}},
+  speedp:   {name:'すばやさの薬',type:'potion', icon:'🧪', color:'#c0c0c0', effect:{status:'haste'}},
+  chargep:  {name:'ちからため薬',type:'potion', icon:'🧪', color:'#c0c0c0', effect:{status:'charge'}},
+  invisp:   {name:'透明の薬',    type:'potion', icon:'🧪', color:'#c0c0c0', effect:{status:'invis'}},
+  poisonp:  {name:'毒の薬',      type:'potion', icon:'🧪', color:'#c0c0c0', effect:{damage:10}},
+  confusep: {name:'混乱の薬',    type:'potion', icon:'🧪', color:'#c0c0c0', effect:{status:'confuse'}},
+  sleepp:   {name:'睡眠の薬',    type:'potion', icon:'🧪', color:'#c0c0c0', effect:{status:'sleep'}},
+  curep:    {name:'解毒の薬',    type:'potion', icon:'🧪', color:'#c0c0c0', effect:{cure:true}},
+  revivep:  {name:'復活の薬',    type:'potion', icon:'🧪', color:'#c0c0c0', effect:{revive:true}},
+  // === 巻物（scroll・使い切り） ===
+  sc_enchant: {name:'強化の巻物',    type:'scroll', icon:'📜', color:'#c0c0c0', effect:{scroll:'enchant'}},
+  sc_uncurse: {name:'呪い解きの巻物',type:'scroll', icon:'📜', color:'#c0c0c0', effect:{scroll:'uncurse'}},
+  sc_fire:    {name:'炎の巻物',      type:'scroll', icon:'📜', color:'#c0c0c0', effect:{scroll:'fireAll', power:14}},
+  sc_teleport:{name:'ワープの巻物',type:'scroll', icon:'📜', color:'#c0c0c0', effect:{scroll:'teleport'}},
+  sc_return:  {name:'帰還の巻物',    type:'scroll', icon:'📜', color:'#c0c0c0', effect:{scroll:'return'}},
+  sc_pitfall: {name:'落とし穴の巻物',type:'scroll', icon:'📜', color:'#c0c0c0', effect:{scroll:'pitfall'}},
+  sc_barrier: {name:'結界の巻物',    type:'scroll', icon:'📜', color:'#c0c0c0', effect:{scroll:'barrier'}},
+  sc_confuse: {name:'混乱の巻物',    type:'scroll', icon:'📜', color:'#c0c0c0', effect:{scroll:'confuseAll'}},
+  sc_sleep:   {name:'睡眠の巻物',    type:'scroll', icon:'📜', color:'#c0c0c0', effect:{scroll:'sleepAll'}},
+  sc_luck:    {name:'幸運の巻物',    type:'scroll', icon:'📜', color:'#c0c0c0', effect:{scroll:'luck'}},
+  sc_nuke:    {name:'全体攻撃の巻物',type:'scroll', icon:'📜', color:'#c0c0c0', effect:{scroll:'damageAll', power:20}},
+  sc_map:     {name:'地図の巻物',    type:'scroll', icon:'📜', color:'#c0c0c0', effect:{scroll:'map'}},
+  sc_seal:    {name:'封印の巻物',    type:'scroll', icon:'📜', color:'#c0c0c0', effect:{scroll:'sealAll'}},
+  // === 杖（staff・回数制） ===
+  st_atk:    {name:'攻撃の杖',    type:'staff', icon:'🪄', color:'#c0c0c0', effect:{wand:'damage', power:15}},
+  st_fire:   {name:'火炎の杖',    type:'staff', icon:'🪄', color:'#c0c0c0', effect:{wand:'fire', power:12}},
+  st_sleep:  {name:'睡眠の杖',    type:'staff', icon:'🪄', color:'#c0c0c0', effect:{wand:'sleep'}},
+  st_confuse:{name:'混乱の杖',    type:'staff', icon:'🪄', color:'#c0c0c0', effect:{wand:'confuse'}},
+  st_swap:   {name:'場所替えの杖',type:'staff', icon:'🪄', color:'#c0c0c0', effect:{wand:'swap'}},
+  st_knock:  {name:'吹き飛ばしの杖',type:'staff', icon:'🪄', color:'#c0c0c0', effect:{wand:'knockback'}},
+  st_weak:   {name:'弱体の杖',    type:'staff', icon:'🪄', color:'#c0c0c0', effect:{wand:'weaken'}},
+  st_seal:   {name:'封印の杖',    type:'staff', icon:'🪄', color:'#c0c0c0', effect:{wand:'seal'}},
+  st_pull:   {name:'引き寄せの杖',type:'staff', icon:'🪄', color:'#c0c0c0', effect:{wand:'pull'}},
+  bread:    {name:'パン',        type:'food', icon:'🍞', color:'#c0c0c0', effect:{food:50}},
+  bigbread: {name:'大きいパン',  type:'food', icon:'🍞', color:'#c0c0c0', effect:{food:90}},
+  badbread: {name:'くさったパン',type:'food', icon:'🍞', color:'#c0c0c0', effect:{food:20,damage:8}},
+};
+const ITEM_KEYS=Object.keys(ITEM_DB);
+// 床に落ちるアイテム候補（装備は控えめ、消費を多め）
+const FLOOR_ITEM_KEYS=['herb','herb','hiherb','bread','bread','bigbread','badbread',
+  'powerp','guardp','lifep','speedp','chargep','invisp','poisonp','confusep','sleepp','curep','revivep',
+  'iron','copper','club','woodsh','bronzesh','ironsh','flame','ice','poison','steel','flamesh','poisonsh','steelsh',
+  'st_atk','st_fire','st_sleep','st_confuse','st_swap','st_knock','st_weak','st_seal','st_pull',
+  'sc_enchant','sc_uncurse','sc_fire','sc_teleport','sc_return','sc_pitfall','sc_barrier','sc_confuse','sc_sleep','sc_luck','sc_nuke','sc_map','sc_seal'];
+
+// インベントリ（最大20）
+const MAX_INV=20;
+let inventory=[]; // {id, key, plus, equipped}
+let nextItemId=1;
+let equippedWeapon=null, equippedArmor=null;
+
+function makeItem(key){
+  const it={id:nextItemId++, key, plus:0, equipped:false};
+  if(ITEM_DB[key].type==='staff'){
+    it.charges=4+Math.floor(Math.random()*3); // 4〜6回
+  }
+  return it;
+}
+
+// Three.js
+// ============================================================
+// 効果音エンジン（Web Audio APIでその場で音を合成、音声ファイル不要）
+// ============================================================
+let actx=null;
+function getAudioCtx(){
+  if(!actx){
+    try{ actx=new (window.AudioContext||window.webkitAudioContext)(); }
+    catch(e){ console.warn('AudioContext を初期化できませんでした',e); }
+  }
+  // モバイルではユーザー操作前は再生できないため、そのつど再開を試みる
+  if(actx&&actx.state==='suspended'){ actx.resume().catch(()=>{}); }
+  return actx;
+}
+// 初回のタップ/クリックでAudioContextを確実にアンロックする
+function unlockAudioOnce(){
+  getAudioCtx();
+  window.removeEventListener('touchstart',unlockAudioOnce);
+  window.removeEventListener('mousedown',unlockAudioOnce);
+}
+window.addEventListener('touchstart',unlockAudioOnce,{passive:true});
+window.addEventListener('mousedown',unlockAudioOnce);
+
+// ノイズバッファ（一度だけ生成して使い回す）
+let noiseBuffer=null;
+function getNoiseBuffer(ctx){
+  if(noiseBuffer)return noiseBuffer;
+  const len=ctx.sampleRate*0.5;
+  noiseBuffer=ctx.createBuffer(1,len,ctx.sampleRate);
+  const d=noiseBuffer.getChannelData(0);
+  for(let i=0;i<len;i++) d[i]=Math.random()*2-1;
+  return noiseBuffer;
+}
+
+// 自機→敵への攻撃「バシュッ」：ノイズにバンドパスを掛けて素早く下げる
+function sfxAttack(){
+  const ctx=getAudioCtx(); if(!ctx)return;
+  const now=ctx.currentTime;
+  const src=ctx.createBufferSource(); src.buffer=getNoiseBuffer(ctx);
+  const bp=ctx.createBiquadFilter(); bp.type='bandpass';
+  bp.frequency.setValueAtTime(3200,now);
+  bp.frequency.exponentialRampToValueAtTime(700,now+0.12);
+  bp.Q.value=1.1;
+  const gain=ctx.createGain();
+  gain.gain.setValueAtTime(0.0001,now);
+  gain.gain.exponentialRampToValueAtTime(0.5,now+0.012);
+  gain.gain.exponentialRampToValueAtTime(0.0001,now+0.14);
+  src.connect(bp); bp.connect(gain); gain.connect(ctx.destination);
+  src.start(now); src.stop(now+0.16);
+}
+
+// 敵→自機への被弾「ドンっ」：低音のサイン波+ノイズの衝撃
+function sfxHit(){
+  const ctx=getAudioCtx(); if(!ctx)return;
+  const now=ctx.currentTime;
+  // 低音の「ドン」本体
+  const osc=ctx.createOscillator(); osc.type='sine';
+  osc.frequency.setValueAtTime(150,now);
+  osc.frequency.exponentialRampToValueAtTime(48,now+0.18);
+  const oGain=ctx.createGain();
+  oGain.gain.setValueAtTime(0.0001,now);
+  oGain.gain.exponentialRampToValueAtTime(0.65,now+0.01);
+  oGain.gain.exponentialRampToValueAtTime(0.0001,now+0.22);
+  osc.connect(oGain); oGain.connect(ctx.destination);
+  osc.start(now); osc.stop(now+0.24);
+  // 打撃のアタック感を足すノイズ
+  const src=ctx.createBufferSource(); src.buffer=getNoiseBuffer(ctx);
+  const lp=ctx.createBiquadFilter(); lp.type='lowpass'; lp.frequency.value=900;
+  const nGain=ctx.createGain();
+  nGain.gain.setValueAtTime(0.35,now);
+  nGain.gain.exponentialRampToValueAtTime(0.0001,now+0.07);
+  src.connect(lp); lp.connect(nGain); nGain.connect(ctx.destination);
+  src.start(now); src.stop(now+0.08);
+}
+
+// 階段の足音「ザッザッザ」：短いノイズバーストを3回
+function sfxStairs(){
+  const ctx=getAudioCtx(); if(!ctx)return;
+  [0,0.15,0.30].forEach(delay=>{
+    const now=ctx.currentTime+delay;
+    const src=ctx.createBufferSource(); src.buffer=getNoiseBuffer(ctx);
+    const bp=ctx.createBiquadFilter(); bp.type='bandpass';
+    bp.frequency.value=1800; bp.Q.value=0.7;
+    const gain=ctx.createGain();
+    gain.gain.setValueAtTime(0.0001,now);
+    gain.gain.exponentialRampToValueAtTime(0.32,now+0.008);
+    gain.gain.exponentialRampToValueAtTime(0.0001,now+0.09);
+    src.connect(bp); bp.connect(gain); gain.connect(ctx.destination);
+    src.start(now); src.stop(now+0.1);
+  });
+}
+
+// アイテム取得「ポンッ」：短いサイン波で軽く音程が上がる
+function sfxItem(){
+  const ctx=getAudioCtx(); if(!ctx)return;
+  const now=ctx.currentTime;
+  const osc=ctx.createOscillator(); osc.type='triangle';
+  osc.frequency.setValueAtTime(520,now);
+  osc.frequency.exponentialRampToValueAtTime(880,now+0.1);
+  const gain=ctx.createGain();
+  gain.gain.setValueAtTime(0.0001,now);
+  gain.gain.exponentialRampToValueAtTime(0.4,now+0.012);
+  gain.gain.exponentialRampToValueAtTime(0.0001,now+0.16);
+  osc.connect(gain); gain.connect(ctx.destination);
+  osc.start(now); osc.stop(now+0.18);
+}
+
+const scene=new THREE.Scene();
+scene.background=new THREE.Color(0x080810);
+scene.fog=new THREE.Fog(0x181420,22,55);
+const renderer=new THREE.WebGLRenderer({antialias:true});
+renderer.setPixelRatio(Math.min(window.devicePixelRatio,2));
+renderer.shadowMap.enabled=true;
+renderer.shadowMap.type=THREE.PCFSoftShadowMap;
+const gameArea=document.getElementById('game-area');
+// まず安全な固定サイズで初期化
+renderer.setSize(window.innerWidth, window.innerHeight-230);
+gameArea.appendChild(renderer.domElement);
+renderer.domElement.style.position='absolute';
+renderer.domElement.style.top='0';
+renderer.domElement.style.left='0';
+
+// WebGLコンテキストロスト対策
+// バックグラウンド化などでブラウザがGPUリソースを回収すると、
+// エラーは出ないまま描画だけが真っ黒になることがある。検知して自動復旧する。
+let contextWasLost=false;
+renderer.domElement.addEventListener('webglcontextlost', (e)=>{
+  e.preventDefault();
+  contextWasLost=true;
+  console.warn('[WebGL] コンテキストが失われました。復元を待機します');
+}, false);
+renderer.domElement.addEventListener('webglcontextrestored', ()=>{
+  console.warn('[WebGL] コンテキストが復元されました。シーンを再構築します');
+  try{
+    if(typeof rebuildCurrentScene==='function') rebuildCurrentScene();
+  }catch(err){
+    console.error('[WebGL] シーン再構築に失敗しました',err);
+  }
+  contextWasLost=false;
+}, false);
+// タブに戻ってきたタイミングでもコンテキストの状態を確認し、
+// 万一イベントを取りこぼしていても復旧できるようにする
+document.addEventListener('visibilitychange',()=>{
+  if(!document.hidden && renderer.getContext && renderer.getContext().isContextLost && renderer.getContext().isContextLost()){
+    console.warn('[WebGL] 復帰時にコンテキストロストを検知しました');
+  }
+});
+
+const camera=new THREE.PerspectiveCamera(55, window.innerWidth/Math.max(window.innerHeight-230,1), 0.1, 80);
+
+function resizeRenderer(){
+  const w=gameArea.clientWidth||window.innerWidth;
+  const h=gameArea.clientHeight||(window.innerHeight-230);
+  if(w>0&&h>0){
+    renderer.setSize(w,h);
+    camera.aspect=w/h;
+    camera.updateProjectionMatrix();
+  }
+  if(typeof overlay!=='undefined'&&overlay&&w>0&&h>0){
+    overlay.width=w;overlay.height=h;
+  }
+}
+window.addEventListener('resize',resizeRenderer);
+
+const ambLight=new THREE.AmbientLight(0x9a8868,8.5);scene.add(ambLight);
+const playerLight=new THREE.PointLight(0xfff0c0,15,30);
+playerLight.castShadow=true;playerLight.shadow.mapSize.set(512,512);scene.add(playerLight);
+const fillLight=new THREE.PointLight(0xa08860,7,40);scene.add(fillLight);
+
+const wallMeshes=[];
+const fadedWalls=new Set();
+
+// プレイヤー (Three.js初期化後に作成)
+const playerGroup=new THREE.Group();scene.add(playerGroup);
+// 人間らしいボクセル自機
+const playerParts=[];
+function pvox(w,h,d,col,x,y,z){
+  const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),new THREE.MeshLambertMaterial({color:col}));
+  m.position.set(x,y,z);m.castShadow=true;playerGroup.add(m);playerParts.push(m);
+  return m;
+}
+// 脚
+pvox(0.18,0.4,0.18, 0x3a4a8a, -0.13,0.2,0);  // 左脚
+pvox(0.18,0.4,0.18, 0x3a4a8a,  0.13,0.2,0);  // 右脚
+// 胴体（青い服）
+pvox(0.5,0.45,0.3, 0x4a5ab0, 0,0.62,0);
+// ベルト
+pvox(0.52,0.08,0.32, 0x2a2a40, 0,0.42,0);
+// 腕
+pvox(0.14,0.4,0.16, 0x4a5ab0, -0.32,0.6,0); // 左腕
+pvox(0.14,0.4,0.16, 0x4a5ab0,  0.32,0.6,0); // 右腕
+// 手
+pvox(0.12,0.12,0.14, 0xc09050, -0.32,0.36,0);
+pvox(0.12,0.12,0.14, 0xc09050,  0.32,0.36,0);
+// 頭
+const headMesh=pvox(0.38,0.36,0.36, 0xe0b080, 0,1.04,0);
+// 髪（黒髪）
+pvox(0.42,0.14,0.4, 0x1a1a22, 0,1.24,0);
+pvox(0.42,0.1,0.18, 0x1a1a22, 0,1.12,-0.14); // 後ろ髪
+// 目（前面〜側面の角に配置、横からも見える）
+// 左目：前面
+pvox(0.06,0.09,0.04, 0x305080, -0.1,1.06,0.185);
+// 左目：側面
+pvox(0.04,0.09,0.08, 0x305080, -0.195,1.06,0.12);
+// 右目：前面
+pvox(0.06,0.09,0.04, 0x305080,  0.1,1.06,0.185);
+// 右目：側面
+pvox(0.04,0.09,0.08, 0x305080,  0.195,1.06,0.12);
+// 鼻（前面中央に突起、顔の向きを明確化）
+pvox(0.07,0.07,0.06, 0xd0a070, 0,0.99,0.2);
+// 剣（右手・背中に背負う）
+const swordMesh=pvox(0.07,0.6,0.07, 0xc0ccd8, 0.0,0.95,-0.22);
+swordMesh.rotation.z=0.3;
+pvox(0.22,0.07,0.07, 0xa08040, 0.0,0.68,-0.22); // 鍔
+// 盾（左腕）
+const shieldMesh=pvox(0.06,0.4,0.34, 0x7a4020, -0.42,0.6,0);
+pvox(0.05,0.12,0.12, 0xd0a020, -0.45,0.6,0); // 盾の紋章
+
+playerGroup.scale.set(1.4,1.4,1.4); // マスいっぱいに
+
+// 向き変更ガイドのレーザー（細長いBox・確実に描画）
+const guideLine=new THREE.Mesh(
+  new THREE.BoxGeometry(0.12, 0.12, CELL*8),
+  new THREE.MeshBasicMaterial({color:0x90d0ff,transparent:true,opacity:0.0})
+);
+guideLine.renderOrder=998;
+scene.add(guideLine);
+
+function updateHighlight(show){
+  if(show){
+    const px=playerGroup.position.x, pz=playerGroup.position.z;
+    const len=CELL*8;
+    // 線の中心を自機から向き方向へ半分ずらす
+    const cx=px+DIR_DX[state.dir]*len/2;
+    const cz=pz+DIR_DY[state.dir]*len/2;
+    guideLine.position.set(cx,0.4,cz);
+    // 向きに合わせて回転（Z軸が長辺）
+    guideLine.rotation.y=Math.atan2(DIR_DX[state.dir],DIR_DY[state.dir]);
+    guideLine.material.opacity=0.8;
+  } else {
+    guideLine.material.opacity=0.0;
+  }
+}
+
+function updateHighlight(show){
+  // デバッグ中：位置固定の赤コーンが見えるか確認
+}
+
+function setPlayerOpacity(opacity){
+  playerParts.forEach(m=>{
+    m.material.transparent=opacity<1;
+    m.material.opacity=opacity;
+    m.material.needsUpdate=true;
+  });
+}
+
+function updatePlayerVisibility(){
+  // 透明中は半透明、それ以外は不透明
+  setPlayerOpacity(state.invis>0?0.4:1.0);
+  updateObjectVisibility();
+}
+
+// 部屋にいれば同室のオブジェクトを表示、通路なら隣接1マスのみ表示
+function updateObjectVisibility(){
+  if(state.inEntrance){
+    // エントランスは常に全て見える
+    enemies.forEach(e=>{ if(e.mesh)e.mesh.visible=true; });
+    floorItems.forEach(i=>{ if(i.mesh)i.mesh.visible=true; });
+    objectMeshes.forEach(m=>{ m.visible=true; });
+    return;
+  }
+  const myRoom=rooms.find(r=>state.x>=r.x&&state.x<r.x+r.w&&state.y>=r.y&&state.y<r.y+r.h);
+  function visibleAt(gx,gy){
+    if(gx===undefined||gy===undefined)return true;
+    if(myRoom){
+      // 同じ部屋の中なら見える
+      if(gx>=myRoom.x&&gx<myRoom.x+myRoom.w&&gy>=myRoom.y&&gy<myRoom.y+myRoom.h)return true;
+    }
+    // 隣接1マス（斜め含む）なら見える
+    if(Math.abs(gx-state.x)<=1&&Math.abs(gy-state.y)<=1)return true;
+    return false;
+  }
+  // 敵
+  enemies.forEach(e=>{ if(e.mesh)e.mesh.visible=visibleAt(e.x,e.y); });
+  // アイテム
+  floorItems.forEach(i=>{ if(i.mesh)i.mesh.visible=visibleAt(i.x,i.y); });
+  // 階段・帰還など（userDataにgx/gyを持つobjectMeshes）
+  objectMeshes.forEach(m=>{
+    if(m.userData&&m.userData.gx!==undefined){
+      m.visible=visibleAt(m.userData.gx,m.userData.gy);
+    }
+  });
+}
+
+function updatePlayerPos(){
+  // 向きは即時、位置は補間ターゲットだけ設定（実際の移動はupdatePlayerSmoothで）
+  playerGroup.rotation.y=-state.angle+Math.PI/2;
+}
+// 表示座標を論理座標へ滑らかに近づける
+function updatePlayerSmooth(dt){
+  const tx=state.x*CELL, tz=state.y*CELL;
+  // 突進アニメ中はそちらに任せる（干渉回避）
+  if(anims.some(a=>a.mesh===playerGroup))return;
+  const k=Math.min(dt*7,1); // 補間速度（小さいほど滑らか）
+  playerGroup.position.x+=(tx-playerGroup.position.x)*k;
+  playerGroup.position.z+=(tz-playerGroup.position.z)*k;
+}
+
+// マップ生成
+function generateMap(floor){
+  const m=Array.from({length:MAP_H},()=>Array(MAP_W).fill(1));
+  const rs=[];
+
+  // 10Fは1部屋のみ（ボス部屋）
+  if(floor===10){
+    const rw=16,rh=16;
+    const rx=Math.floor((MAP_W-rw)/2),ry=Math.floor((MAP_H-rh)/2);
+    for(let y=ry;y<ry+rh;y++)for(let x=rx;x<rx+rw;x++)m[y][x]=0;
+    rs.push({x:rx,y:ry,w:rw,h:rh,cx:Math.floor(rx+rw/2),cy:Math.floor(ry+rh/2)});
+    return{cells:m,rooms:rs};
+  }
+
+  const cnt=4+Math.floor(Math.random()*3);
+  for(let att=0;att<300&&rs.length<cnt;att++){
+    const rw=4+Math.floor(Math.random()*6),rh=4+Math.floor(Math.random()*6);
+    const rx=1+Math.floor(Math.random()*(MAP_W-rw-2)),ry=1+Math.floor(Math.random()*(MAP_H-rh-2));
+    if(rs.some(r=>rx<=r.x+r.w+1&&rx+rw+1>=r.x&&ry<=r.y+r.h+1&&ry+rh+1>=r.y))continue;
+    for(let y=ry;y<ry+rh;y++)for(let x=rx;x<rx+rw;x++)m[y][x]=0;
+    rs.push({x:rx,y:ry,w:rw,h:rh,cx:Math.floor(rx+rw/2),cy:Math.floor(ry+rh/2)});
+  }
+  for(let i=1;i<rs.length;i++){
+    const a=rs[i-1],b=rs[i];let cx=a.cx,cy=a.cy;
+    while(cx!==b.cx){m[cy][cx]=0;cx+=cx<b.cx?1:-1;}
+    while(cy!==b.cy){m[cy][cx]=0;cy+=cy<b.cy?1:-1;}
+  }
+  return{cells:m,rooms:rs};
+}
+function rndInRoom(r){return{x:r.x+1+Math.floor(Math.random()*Math.max(1,r.w-2)),y:r.y+1+Math.floor(Math.random()*Math.max(1,r.h-2))};}
+
+// エントランス固定マップ生成（縦15x横7の本体 + 4部屋7x7）
+function generateEntranceMap(){
+  const m=Array.from({length:MAP_H},()=>Array(MAP_W).fill(1));
+  const rs=[];
+
+  // オフセット（マップ中央寄りに配置）
+  const OX=3, OY=7;
+
+  // エントランス本体：横7 x 縦15
+  const cx0=OX+7+1; // 左部屋(7)+通路(1)
+  const cy0=OY;
+  const cw=7, ch=15;
+  for(let y=cy0;y<cy0+ch;y++)for(let x=cx0;x<cx0+cw;x++)m[y][x]=0;
+  const centerRoom={x:cx0,y:cy0,w:cw,h:ch,cx:cx0+3,cy:cy0+7,id:'center'};
+  rs.push(centerRoom);
+
+  // 4部屋（各7x7）
+  const leftX=OX, rightX=cx0+cw+1;
+  const topY=OY, botY=OY+8;
+
+  const storageRoom={x:leftX,y:topY,w:7,h:7,cx:leftX+3,cy:topY+3,id:'storage'};
+  const shopRoom   ={x:leftX,y:botY,w:7,h:7,cx:leftX+3,cy:botY+3,id:'shop'};
+  const bankRoom   ={x:rightX,y:topY,w:7,h:7,cx:rightX+3,cy:topY+3,id:'bank'};
+  const spaceRoom  ={x:rightX,y:botY,w:7,h:7,cx:rightX+3,cy:botY+3,id:'space'};
+  [storageRoom,shopRoom,bankRoom,spaceRoom].forEach(r=>{
+    for(let y=r.y;y<r.y+r.h;y++)for(let x=r.x;x<r.x+r.w;x++)m[y][x]=0;
+    rs.push(r);
+  });
+
+  // 通路で接続（各部屋の中心行/列からエントランス本体まで一直線）
+  function carveH(y,xFrom,xTo){const s=Math.min(xFrom,xTo),e=Math.max(xFrom,xTo);for(let x=s;x<=e;x++)m[y][x]=0;}
+  carveH(storageRoom.cy, storageRoom.x+storageRoom.w-1, cx0); // 倉庫→本体
+  carveH(shopRoom.cy,    shopRoom.x+shopRoom.w-1, cx0);       // ショップ→本体
+  carveH(bankRoom.cy,    cx0+cw-1, bankRoom.x);               // 本体→銀行
+  carveH(spaceRoom.cy,   cx0+cw-1, spaceRoom.x);              // 本体→スペース
+
+  return{cells:m,rooms:rs, doorX:cx0+3, doorY:cy0, startX:cx0+3, startY:cy0+ch-4,
+    storageRoom, shopRoom, bankRoom, spaceRoom, centerRoom};
+}
+
+// ダンジョン構築
+function buildDungeon(){
+  const fGeo=new THREE.PlaneGeometry(CELL,CELL);
+  const cGeo=new THREE.PlaneGeometry(CELL,CELL);
+  const wGeo=new THREE.BoxGeometry(CELL,WALL_H,0.12);
+  const bGeo=new THREE.BoxGeometry(CELL,WALL_H,CELL);
+  const wMat=()=>new THREE.MeshLambertMaterial({color:0x3a2410});
+  const fMat=new THREE.MeshLambertMaterial({color:0x181008});
+  const cMat=new THREE.MeshLambertMaterial({color:0x0c0804});
+  for(let y=0;y<MAP_H;y++){
+    for(let x=0;x<MAP_W;x++){
+      const wx=x*CELL,wz=y*CELL;
+      if(MAP[y][x]===0){
+        const fl=new THREE.Mesh(fGeo,fMat);fl.rotation.x=-Math.PI/2;fl.position.set(wx,0,wz);fl.receiveShadow=true;scene.add(fl);
+        const cl=new THREE.Mesh(cGeo,cMat);cl.rotation.x=Math.PI/2;cl.position.set(wx,WALL_H,wz);scene.add(cl);
+        [{dx:0,dz:-1,ry:0,ox:0,oz:-CELL/2},{dx:0,dz:1,ry:Math.PI,ox:0,oz:CELL/2},{dx:-1,dz:0,ry:Math.PI/2,ox:-CELL/2,oz:0},{dx:1,dz:0,ry:-Math.PI/2,ox:CELL/2,oz:0}].forEach(s=>{
+          const nx=x+s.dx,ny=y+s.dz;
+          if(nx<0||nx>=MAP_W||ny<0||ny>=MAP_H||MAP[ny][nx]===1){
+            const wm=new THREE.Mesh(wGeo,wMat());wm.position.set(wx+s.ox,WALL_H/2,wz+s.oz);wm.rotation.y=s.ry;wm.castShadow=true;wm.receiveShadow=true;
+            wm.userData.gx=x;wm.userData.gz=y;
+            scene.add(wm);wallMeshes.push(wm);
+          }
+        });
+      } else {
+        const bm=new THREE.Mesh(bGeo,wMat());bm.position.set(wx,WALL_H/2,wz);bm.castShadow=true;bm.receiveShadow=true;
+        bm.userData.gx=x;bm.userData.gz=y;
+        scene.add(bm);wallMeshes.push(bm);
+      }
+    }
+  }
+  const grid=new THREE.GridHelper(MAP_W*CELL,MAP_W,0x8a7a55,0x6a5a3a);
+  grid.position.set((MAP_W-1)*CELL/2,0.005,(MAP_H-1)*CELL/2);scene.add(grid);
+}
+
+// ボクセルパーツ生成ヘルパー
+function vox(w,h,d,col,x,y,z,grp){
+  const m=new THREE.Mesh(
+    new THREE.BoxGeometry(w,h,d),
+    new THREE.MeshLambertMaterial({color:col})
+  );
+  m.position.set(x,y,z);m.castShadow=true;grp.add(m);
+}
+
+// 巻物を読む（使い切り）
+function useScroll(it){
+  const db=ITEM_DB[it.key];
+  const eff=db.effect.scroll;
+  const visEnemies=enemies.filter(e=>e.hp>0&&e.mesh.visible);
+  switch(eff){
+    case 'enchant': {
+      const target=equippedWeapon||equippedArmor;
+      if(target){ target.plus++; showAction(`${ITEM_DB[target.key].name}が+${target.plus}に輝いた！`,1500); }
+      else { showAction('強化できる装備がない…',1200); }
+      break;
+    }
+    case 'uncurse':
+      showAction('体が軽くなった気がする…',1200);
+      break;
+    case 'fireAll':
+      if(visEnemies.length===0){ showAction('何も起きなかった…',1000); break; }
+      visEnemies.forEach(e=>{
+        e.hp-=db.effect.power;
+        spawnDamageNum(e.mesh.position.x,2.0,e.mesh.position.z,`🔥${db.effect.power}`,'#ffffff');
+        if(e.hp<=0)damageEnemy(e,0);
+      });
+      triggerFlash('rgba(255,100,0,');
+      showAction('炎が周囲を包んだ！',1500);
+      break;
+    case 'teleport': {
+      const room=rooms[Math.floor(Math.random()*rooms.length)];
+      const p=rndInRoom(room);
+      state.x=p.x; state.y=p.y;
+      playerGroup.position.set(state.x*CELL,0,state.y*CELL);
+      updatePlayerPos();updateExplored();
+      showAction('体がふわっと浮いて移動した！',1500);
+      break;
+    }
+    case 'return':
+      showAction('エントランスへの帰還は準備中…',1200);
+      break;
+    case 'pitfall':
+      if(state.floor>=10){ showAction('これ以上は落ちられない…',1200); break; }
+      state.floor++; showAction('床が抜けて落下した！',1500); setLog(`${state.floor}F`); initFloor(state.floor);
+      break;
+    case 'barrier':
+      state.confuse=state.confuse; // no-op placeholder
+      state.barrier=10;
+      showAction('体が光の結界に包まれた！',1500);
+      break;
+    case 'confuseAll':
+      if(visEnemies.length===0){ showAction('何も起きなかった…',1000); break; }
+      visEnemies.forEach(e=>{ e.confused=(e.confused||0)+8; });
+      showAction('周囲の敵が混乱した！',1500);
+      break;
+    case 'sleepAll':
+      if(visEnemies.length===0){ showAction('何も起きなかった…',1000); break; }
+      visEnemies.forEach(e=>{ e.sleep=(e.sleep||0)+8; });
+      showAction('周囲の敵が眠った！',1500);
+      break;
+    case 'luck':
+      state.luck=(state.luck||0)+1;
+      showAction('体が幸運のオーラに包まれた！',1500);
+      break;
+    case 'damageAll':
+      if(visEnemies.length===0){ showAction('何も起きなかった…',1000); break; }
+      visEnemies.forEach(e=>{
+        e.hp-=db.effect.power;
+        spawnDamageNum(e.mesh.position.x,2.0,e.mesh.position.z,`${db.effect.power}`,'#ffffff');
+        if(e.hp<=0)damageEnemy(e,0);
+      });
+      triggerFlash('rgba(255,220,80,');
+      showAction('衝撃波が周囲を襲った！',1500);
+      break;
+    case 'map':
+      for(let yy=0;yy<MAP_H;yy++)for(let xx=0;xx<MAP_W;xx++){ if(MAP[yy][xx]===0) explored[yy][xx]=true; }
+      showAction('フロアの地図が頭に浮かんだ！',1500);
+      break;
+    case 'sealAll':
+      if(visEnemies.length===0){ showAction('何も起きなかった…',1000); break; }
+      visEnemies.forEach(e=>{ e.sealed=10; });
+      showAction('周囲の敵の能力を封じた！',1500);
+      break;
+    default:
+      showAction('何も起きなかった…',1000);
+  }
+  removeFromInv(it);
+  updateUI();
+}
+
+
+function useStaff(it){
+  const db=ITEM_DB[it.key];
+  if(it.charges<=0){
+    showAction('振っても効果がなかった…',1200);
+    return;
+  }
+  it.charges--;
+  // 向いている方向の直線上の最初の敵を探す
+  const dx=DIR_DX[state.dir], dz=DIR_DY[state.dir];
+  let target=null;
+  for(let step=1;step<=20;step++){
+    const cx=state.x+dx*step, cz=state.y+dz*step;
+    if(!isWalkable(cx,cz))break;
+    const e=enemies.find(en=>en.hp>0&&en.x===cx&&en.y===cz);
+    if(e){target=e;break;}
+  }
+  showAction(`${db.name}を振った！`,900);
+  fireWandBolt(dx,dz,db.effect,target);
+  updateUI();
+}
+
+// 杖の光弾演出＋効果適用（必中）
+function fireWandBolt(dx,dz,eff,target){
+  // ロジック即時：命中していれば効果を確定
+  if(target){
+    applyWandEffect(eff,target,dx,dz);
+  }
+  // 見た目の光弾（魔法演出と同様）
+  const geo=new THREE.SphereGeometry(0.13,6,6);
+  const mat=new THREE.MeshBasicMaterial({color:0xffe060});
+  const bolt=new THREE.Mesh(geo,mat);
+  bolt.position.set(state.x*CELL,0.9,state.y*CELL);
+  scene.add(bolt);
+  const lt=new THREE.PointLight(0xffe060,3,2);
+  bolt.add(lt);
+  const tx=target?target.x*CELL:state.x*CELL+dx*CELL*6;
+  const tz=target?target.y*CELL:state.y*CELL+dz*CELL*6;
+  wandBolts.push({mesh:bolt,dx,dz,targetX:tx,targetY:tz,dist:0});
+}
+
+const wandBolts=[];
+function updateWandBolts(dt){
+  for(let i=wandBolts.length-1;i>=0;i--){
+    const b=wandBolts[i];
+    const speed=11;
+    b.dist+=speed*dt;
+    b.mesh.position.x+=b.dx*speed*dt*CELL;
+    b.mesh.position.z+=b.dz*speed*dt*CELL;
+    const reached=(b.dx!==0 ? (b.dx>0?b.mesh.position.x>=b.targetX:b.mesh.position.x<=b.targetX)
+                            : (b.dz!==0 ? (b.dz>0?b.mesh.position.z>=b.targetY:b.mesh.position.z<=b.targetY) : true));
+    if(reached||b.dist>25){
+      triggerFlash('rgba(255,220,80,');
+      scene.remove(b.mesh);
+      wandBolts.splice(i,1);
+    }
+  }
+}
+
+// 杖の効果を敵に適用（投げた薬と同じ必中ロジック）
+function applyWandEffect(eff,e,wdx,wdz){
+  switch(eff.wand){
+    case 'damage':
+      e.hp-=eff.power;
+      spawnDamageNum(e.mesh.position.x,2.0,e.mesh.position.z,`${eff.power}`,'#ffffff');
+      if(e.hp<=0)damageEnemy(e,0);
+      break;
+    case 'fire':
+      e.hp-=eff.power;
+      spawnDamageNum(e.mesh.position.x,2.0,e.mesh.position.z,`🔥${eff.power}`,'#ffffff');
+      if(e.hp<=0)damageEnemy(e,0);
+      break;
+    case 'sleep':
+      e.sleep=(e.sleep||0)+8; showAction('敵が眠った！',1000);
+      break;
+    case 'confuse':
+      e.confused=(e.confused||0)+8; showAction('敵が混乱した！',1000);
+      break;
+    case 'swap': {
+      const ex=e.x,ey=e.y;
+      if(isWalkable(state.x,state.y)){
+        e.x=state.x; e.y=state.y;
+        e.mesh.position.set(e.x*CELL,0,e.y*CELL);
+      }
+      state.x=ex; state.y=ey;
+      updatePlayerPos();updateExplored();
+      showAction('場所が入れ替わった！',1000);
+      break;
+    }
+    case 'knockback': {
+      // 杖を撃った方向（wdx,wdz）へ直線に、進める限り複数マス吹き飛ばす
+      const kx=wdx!==undefined?wdx:Math.sign(e.x-state.x);
+      const kz=wdz!==undefined?wdz:Math.sign(e.y-state.y);
+      let nx=e.x, ny=e.y;
+      for(let s=1;s<=4;s++){
+        const tx=e.x+kx*s, ty=e.y+kz*s;
+        if(!isWalkable(tx,ty))break;
+        if(enemies.some(o=>o!==e&&o.x===tx&&o.y===ty))break;
+        nx=tx; ny=ty;
+      }
+      e.x=nx; e.y=ny;
+      e.mesh.position.set(e.x*CELL,0,e.y*CELL);
+      showAction('敵を吹き飛ばした！',1000);
+      break;
+    }
+    case 'weaken':
+      e.atkDown=(e.atkDown||0)+Math.ceil((MONSTER_DB[e.monType]?.atk||e.atk)*0.3);
+      showAction('敵の攻撃力が下がった！',1000);
+      break;
+    case 'seal':
+      e.sealed=10; showAction('敵の能力を封じた！',1000);
+      break;
+    case 'pull': {
+      const dxp=Math.sign(state.x-e.x), dzp=Math.sign(state.y-e.y);
+      let nx=e.x, ny=e.y;
+      for(let s=0;s<3;s++){
+        const tx=e.x+dxp*(s+1), ty=e.y+dzp*(s+1);
+        if(!isWalkable(tx,ty))break;
+        nx=tx;ny=ty;
+      }
+      e.x=nx; e.y=ny;
+      e.mesh.position.set(e.x*CELL,0,e.y*CELL);
+      showAction('敵を引き寄せた！',1000);
+      break;
+    }
+  }
+  updateUI();
+}
+function buildItemMesh(g, itemType){
+  const SILVER=0xd0d0d0, GRAY=0xa0a0a0, WHITE=0xffffff;
+  const BLUE=0x4080e0, GREEN=0x40c040, BROWN=0xb87838, LIGHTGREEN=0x60d060;
+
+  if(itemType==='weapon'){
+    // 剣：刀身=銀、柄=青
+    vox(0.07,0.55,0.07, SILVER, 0,0.38,0, g); // 刀身
+    vox(0.28,0.06,0.07, GRAY,   0,0.13,0, g); // 鍔
+    vox(0.1,0.16,0.1,   BLUE,   0,0.04,0, g); // 柄（青）
+  } else if(itemType==='staff'){
+    // 杖：柄=灰、先の玉=緑
+    vox(0.07,0.55,0.07, GRAY,       0,0.3,0,  g); // 柄
+    vox(0.16,0.16,0.16, GREEN,      0,0.6,0,  g); // 宝珠（緑）
+    vox(0.08,0.08,0.08, LIGHTGREEN, 0,0.68,0, g); // 光
+    vox(0.1,0.08,0.1,   GRAY,       0,0.52,0, g); // 台座
+  } else if(itemType==='shield'){
+    // 盾：五角形（ホームベース型）、縁が青
+    vox(0.36,0.22,0.07, SILVER, 0,0.34,0, g); // 上部本体（四角）
+    vox(0.28,0.12,0.07, SILVER, 0,0.17,0, g); // 中部
+    vox(0.18,0.1,0.07,  SILVER, 0,0.07,0, g); // 下部
+    vox(0.08,0.08,0.07, SILVER, 0,-0.01,0, g);// 先端
+    // 青い縁
+    vox(0.4,0.05,0.08,  BLUE, 0,0.45,0, g);     // 上縁
+    vox(0.05,0.24,0.08, BLUE, -0.2,0.33,0, g);  // 左上縁
+    vox(0.05,0.24,0.08, BLUE,  0.2,0.33,0, g);  // 右上縁
+    vox(0.05,0.16,0.08, BLUE, -0.12,0.11,0, g); // 左下斜め
+    vox(0.05,0.16,0.08, BLUE,  0.12,0.11,0, g); // 右下斜め
+    vox(0.1,0.08,0.06,  0xd0a020, 0,0.3,0.02, g); // 金の紋章
+  } else if(itemType==='potion'){
+    // 薬：緑の液体
+    vox(0.2,0.06,0.2,   GRAY,  0,0.03,0, g); // 底
+    vox(0.22,0.18,0.22, GREEN, 0,0.12,0, g); // 下胴（緑）
+    vox(0.2,0.1,0.2,    GREEN, 0,0.26,0, g); // 上胴（緑）
+    vox(0.1,0.12,0.1,   SILVER,0,0.37,0, g); // 首
+    vox(0.12,0.05,0.12, GRAY,  0,0.45,0, g); // コルク
+    vox(0.12,0.1,0.12,  LIGHTGREEN, 0,0.18,0, g); // 液体ハイライト
+  } else if(itemType==='scroll'){
+    // 巻物：羊皮紙（横長・両端がクルッと巻かれた形）
+    const PAPER=0xf0e8d0, ROLL=0xd8c8a0, RIBBON=0xc04040;
+    // 中央の紙面（横長・寝かせ気味）
+    vox(0.5,0.28,0.06, PAPER, 0,0.2,0, g);
+    // 左の巻き（円柱風に太く）
+    vox(0.12,0.34,0.14, ROLL, -0.28,0.2,0, g);
+    vox(0.08,0.34,0.1,  0xc0b088, -0.32,0.2,0, g);
+    // 右の巻き
+    vox(0.12,0.34,0.14, ROLL,  0.28,0.2,0, g);
+    vox(0.08,0.34,0.1,  0xc0b088,  0.32,0.2,0, g);
+    // 赤いリボン（中央に横帯）
+    vox(0.54,0.06,0.08, RIBBON, 0,0.2,0.01, g);
+    // 文字っぽい線
+    vox(0.3,0.02,0.02, 0x907040, 0,0.28,0.04, g);
+    vox(0.3,0.02,0.02, 0x907040, 0,0.13,0.04, g);
+  } else if(itemType==='food'){
+    // パン：こんがり茶色
+    vox(0.28,0.16,0.22, BROWN, 0,0.1,0,  g); // 本体
+    vox(0.2,0.1,0.16,   BROWN, 0,0.2,0,  g); // 山
+    vox(0.1,0.06,0.1,   0xe0a860, 0,0.25,0, g); // 焼き色ハイライト
+  } else {
+    vox(0.3,0.25,0.3, SILVER, 0,0.13,0, g);
+  }
+}
+
+// モンスターDB
+const MONSTER_DB={
+  slime:{
+    name:'スライム',hp:8,atk:3,def:0,exp:3,aiType:'normal',
+    buildMesh(g){
+      // 体（横に潰れた形）
+      vox(0.8,0.4,0.8, 0x40c040, 0,0.2,0, g);
+      // 上部ぷよぷよ
+      vox(0.5,0.25,0.5, 0x50d050, 0,0.48,0, g);
+      // 目（左右）
+      vox(0.1,0.1,0.05, 0x000000, -0.15,0.38,0.38, g);
+      vox(0.1,0.1,0.05, 0x000000,  0.15,0.38,0.38, g);
+      // ツヤ
+      vox(0.12,0.08,0.05, 0x80ff80, -0.1,0.52,0.38, g);
+    }
+  },
+  bat:{
+    name:'コウモリ',hp:10,atk:4,def:0,exp:4,aiType:'normal',
+    buildMesh(g){
+      // 体
+      vox(0.3,0.3,0.25, 0x4a2060, 0,0.6,0, g);
+      // 頭
+      vox(0.25,0.22,0.22, 0x5a3070, 0,0.88,0, g);
+      // 耳
+      vox(0.08,0.18,0.06, 0x4a2060, -0.1,1.04,0, g);
+      vox(0.08,0.18,0.06, 0x4a2060,  0.1,1.04,0, g);
+      // 翼（左）
+      vox(0.35,0.06,0.2, 0x3a1050, -0.42,0.65,0, g);
+      vox(0.2,0.05,0.15, 0x3a1050, -0.65,0.55,0, g);
+      // 翼（右）
+      vox(0.35,0.06,0.2, 0x3a1050,  0.42,0.65,0, g);
+      vox(0.2,0.05,0.15, 0x3a1050,  0.65,0.55,0, g);
+      // 目
+      vox(0.07,0.07,0.05, 0xff2020, -0.07,0.9,0.1, g);
+      vox(0.07,0.07,0.05, 0xff2020,  0.07,0.9,0.1, g);
+    }
+  },
+  goblin:{
+    name:'ゴブリン',hp:14,atk:6,def:1,exp:7,aiType:'wander',
+    buildMesh(g){
+      // 足
+      vox(0.16,0.28,0.16, 0x3a6030, -0.12,0.14,0, g);
+      vox(0.16,0.28,0.16, 0x3a6030,  0.12,0.14,0, g);
+      // 胴（粗末な布）
+      vox(0.4,0.32,0.26, 0x8a6030, 0,0.46,0, g);
+      // 頭（緑）
+      vox(0.32,0.3,0.3, 0x5a9040, 0,0.78,0, g);
+      // 耳（尖った大きい耳）
+      vox(0.1,0.16,0.06, 0x4a8030, -0.2,0.85,0, g);
+      vox(0.1,0.16,0.06, 0x4a8030,  0.2,0.85,0, g);
+      // 目（黄色く光る）
+      vox(0.06,0.06,0.05, 0xf0e020, -0.08,0.8,0.16, g);
+      vox(0.06,0.06,0.05, 0xf0e020,  0.08,0.8,0.16, g);
+      // 手に持つ棍棒
+      vox(0.06,0.32,0.06, 0x705028, 0.28,0.5,0, g);
+      vox(0.12,0.1,0.12, 0x584020, 0.28,0.68,0, g);
+    }
+  },
+  zombie:{
+    name:'ゾンビ',hp:18,atk:4,def:2,exp:6,aiType:'dull',
+    buildMesh(g){
+      vox(0.18,0.3,0.18, 0x506040, -0.13,0.15,0, g);
+      vox(0.18,0.3,0.18, 0x506040,  0.13,0.15,0, g);
+      vox(0.55,0.4,0.28, 0x607050, 0,0.5,0, g);
+      vox(0.38,0.38,0.35, 0x789060, 0,0.9,0, g);
+      vox(0.15,0.12,0.45, 0x607050, -0.35,0.55,0.28, g);
+      vox(0.15,0.12,0.45, 0x607050,  0.35,0.55,0.28, g);
+      vox(0.08,0.06,0.05, 0x202010, -0.1,0.94,0.15, g);
+      vox(0.08,0.06,0.05, 0x202010,  0.1,0.94,0.15, g);
+      vox(0.3,0.04,0.05, 0x883030, 0,0.75,0.14, g);
+    }
+  },
+  mage:{
+    name:'魔法使い（見習い）',hp:14,atk:5,def:1,exp:8,aiType:'mage',
+    buildMesh(g){
+      // 足
+      vox(0.15,0.28,0.15, 0x303060, -0.1,0.14,0, g);
+      vox(0.15,0.28,0.15, 0x303060,  0.1,0.14,0, g);
+      // ローブ
+      vox(0.5,0.42,0.28, 0x3a3a80, 0,0.5,0, g);
+      // 頭
+      vox(0.32,0.32,0.3, 0xd0b090, 0,0.88,0, g);
+      // 帽子
+      vox(0.38,0.08,0.38, 0x202060, 0,1.06,0, g);
+      vox(0.18,0.35,0.18, 0x202060, 0,1.28,0, g);
+      // 杖（右手）
+      vox(0.06,0.7,0.06, 0x8060a0, 0.38,0.6,0, g);
+      vox(0.12,0.12,0.12, 0x80d0ff, 0.38,1.0,0, g); // 宝珠
+      // 目
+      vox(0.07,0.07,0.04, 0x4040ff, -0.08,0.9,0.14, g);
+      vox(0.07,0.07,0.04, 0x4040ff,  0.08,0.9,0.14, g);
+    }
+  },
+  knight:{
+    name:'ナイト',hp:25,atk:9,def:5,exp:15,aiType:'normal',
+    buildMesh(g){
+      vox(0.2,0.32,0.2, 0x606070, -0.12,0.16,0, g);
+      vox(0.2,0.32,0.2, 0x606070,  0.12,0.16,0, g);
+      vox(0.58,0.44,0.3, 0x7080a0, 0,0.52,0, g);
+      vox(0.38,0.38,0.34, 0x8090b0, 0,0.92,0, g);
+      // 兜
+      vox(0.42,0.14,0.38, 0x506080, 0,1.12,0, g);
+      vox(0.08,0.2,0.04, 0x506080, 0,1.06,0.18, g); // 面当て
+      // 剣
+      vox(0.07,0.75,0.07, 0xd0d0e0, 0.42,0.65,0, g);
+      vox(0.3,0.06,0.06, 0xa08040, 0.42,0.9,0, g); // 鍔
+      // 盾
+      vox(0.28,0.4,0.07, 0x506080, -0.42,0.55,0, g);
+      vox(0.08,0.07,0.05, 0xd0a020, -0.42,0.55,0.05, g);
+    }
+  },
+  chimera:{
+    name:'キメラ',hp:22,atk:10,def:3,exp:14,aiType:'normal',
+    buildMesh(g){
+      // 体（大きめ）
+      vox(0.65,0.38,0.5, 0x806040, 0,0.4,0, g);
+      // ライオン頭
+      vox(0.42,0.4,0.38, 0xc09040, 0,0.82,0, g);
+      vox(0.54,0.1,0.5, 0xd0a050, 0,0.62,0, g); // たてがみ
+      // 翼
+      vox(0.5,0.08,0.28, 0x604030, -0.55,0.65,0, g);
+      vox(0.5,0.08,0.28, 0x604030,  0.55,0.65,0, g);
+      // 蛇の尾
+      vox(0.1,0.45,0.1, 0x408040, 0.15,0.2,-0.3, g);
+      vox(0.12,0.12,0.12, 0x40a040, 0.2,0.02,-0.52, g);
+      // 目
+      vox(0.09,0.09,0.05, 0xff8000, -0.12,0.85,0.18, g);
+      vox(0.09,0.09,0.05, 0xff8000,  0.12,0.85,0.18, g);
+    }
+  },
+  golem:{
+    name:'ゴーレム',hp:45,atk:12,def:8,exp:25,aiType:'dull',
+    buildMesh(g){
+      vox(0.3,0.4,0.28, 0x707060, -0.18,0.2,0, g);
+      vox(0.3,0.4,0.28, 0x707060,  0.18,0.2,0, g);
+      vox(0.72,0.52,0.42, 0x808070, 0,0.6,0, g);
+      vox(0.52,0.48,0.44, 0x909080, 0,1.08,0, g);
+      // 腕（太い）
+      vox(0.28,0.52,0.28, 0x707060, -0.56,0.56,0, g);
+      vox(0.28,0.52,0.28, 0x707060,  0.56,0.56,0, g);
+      // 拳
+      vox(0.32,0.3,0.3, 0x606050, -0.58,0.25,0, g);
+      vox(0.32,0.3,0.3, 0x606050,  0.58,0.25,0, g);
+      // 目（光る）
+      vox(0.1,0.1,0.05, 0xff4000, -0.13,1.1,0.2, g);
+      vox(0.1,0.1,0.05, 0xff4000,  0.13,1.1,0.2, g);
+      // 石の紋様
+      vox(0.35,0.05,0.05, 0x606050, 0,0.72,0.22, g);
+    }
+  },
+  wizard:{
+    name:'魔法使い',hp:20,atk:15,def:2,exp:28,aiType:'mage',
+    buildMesh(g){
+      vox(0.16,0.3,0.16, 0x1a0a30, -0.1,0.15,0, g);
+      vox(0.16,0.3,0.16, 0x1a0a30,  0.1,0.15,0, g);
+      vox(0.52,0.44,0.3, 0x2a1a50, 0,0.52,0, g);
+      vox(0.34,0.34,0.3, 0xc8a070, 0,0.9,0, g);
+      vox(0.42,0.08,0.42, 0x1a0a30, 0,1.08,0, g);
+      vox(0.2,0.4,0.2, 0x1a0a30, 0,1.32,0, g);
+      // 杖（豪華）
+      vox(0.07,0.78,0.07, 0xc0a000, 0.4,0.62,0, g);
+      vox(0.16,0.16,0.16, 0xff40ff, 0.4,1.06,0, g);
+      vox(0.08,0.08,0.08, 0xffffff, 0.4,1.14,0, g);
+      vox(0.08,0.07,0.04, 0x8040ff, -0.09,0.92,0.14, g);
+      vox(0.08,0.07,0.04, 0x8040ff,  0.09,0.92,0.14, g);
+    }
+  },
+  devilape:{
+    name:'デビルエイプ',hp:35,atk:10,def:4,exp:30,aiType:'double',
+    buildMesh(g){
+      // 足
+      vox(0.22,0.35,0.22, 0x301820, -0.14,0.175,0, g);
+      vox(0.22,0.35,0.22, 0x301820,  0.14,0.175,0, g);
+      // 胴（大きめ）
+      vox(0.65,0.45,0.4, 0x401828, 0,0.57,0, g);
+      // 頭
+      vox(0.45,0.42,0.4, 0x502030, 0,0.96,0, g);
+      // 角
+      vox(0.08,0.22,0.08, 0x800000, -0.14,1.24,0, g);
+      vox(0.08,0.22,0.08, 0x800000,  0.14,1.24,0, g);
+      // 腕（長い）
+      vox(0.2,0.55,0.2, 0x401828, -0.5,0.5,0, g);
+      vox(0.2,0.55,0.2, 0x401828,  0.5,0.5,0, g);
+      // 手
+      vox(0.25,0.22,0.22, 0x301820, -0.52,0.2,0, g);
+      vox(0.25,0.22,0.22, 0x301820,  0.52,0.2,0, g);
+      // 目
+      vox(0.1,0.1,0.05, 0xff2000, -0.12,0.98,0.19, g);
+      vox(0.1,0.1,0.05, 0xff2000,  0.12,0.98,0.19, g);
+    }
+  },
+  dragon:{
+    name:'ドラゴン',hp:80,atk:20,def:10,exp:100,aiType:'normal',
+    buildMesh(g){
+      // 胴（長い）
+      vox(0.7,0.55,0.9, 0x804020, 0,0.48,0, g);
+      // 首
+      vox(0.35,0.5,0.35, 0x904828, 0,0.96,0.18, g);
+      // 頭
+      vox(0.52,0.42,0.55, 0xa05030, 0,1.28,0.3, g);
+      // 顎
+      vox(0.42,0.12,0.35, 0x903828, 0,1.08,0.42, g);
+      // 翼（大きい）
+      vox(0.65,0.1,0.45, 0x602010, -0.75,0.85,0, g);
+      vox(0.45,0.08,0.3, 0x602010, -1.05,0.68,0, g);
+      vox(0.65,0.1,0.45, 0x602010,  0.75,0.85,0, g);
+      vox(0.45,0.08,0.3, 0x602010,  1.05,0.68,0, g);
+      // 足
+      vox(0.25,0.38,0.25, 0x804020, -0.25,0.19,0.2, g);
+      vox(0.25,0.38,0.25, 0x804020,  0.25,0.19,0.2, g);
+      // 尻尾
+      vox(0.2,0.2,0.5, 0x804020, 0,0.35,-0.55, g);
+      vox(0.12,0.12,0.35, 0x804020, 0,0.25,-0.88, g);
+      // 目
+      vox(0.1,0.1,0.05, 0xffff00, -0.15,1.3,0.55, g);
+      vox(0.1,0.1,0.05, 0xffff00,  0.15,1.3,0.55, g);
+      // 角
+      vox(0.08,0.3,0.08, 0xd08000, -0.18,1.52,0.25, g);
+      vox(0.08,0.3,0.08, 0xd08000,  0.18,1.52,0.25, g);
+    }
+  }
+};
+
+// オブジェクト
+const objectMeshes=[];
+// 下り階段のテクスチャをCanvasで生成（一度だけ作って使い回す）
+let _stairsTexture=null;
+// 金袋に貼る💲マークのテクスチャをCanvasで生成
+let _dollarTexture=null;
+function getDollarTexture(){
+  if(_dollarTexture)return _dollarTexture;
+  const S=64;
+  const cv=document.createElement('canvas');
+  cv.width=S; cv.height=S;
+  const c=cv.getContext('2d');
+  c.clearRect(0,0,S,S);
+  c.font='bold 44px "Courier New", monospace';
+  c.textAlign='center';
+  c.textBaseline='middle';
+  // 縁取り（濃い茶）
+  c.strokeStyle='#3a2410';
+  c.lineWidth=6;
+  c.strokeText('$', S/2, S/2+2);
+  // 本体（金色）
+  c.fillStyle='#ffe060';
+  c.fillText('$', S/2, S/2+2);
+  const tex=new THREE.CanvasTexture(cv);
+  tex.magFilter=THREE.NearestFilter;
+  _dollarTexture=tex;
+  return tex;
+}
+
+function getStairsTexture(){
+  if(_stairsTexture)return _stairsTexture;
+  const S=64; // テクスチャ解像度
+  const cv=document.createElement('canvas');
+  cv.width=S; cv.height=S;
+  const c=cv.getContext('2d');
+  // 背景（黒い外枠）
+  c.fillStyle='#0a0a0e'; c.fillRect(0,0,S,S);
+  // 内側の穴
+  const pad=5;
+  c.fillStyle='#050508'; c.fillRect(pad,pad,S-pad*2,S-pad*2);
+  // 段（上＝奥が明るく、下＝手前が暗い。階段状に幅を変える）
+  // 各段は横帯。上から下に向かって手前に張り出す＝台形状に描く
+  const inner=S-pad*2;
+  const rows=[
+    {col:'#9098a0', x0:0.10, x1:0.90, y:0.12, h:0.16}, // 奥（明るい）
+    {col:'#7c848c', x0:0.16, x1:0.84, y:0.30, h:0.16},
+    {col:'#666e76', x0:0.24, x1:0.76, y:0.48, h:0.16},
+    {col:'#525a62', x0:0.34, x1:0.66, y:0.66, h:0.18}, // 手前（暗い）
+  ];
+  rows.forEach(r=>{
+    const x=pad+inner*r.x0;
+    const w=inner*(r.x1-r.x0);
+    const y=pad+inner*r.y;
+    const h=inner*r.h;
+    // 段の面
+    c.fillStyle=r.col;
+    c.fillRect(x,y,w,h);
+    // 段の下側に影のエッジ（立体感）
+    c.fillStyle='rgba(0,0,0,0.35)';
+    c.fillRect(x,y+h-Math.max(2,h*0.18),w,Math.max(2,h*0.18));
+    // 段の上側にハイライト
+    c.fillStyle='rgba(255,255,255,0.12)';
+    c.fillRect(x,y,w,Math.max(1,h*0.12));
+  });
+  const tex=new THREE.CanvasTexture(cv);
+  tex.magFilter=THREE.NearestFilter; // ドット感を残す
+  tex.minFilter=THREE.LinearMipmapLinearFilter;
+  _stairsTexture=tex;
+  return tex;
+}
+
+function spawnObject(type,gx,gy,arg){
+  const wx=gx*CELL,wz=gy*CELL;let mesh;
+  if(type==='stairs'){
+    // 下り階段：Canvasで描いた階段の絵をテクスチャとして床に貼る
+    const tex=getStairsTexture();
+    const geo=new THREE.PlaneGeometry(CELL*0.95, CELL*0.95);
+    const mat=new THREE.MeshBasicMaterial({map:tex, transparent:true});
+    const plane=new THREE.Mesh(geo, mat);
+    plane.rotation.x=-Math.PI/2;
+    plane.position.set(wx, 0.06, wz);
+    plane.userData={gx,gy};
+    scene.add(plane);objectMeshes.push(plane);
+    return;
+  } else if(type==='return'){
+    mesh=new THREE.Mesh(new THREE.CylinderGeometry(0.6,0.7,0.2,10),new THREE.MeshLambertMaterial({color:0x2080ff,emissive:0x102040}));
+    mesh.position.set(wx,0.1,wz);
+    mesh.userData={gx,gy};
+    const lt=new THREE.PointLight(0x4080ff,2,4);lt.position.set(wx,1,wz);scene.add(lt);
+  } else if(type==='item'){
+    const key=arg||FLOOR_ITEM_KEYS[Math.floor(Math.random()*FLOOR_ITEM_KEYS.length)];
+    const db=ITEM_DB[key];
+    const g=new THREE.Group();
+    buildItemMesh(g, db.type);
+    // バウンディングボックスの中心を原点に揃える（マス目の真ん中に来るように）
+    const box=new THREE.Box3().setFromObject(g);
+    const center=box.getCenter(new THREE.Vector3());
+    const size=box.getSize(new THREE.Vector3());
+    g.children.forEach(child=>{ child.position.sub(center); });
+    g.scale.set(2.2,2.2,2.2);
+    // 縦長の武器・盾・杖・巻物は寝かせる、薬・食べ物は立てたまま
+    if(db.type==='weapon'||db.type==='shield'||db.type==='staff'||db.type==='scroll'){
+      g.rotation.x=-Math.PI/2;
+      // 寝かせた時、床から浮く高さ = 回転後に厚みとなるローカルZサイズの半分
+      g.position.set(wx, Math.max(0.06,(size.z/2)*2.2), wz);
+    } else {
+      // 立てたまま：底面が床に接するよう高さの半分だけ持ち上げる
+      g.position.set(wx, (size.y/2)*2.2, wz);
+    }
+    scene.add(g);
+    g.userData={gx,gy};
+    floorItems.push({x:gx, y:gy, mesh:g, key});
+    mesh=null;
+    objectMeshes.push(g);
+    if(mesh){mesh.userData={type,gx,gy};scene.add(mesh);objectMeshes.push(mesh);}
+    return;
+  } else if(type==='entry'){
+    // ダンジョン入口（暗い洞窟の裂け目）
+    const g=new THREE.Group();
+    const ROCK=0x2a2420, ROCK_D=0x1a1614, DARK=0x030303;
+    // 周囲の岩（不揃いに積む）
+    vox(0.5,0.5,0.5, ROCK,  -0.55,0.2,-0.35, g);
+    vox(0.4,0.7,0.4,  ROCK_D,-0.5,0.35,0.3, g);
+    vox(0.55,0.4,0.5, ROCK,   0.55,0.18,-0.3, g);
+    vox(0.4,0.6,0.4,  ROCK_D, 0.5,0.3,0.35, g);
+    vox(0.35,0.3,0.4, ROCK,  -0.15,0.14,-0.55, g);
+    vox(0.35,0.35,0.4,ROCK,   0.2,0.16,-0.55, g);
+    // 地面の裂け目（真っ黒な穴、複数の暗い板を重ねて深さを表現）
+    vox(1.3,0.04,1.3, DARK, 0,0.02,0, g);
+    vox(1.0,0.04,1.0, 0x000000, 0,0.01,0, g);
+    vox(0.7,0.04,0.7, 0x000000, 0,0.005,0, g);
+    // 裂け目の縁（かすかに光る苔・縁取り）
+    vox(1.4,0.03,0.15, ROCK_D, 0,0.03,0.68, g);
+    vox(1.4,0.03,0.15, ROCK_D, 0,0.03,-0.68, g);
+    vox(0.15,0.03,1.4, ROCK_D, 0.68,0.03,0, g);
+    vox(0.15,0.03,1.4, ROCK_D, -0.68,0.03,0, g);
+    g.position.set(wx,0,wz);
+    g.userData={gx,gy};
+    scene.add(g);
+    objectMeshes.push(g);
+    // 裂け目から漏れる不気味な薄暗い光（下から照らす雰囲気）
+    const eLight=new THREE.PointLight(0x402850,2.2,3.5);
+    eLight.position.set(wx,0.3,wz);
+    scene.add(eLight);
+    objectMeshes.push(eLight);
+    return;
+  } else if(type==='gold'){
+    const amount=arg||10;
+    const g=new THREE.Group();
+    // 金の袋（巾着袋）＋正面に💲マークのプレート
+    const SACK=0x8a5a28, SACK_D=0x6a4218, SACK_L=0xa87038, TIE=0x4a2c10, GOLD_RIM=0xffd040;
+    // 袋の本体（下が広く、上にすぼまる形を段々ボクセルで表現）
+    vox(0.5,0.14,0.42, SACK_D, 0,0.09,0, g);   // 底（少し暗め）
+    vox(0.56,0.16,0.48, SACK,  0,0.22,0, g);   // 下段（一番膨らんだ部分）
+    vox(0.5,0.14,0.42, SACK_L, 0,0.35,0, g);   // 中段
+    vox(0.36,0.12,0.3, SACK,   0,0.46,0, g);   // 上段（すぼまり始め）
+    vox(0.22,0.1,0.18, SACK_D, 0,0.55,0, g);   // 首もと
+    // 結び目（縛った紐）
+    vox(0.26,0.06,0.2, TIE, 0,0.61,0, g);
+    vox(0.08,0.1,0.08, TIE, 0,0.68,0, g);      // 結び目の飛び出し
+    // 金色の縁取り（袋の口に金の輪）
+    vox(0.28,0.04,0.22, GOLD_RIM, 0,0.565,0, g);
+    // 正面に💲マークのプレート（Canvasテクスチャ）
+    const tex=getDollarTexture();
+    const plane=new THREE.Mesh(
+      new THREE.PlaneGeometry(0.32,0.32),
+      new THREE.MeshBasicMaterial({map:tex, transparent:true})
+    );
+    plane.position.set(0,0.32,0.245);
+    g.add(plane);
+    g.scale.set(1.5,1.5,1.5);
+    g.position.set(wx,0.05,wz);
+    g.userData={gx,gy,isGold:true};
+    scene.add(g);
+    // 金色の光で存在を強調
+    const glt=new THREE.PointLight(0xffd040,1.8,3.5);
+    glt.position.set(wx,0.9,wz);
+    scene.add(glt);
+    g.userData.light=glt;
+    floorItems.push({x:gx, y:gy, mesh:g, key:'gold', gold:amount, light:glt});
+    objectMeshes.push(g);
+    objectMeshes.push(glt);
+    return;
+  } else if(type==='enemy'){
+    const monType=arg||'slime';
+    const db=MONSTER_DB[monType];
+    const g=new THREE.Group();
+    db.buildMesh(g);
+    g.scale.set(1.3,1.3,1.3);
+    g.position.set(wx,0,wz);
+    scene.add(g);objectMeshes.push(g);
+    const roomIdx=rooms.findIndex(r=>gx>=r.x&&gx<r.x+r.w&&gy>=r.y&&gy<r.y+r.h);
+    enemies.push({x:gx,y:gy,hp:db.hp,maxHp:db.hp,atk:db.atk,def:db.def,exp:db.exp,
+      mesh:g,aware:false,type:db.aiType,monType,roomIdx});
+    return;
+  }
+  if(mesh){mesh.userData={type,gx,gy};scene.add(mesh);objectMeshes.push(mesh);}
+}
+
+// エントランス初期化
+function initEntrance(){
+  state.inEntrance=true;
+  stairsPos=null; returnPos=null;
+  const keep=new Set([playerGroup,playerLight,fillLight]);
+  const rem=[];scene.children.forEach(c=>{if(!keep.has(c)&&!(c instanceof THREE.AmbientLight))rem.push(c);});
+  rem.forEach(c=>scene.remove(c));
+  wallMeshes.length=0;fadedWalls.clear();objectMeshes.length=0;floorItems=[];enemies=[];
+  npcList=[]; // NPCリストをリセット
+
+  const res=generateEntranceMap();
+  MAP=res.cells;rooms=res.rooms;entranceInfo=res;
+  explored=Array.from({length:MAP_H},()=>Array(MAP_W).fill(true)); // エントランスは常に全体明示
+  buildDungeon();
+
+  state.x=res.startX; state.y=res.startY;
+  playerGroup.position.set(state.x*CELL,0,state.y*CELL);
+  updatePlayerPos();updateExplored();
+
+  // ダンジョン入口オブジェクト
+  spawnObject('entry', res.doorX, res.doorY);
+
+  // 倉庫スペースの見た目（解放済みマスに枠、未解放は暗く）
+  buildWarehouseFloor(res.storageRoom);
+
+  // 倉庫に保存済みのアイテムを再配置
+  restoreWarehouseItems(res.storageRoom);
+
+  // 倉庫の案内NPCを配置
+  spawnWarehouseNPC(res.storageRoom);
+
+  // 入れない部屋（ショップ・銀行・スペース）の入り口をNPCで塞ぐ
+  spawnBlockerNPCs(res);
+
+  updateUI();
+  saveGame();
+}
+
+// 倉庫案内NPCの生成・配置（倉庫の入口脇、通路はふさがない位置）
+// 汎用NPC生成（ボクセルの人型）。colorで衣の色を変えられる
+function spawnNPC(npcX,npcY,name,text,robeColor,facingY){
+  const g=new THREE.Group();
+  const robe=robeColor||0x6a4a28;
+  vox(0.16,0.28,0.16, 0x2a2016, -0.12,0.14,0, g); // 左脚
+  vox(0.16,0.28,0.16, 0x2a2016,  0.12,0.14,0, g); // 右脚
+  vox(0.42,0.4,0.28, robe, 0,0.5,0, g);           // 胴（衣）
+  vox(0.14,0.32,0.16, robe, -0.29,0.5,0, g);      // 左腕
+  vox(0.14,0.32,0.16, robe,  0.29,0.5,0, g);       // 右腕
+  vox(0.32,0.3,0.3, 0xd8b088, 0,0.86,0, g);       // 頭
+  vox(0.34,0.1,0.32, 0x4a3020, 0,1.0,0, g);       // 頭巾
+  vox(0.06,0.07,0.04, 0x302010, -0.08,0.86,0.16, g); // 目
+  vox(0.06,0.07,0.04, 0x302010,  0.08,0.86,0.16, g); // 目
+  g.scale.set(1.35,1.35,1.35);
+  if(facingY!==undefined)g.rotation.y=facingY;
+  g.position.set(npcX*CELL,0,npcY*CELL);
+  scene.add(g);
+  objectMeshes.push(g);
+  npcList.push({x:npcX,y:npcY,mesh:g,name,text});
+}
+
+function spawnWarehouseNPC(room){
+  // 倉庫は入れる部屋なので、通路をふさがない位置（部屋内の隅）に配置
+  const npcX=room.x+room.w-2, npcY=room.cy-2;
+  spawnNPC(npcX,npcY,'倉庫の案内人',
+    'ここは倉庫じゃ。色の変わった床にアイテムを『置く』と、次に来た時もそのまま残っておるよ。まだ使えん床もあるが、そのうち広がるかもしれんのう。',
+    0x6a4a28, Math.PI*0.75);
+}
+
+// 入れない部屋（ショップ・銀行・スペース）の入り口をNPCで塞ぐ
+function spawnBlockerNPCs(res){
+  // 各部屋と本体をつなぐ通路は部屋の cy 行。その部屋側の入り口マスに立たせて塞ぐ。
+  // ショップ：左側の部屋 → 入り口は部屋の右端の外(=部屋右端+0 は部屋内なので、通路の1マス)
+  // 通路は carveH で部屋の端から本体まで掘られている。部屋のすぐ外＝入り口を塞ぐ。
+  const shop=res.shopRoom, bank=res.bankRoom, space=res.spaceRoom;
+  const blockText='準備中だよ。';
+  // ショップ（左下）：部屋の右端の1つ外に立つ（東を向く＝通路側）
+  spawnNPC(shop.x+shop.w, shop.cy, 'ショップの店員', blockText, 0x2a4a6a, -Math.PI/2);
+  // 銀行（右上）：部屋の左端の1つ外に立つ（西を向く）
+  spawnNPC(bank.x-1, bank.cy, '銀行の番人', blockText, 0x4a6a2a, Math.PI/2);
+  // スペース（右下）：部屋の左端の1つ外に立つ（西を向く）
+  spawnNPC(space.x-1, space.cy, '謎の人物', blockText, 0x5a2a5a, Math.PI/2);
+}
+
+// 倉庫の5x5スペースに床マーカーを表示（解放済み/未解放）
+function buildWarehouseFloor(room){
+  const baseX=room.cx-2, baseY=room.cy-2; // 5x5の左上
+  for(let sy=0;sy<5;sy++){
+    for(let sx=0;sx<5;sx++){
+      const idx=sy*5+sx;
+      const gx=baseX+sx, gy=baseY+sy;
+      const wx=gx*CELL, wz=gy*CELL;
+      const unlocked=idx<warehouseUnlocked;
+      const marker=new THREE.Mesh(
+        new THREE.BoxGeometry(CELL*0.85,0.06,CELL*0.85),
+        new THREE.MeshBasicMaterial({color:unlocked?0x8a6030:0x302418,transparent:true,opacity:unlocked?0.5:0.25})
+      );
+      marker.position.set(wx,0.03,wz);
+      marker.userData={gx,gy,isWarehouseSlot:true,slotIndex:idx};
+      scene.add(marker);
+      objectMeshes.push(marker);
+    }
+  }
+}
+
+// 保存済みアイテムをワールドに再配置
+function restoreWarehouseItems(room){
+  const baseX=room.cx-2, baseY=room.cy-2;
+  Object.keys(warehouseData).forEach(key=>{
+    const it=warehouseData[key];
+    if(!it)return;
+    const [sx,sy]=key.split(',').map(Number);
+    const gx=baseX+sx, gy=baseY+sy;
+    spawnObject('item',gx,gy,it.itemKey);
+    // 見た目に反映（plusやchargesは床アイテムには紐付かないため簡易表示）
+  });
+}
+
+
+// フロア初期化
+function initFloor(floor){
+  state.inEntrance=false;
+  state.floor=floor;
+  npcList=[];
+  floorTurnCount=0; // このフロアでのターン数をリセット
+  const keep=new Set([playerGroup,playerLight,fillLight]);
+  const rem=[];scene.children.forEach(c=>{if(!keep.has(c)&&!(c instanceof THREE.AmbientLight))rem.push(c);});
+  rem.forEach(c=>scene.remove(c));
+  wallMeshes.length=0;fadedWalls.clear();objectMeshes.length=0;floorItems=[];enemies=[];
+
+  const res=generateMap(floor);MAP=res.cells;rooms=res.rooms;
+  // 探索フラグ初期化（全て未探索）
+  explored=Array.from({length:MAP_H},()=>Array(MAP_W).fill(false));
+  buildDungeon();
+
+  const startRoom=rooms[Math.floor(Math.random()*rooms.length)];
+  const sp=rndInRoom(startRoom);state.x=sp.x;state.y=sp.y;
+  playerGroup.position.set(state.x*CELL,0,state.y*CELL); // 初期位置は即セット
+  updateExplored();
+
+  const otherRooms=rooms.filter(r=>r!==startRoom);
+  const stairRoom=otherRooms[Math.floor(Math.random()*otherRooms.length)]||startRoom;
+  // 10Fは最深部なので階段を置かない
+  if(floor>=10){
+    stairsPos=null;
+  } else {
+    stairsPos=rndInRoom(stairRoom);spawnObject('stairs',stairsPos.x,stairsPos.y);
+  }
+
+  returnPos=null;
+  if(RETURN_FLOORS.includes(floor)){
+    const rc=rooms.filter(r=>r!==startRoom&&r!==stairRoom);
+    const rr=rc.length>0?rc[Math.floor(Math.random()*rc.length)]:stairRoom;
+    returnPos=rndInRoom(rr);spawnObject('return',returnPos.x,returnPos.y);
+  }
+
+  rooms.forEach(room=>{
+    const cnt=Math.floor(Math.random()*3);
+    for(let i=0;i<cnt;i++){
+      let p=null, tries=0;
+      while(tries<10){
+        const cand=rndInRoom(room);
+        const bl=(stairsPos&&cand.x===stairsPos.x&&cand.y===stairsPos.y)||
+                 (returnPos&&cand.x===returnPos.x&&cand.y===returnPos.y)||
+                 floorItems.some(f=>f.x===cand.x&&f.y===cand.y);
+        if(!bl){ p=cand; break; }
+        tries++;
+      }
+      if(p) spawnObject('item',p.x,p.y);
+    }
+    // 金貨（各部屋50%で1個、10〜100ゴールド）
+    if(Math.random()<0.5){
+      let gp=null, tries2=0;
+      while(tries2<10){
+        const cand=rndInRoom(room);
+        const occupied=floorItems.some(f=>f.x===cand.x&&f.y===cand.y)||
+          (stairsPos&&cand.x===stairsPos.x&&cand.y===stairsPos.y)||
+          (returnPos&&cand.x===returnPos.x&&cand.y===returnPos.y);
+        if(!occupied){ gp=cand; break; }
+        tries2++;
+      }
+      if(gp){
+        const amount=10+Math.floor(Math.random()*10)*10; // 10〜100（10刻み）
+        spawnObject('gold',gp.x,gp.y,amount);
+      }
+    }
+  });
+
+  // 階層別モンスタースポーン
+  const floorMonsters={
+    1:['slime','bat','goblin'],2:['slime','bat','goblin'],
+    3:['zombie','mage','goblin'],4:['zombie','mage','goblin'],
+    5:['knight','chimera'],6:['knight','chimera'],
+    7:['golem','wizard','devilape'],8:['golem','wizard','devilape'],
+    9:['golem','wizard','devilape'],10:['dragon']
+  };
+  const monTypes=floorMonsters[floor]||['slime'];
+
+  if(floor===10){
+    // 10F：ドラゴン1体のみ、部屋中央に配置
+    const bossRoom=rooms[0];
+    const bp=rndInRoom(bossRoom);
+    spawnObject('enemy',bp.x,bp.y,'dragon');
+  } else {
+    // 1〜9F：7〜8体を全フロアから均等にスポーン
+    const targetCount=7+Math.floor(Math.random()*2);
+    let spawned=0;
+    let attempts=0;
+    const usedPositions=new Set();
+    while(spawned<targetCount&&attempts<200){
+      attempts++;
+      // 全部屋からランダムに選ぶ
+      const room=rooms[Math.floor(Math.random()*rooms.length)];
+      const p=rndInRoom(room);
+      const key=`${p.x},${p.y}`;
+      const bl=(p.x===state.x&&p.y===state.y)||
+               (stairsPos&&p.x===stairsPos.x&&p.y===stairsPos.y)||
+               (returnPos&&p.x===returnPos.x&&p.y===returnPos.y)||
+               usedPositions.has(key);
+      if(!bl){
+        usedPositions.add(key);
+        const monType=monTypes[Math.floor(Math.random()*monTypes.length)];
+        spawnObject('enemy',p.x,p.y,monType);
+        spawned++;
+      }
+    }
+  }
+
+  updatePlayerPos();updateCamera();updateUI();
+  saveGame();
+}
+
+// ============================================================
+// 中断・セーブ機能（localStorage、1枠のみ）
+// ============================================================
+const SAVE_KEY='dungeon3d_save_v1';
+
+function serializeSave(){
+  const data={
+    version:1,
+    savedAt:Date.now(),
+    state:{...state},
+    playerSleepTurns,
+    nextItemId,
+    warehouseUnlocked,
+    warehouseData,
+    inventory:inventory.map(it=>{
+      const o={id:it.id,key:it.key,plus:it.plus||0,equipped:!!it.equipped};
+      if(it.charges!==undefined)o.charges=it.charges;
+      return o;
+    }),
+    floor:null
+  };
+  if(!state.inEntrance){
+    data.floor={
+      MAP, rooms, stairsPos, returnPos, explored,
+      floorItems:floorItems.map(f=>({x:f.x,y:f.y,key:f.key,gold:f.gold})),
+      enemies:enemies.map(e=>({
+        x:e.x,y:e.y,hp:e.hp,maxHp:e.maxHp,atk:e.atk,def:e.def,exp:e.exp,
+        type:e.type,monType:e.monType,roomIdx:e.roomIdx,aware:e.aware,
+        sleep:e.sleep||0,confused:e.confused||0,sealed:e.sealed||0,
+        poisoned:e.poisoned||0,atkDown:e.atkDown||0
+      }))
+    };
+  }
+  return data;
+}
+
+function saveGame(){
+  try{
+    localStorage.setItem(SAVE_KEY, JSON.stringify(serializeSave()));
+    return true;
+  }catch(e){
+    console.error('セーブに失敗しました', e);
+    return false;
+  }
+}
+
+// ターンごとの自動セーブ（0.3秒間隔で間引き、連打時の負荷を抑える）
+let lastAutoSaveTime=0;
+function saveGameThrottled(){
+  const now=performance.now();
+  if(now-lastAutoSaveTime<300)return;
+  lastAutoSaveTime=now;
+  saveGame();
+}
+
+function hasSaveData(){
+  try{ return !!localStorage.getItem(SAVE_KEY); }catch(e){ return false; }
+}
+
+function loadSaveData(){
+  try{
+    const raw=localStorage.getItem(SAVE_KEY);
+    if(!raw)return null;
+    return JSON.parse(raw);
+  }catch(e){
+    console.error('セーブデータの読み込みに失敗しました', e);
+    return null;
+  }
+}
+
+function applySave(data){
+  Object.assign(state, data.state);
+  playerSleepTurns=data.playerSleepTurns||0;
+  nextItemId=data.nextItemId||nextItemId;
+  warehouseUnlocked=data.warehouseUnlocked!==undefined?data.warehouseUnlocked:warehouseUnlocked;
+  warehouseData=data.warehouseData||{};
+
+  inventory.length=0;
+  equippedWeapon=null; equippedArmor=null;
+  (data.inventory||[]).forEach(saved=>{
+    const db=ITEM_DB[saved.key];
+    if(!db)return;
+    const it={id:saved.id, key:saved.key, plus:saved.plus||0, equipped:!!saved.equipped};
+    if(saved.charges!==undefined)it.charges=saved.charges;
+    inventory.push(it);
+    if(it.equipped){
+      if(db.type==='weapon') equippedWeapon=it;
+      else if(db.type==='shield'||db.type==='armor') equippedArmor=it;
+    }
+  });
+
+  if(!data.floor){
+    state.inEntrance=true;
+    const sx=state.x, sy=state.y;
+    initEntrance(); // 内部でsaveGame()が再度走るが問題ない
+    state.x=sx; state.y=sy;
+    playerGroup.position.set(state.x*CELL,0,state.y*CELL);
+    updatePlayerPos();updateExplored();
+  } else {
+    restoreFloor(data.floor);
+  }
+  updateUI();
+}
+
+// 「はじめから」用：全ての状態を初期値に戻す
+function resetFullGameState(){
+  Object.assign(state, {
+    x:0,y:0,dir:0,angle:-Math.PI/2,targetAngle:-Math.PI/2,actionTimer:0,floor:1,
+    hp:15,maxHp:15,atk:5,def:2,lv:1,exp:0,nextExp:10,stepCount:0,
+    food:100,maxFood:100,foodStep:0,gold:0,
+    haste:0,charge:false,invis:0,confuse:0,inEntrance:false,playTimeMs:0
+  });
+  inventory.length=0;
+  equippedWeapon=null; equippedArmor=null;
+  nextItemId=1;
+  playerSleepTurns=0;
+  warehouseUnlocked=9;
+  warehouseData={};
+}
+
+// WebGLコンテキスト復元時などに、セーブデータを介さず「今の状態」をそのまま
+// 再構築するための関数（直前の行動を失わずに画面だけを復旧できる）
+function rebuildCurrentScene(){
+  if(state.inEntrance){
+    const sx=state.x, sy=state.y;
+    initEntrance();
+    state.x=sx; state.y=sy;
+    playerGroup.position.set(state.x*CELL,0,state.y*CELL);
+    updatePlayerPos();updateExplored();updateCamera();
+  } else {
+    const floorSnapshot={
+      MAP, rooms, stairsPos, returnPos, explored,
+      floorItems: floorItems.map(f=>({x:f.x,y:f.y,key:f.key,gold:f.gold})),
+      enemies: enemies.map(e=>({
+        x:e.x,y:e.y,hp:e.hp,maxHp:e.maxHp,atk:e.atk,def:e.def,exp:e.exp,
+        type:e.type,monType:e.monType,roomIdx:e.roomIdx,aware:e.aware,
+        sleep:e.sleep||0,confused:e.confused||0,sealed:e.sealed||0,
+        poisoned:e.poisoned||0,atkDown:e.atkDown||0
+      }))
+    };
+    restoreFloor(floorSnapshot);
+  }
+}
+
+// 保存されたフロア状態をそのまま復元（ランダム生成しない）
+function restoreFloor(floorData){
+  state.inEntrance=false;
+  npcList=[];
+  const keep=new Set([playerGroup,playerLight,fillLight]);
+  const rem=[];scene.children.forEach(c=>{if(!keep.has(c)&&!(c instanceof THREE.AmbientLight))rem.push(c);});
+  rem.forEach(c=>scene.remove(c));
+  wallMeshes.length=0;fadedWalls.clear();objectMeshes.length=0;floorItems=[];enemies=[];
+
+  MAP=floorData.MAP;
+  rooms=floorData.rooms;
+  explored=floorData.explored;
+  stairsPos=floorData.stairsPos;
+  returnPos=floorData.returnPos;
+
+  buildDungeon();
+
+  // カメラ・自機位置は最優先で確定させる（この後の敵/アイテム復元で
+  // 何か失敗しても、画面が真っ暗にならないようにするため）
+  playerGroup.position.set(state.x*CELL,0,state.y*CELL);
+  updatePlayerPos();updateExplored();updateCamera();
+
+  try{
+    if(stairsPos) spawnObject('stairs',stairsPos.x,stairsPos.y);
+    if(returnPos) spawnObject('return',returnPos.x,returnPos.y);
+  }catch(err){ console.error('階段/帰還ポイントの復元に失敗しました',err); }
+
+  (floorData.floorItems||[]).forEach(f=>{
+    try{
+      if(f.key==='gold'){ spawnObject('gold',f.x,f.y,f.gold); }
+      else if(ITEM_DB[f.key]){ spawnObject('item',f.x,f.y,f.key); }
+      else { console.warn('不明なアイテムキーをスキップしました',f.key); }
+    }catch(err){ console.error('床アイテムの復元に失敗しました',f,err); }
+  });
+
+  (floorData.enemies||[]).forEach(saved=>{
+    try{
+      if(!MONSTER_DB[saved.monType]){ console.warn('不明なモンスター種別をスキップしました',saved.monType); return; }
+      spawnObject('enemy',saved.x,saved.y,saved.monType);
+      const e=enemies[enemies.length-1];
+      if(e){
+        e.hp=saved.hp; e.maxHp=saved.maxHp; e.atk=saved.atk; e.def=saved.def; e.exp=saved.exp;
+        e.aware=saved.aware; e.sleep=saved.sleep||0; e.confused=saved.confused||0;
+        e.sealed=saved.sealed||0; e.poisoned=saved.poisoned||0; e.atkDown=saved.atkDown||0;
+        e.roomIdx=saved.roomIdx;
+      }
+    }catch(err){ console.error('敵の復元に失敗しました',saved,err); }
+  });
+}
+
+// カメラ
+const _v=new THREE.Vector3();
+function updateCamera(){
+  // 自機の表示座標（補間後）にカメラを追従させて滑らかに
+  const px=playerGroup.position.x, pz=playerGroup.position.z;
+  camera.position.set(px, 11, pz+5.5);
+  camera.lookAt(px, 0.5, pz-0.5);
+
+  wallMeshes.forEach(m=>{
+    if(m.material.transparent){
+      m.material.transparent=false;
+      m.material.opacity=1;
+      m.material.needsUpdate=true;
+    }
+  });
+
+  playerLight.position.set(px,1.8,pz);
+  fillLight.position.set(px,2,pz);
+  // 部屋なら広く明るく、通路なら狭く（2マス先まで）。エントランスは常に明るい
+  const inRoom=state.inEntrance || rooms.some(r=>state.x>=r.x&&state.x<r.x+r.w&&state.y>=r.y&&state.y<r.y+r.h);
+  if(inRoom){
+    playerLight.distance=30; playerLight.intensity=15;
+    fillLight.distance=40; fillLight.intensity=7;
+    ambLight.intensity=8.5;
+  } else {
+    // 通路：自機の周囲が円形に明るく照らされる（画像のような光だまり）
+    playerLight.distance=CELL*4.2; playerLight.intensity=20;
+    fillLight.distance=CELL*4.5; fillLight.intensity=5;
+    ambLight.intensity=2.6;
+  }
+}
+
+// UI
+function showAction(msg,dur=800){
+  const el=document.getElementById('action-label');
+  // 空メッセージは表示しない（起動直後などに空欄の枠が出るのを防ぐ）
+  if(!msg){ el.style.opacity='0'; return; }
+  el.textContent=msg;
+  el.style.opacity='1';
+  clearTimeout(state.actionTimer);
+  // 表示時間が過ぎたらopacityを0にする（CSSのtransitionで徐々にフェードアウト）
+  state.actionTimer=setTimeout(()=>{ el.style.opacity='0'; }, dur);
+}
+function setLog(msg){const el=document.getElementById('log');if(el)el.textContent=msg;}
+
+// セリフウィンドウ
+const dialogueBox=document.getElementById('dialogue-box');
+const dialogueName=document.getElementById('dialogue-name');
+const dialogueText=document.getElementById('dialogue-text');
+let activeDialogueNPC=null; // 現在会話中のNPC（離れたら自動で閉じる）
+function showDialogue(name,text,npc){
+  dialogueName.textContent=name||'';
+  dialogueText.textContent=text||'';
+  dialogueBox.classList.add('show');
+  activeDialogueNPC=npc||null;
+}
+function hideDialogue(){
+  dialogueBox.classList.remove('show');
+  activeDialogueNPC=null;
+}
+dialogueBox.addEventListener('click',hideDialogue);
+dialogueBox.addEventListener('touchstart',e=>{e.preventDefault();hideDialogue();},{passive:false});
+
+// 会話中のNPCから自機が離れたら自動でウィンドウを閉じる
+function checkDialogueDistance(){
+  if(!activeDialogueNPC)return;
+  const d=Math.abs(state.x-activeDialogueNPC.x)+Math.abs(state.y-activeDialogueNPC.y);
+  if(d>1) hideDialogue();
+}
+
+function updateUI(){
+  const floorItem=document.getElementById('floor-item');
+  if(state.inEntrance){
+    floorItem.innerHTML='<span class="tb-label">ENTRANCE</span>';
+  } else {
+    floorItem.innerHTML=`<span class="tb-label">階</span><span id="floor-disp">${state.floor}</span>F`;
+  }
+  const hpEl=document.getElementById('hp-disp');
+  if(hpEl){
+    hpEl.textContent=`${state.hp}/${state.maxHp}`;
+    document.getElementById('atk-disp').textContent=totalAtk();
+    document.getElementById('def-disp').textContent=totalDef();
+    document.getElementById('lv-disp').textContent=state.lv;
+    document.getElementById('inv-count').textContent=inventory.length;
+    const expEl=document.getElementById('exp-disp');
+    if(expEl)expEl.textContent=`${state.exp}/${state.nextExp}`;
+    const foodEl=document.getElementById('food-disp');
+    if(foodEl)foodEl.textContent=state.food;
+    const goldEl=document.getElementById('gold-disp');
+    if(goldEl)goldEl.textContent=state.gold;
+    // HPバー（通常は黄色、残り少ないと赤）
+    const hpBar=document.getElementById('hp-bar');
+    if(hpBar){
+      const r=Math.max(0,Math.min(1,state.hp/state.maxHp));
+      hpBar.style.width=(r*100)+'%';
+      hpBar.style.backgroundColor = r>0.25 ? '#f0d040' : '#e04040';
+    }
+    // 満腹度バー（通常は緑、残り少ないと赤）
+    const foodBar=document.getElementById('food-bar');
+    if(foodBar){
+      const r=Math.max(0,Math.min(1,state.food/state.maxFood));
+      foodBar.style.width=(r*100)+'%';
+      foodBar.style.backgroundColor = r>0.25 ? '#40c050' : '#e04040';
+    }
+  }
+}
+
+function totalAtk(){return state.atk+(equippedWeapon?(ITEM_DB[equippedWeapon.key].atk||ITEM_DB[equippedWeapon.key].effect?.damage||0)+equippedWeapon.plus:0);}
+
+// シレン式ダメージ計算：攻撃力 × (15/16)^防御力 × 乱数(0.875〜1.125)
+function calcDamage(atk, def){
+  const base = atk * Math.pow(15/16, Math.max(0,def));
+  const rnd = 0.875 + Math.random()*0.25; // 7/8〜9/8
+  return Math.max(1, Math.round(base * rnd));
+}
+
+// 薬の効果をプレイヤーに適用
+function applyPotionToPlayer(eff, name){
+  const n=name||'薬';
+  if(eff.heal){ state.hp=Math.min(state.maxHp,state.hp+eff.heal); showAction(`${n}を飲んだ。HPが${eff.heal}回復した！`); spawnDamageNum(state.x*CELL,1.5,state.y*CELL,`+${eff.heal}`,'#40e060'); }
+  else if(eff.damage){ state.hp=Math.max(0,state.hp-eff.damage); showAction(`${n}を飲んだ。毒だ！HPが${eff.damage}減った`); spawnDamageNum(state.x*CELL,1.5,state.y*CELL,`${eff.damage}`,'#ffffff'); checkPlayerDeath(); }
+  else if(eff.buff==='atk'){ state.atk+=1; showAction(`${n}を飲んだ。攻撃力が上がった！`); }
+  else if(eff.buff==='def'){ state.def+=1; showAction(`${n}を飲んだ。防御力が上がった！`); }
+  else if(eff.buff==='maxhp'){ state.maxHp+=10; state.hp+=10; showAction(`${n}を飲んだ。最大HPが増えた！`); }
+  else if(eff.status==='haste'){ state.haste=15; showAction(`${n}を飲んだ。素早くなった！`); }
+  else if(eff.status==='charge'){ state.charge=true; showAction(`${n}を飲んだ。力をためた！次の一撃が2倍`); }
+  else if(eff.status==='invis'){ state.invis=15; showAction(`${n}を飲んだ。透明になった！`); }
+  else if(eff.status==='confuse'){ state.confuse=8; showAction(`${n}を飲んだ。混乱した！`); }
+  else if(eff.status==='sleep'){ showAction(`${n}を飲んだ。眠ってしまった…`); sleepPlayer(5); }
+  else if(eff.cure){ state.confuse=0; showAction(`${n}を飲んだ。状態異常が治った！`); }
+  else if(eff.revive){ showAction(`${n}は持っていると死んだ時に発動する`); }
+  else { showAction(`${n}を飲んだが特に変化はない`); }
+  updateUI();
+}
+
+// プレイヤー睡眠（数ターン入力無効）
+let playerSleepTurns=0;
+function sleepPlayer(n){ playerSleepTurns=n; }
+
+// ダッシュモード（オンの間、移動が高速になり床アイテムを拾わない）
+let dashMode=false;
+
+// プレイヤー死亡チェック（復活の薬があれば自動発動）
+function checkPlayerDeath(){
+  if(state.hp>0)return false;
+  // 復活の薬を持っていれば消費して全回復
+  const reviveIdx=inventory.findIndex(it=>ITEM_DB[it.key].effect&&ITEM_DB[it.key].effect.revive);
+  if(reviveIdx>=0){
+    inventory.splice(reviveIdx,1);
+    state.hp=state.maxHp;
+    showAction('復活の薬が発動！生き返った！',3000);
+    triggerFlash('rgba(255,255,100,');
+    updateUI();
+    return false;
+  }
+  showAction('力尽きた...💀',3000);
+  triggerFlash('rgba(180,0,0,');
+  animLocked=true;
+  // 自機がその場で倒れる演出 → 暗転 → エントランスへ
+  playDeathSequence();
+  return true;
+}
+
+// フロア遷移用の短い暗転演出：暗転→切り替え処理→明転
+function fadeTransition(callback, floorLabel){
+  const fade=document.getElementById('fade-overlay');
+  const announce=document.getElementById('floor-announce');
+  fade.classList.add('floor-fade');
+  fade.classList.add('show');
+  // 暗転しきってから階数を表示＋フロア切り替え
+  setTimeout(()=>{
+    callback();
+    if(floorLabel){
+      announce.textContent=floorLabel;
+      announce.classList.add('show');
+    }
+  }, 450);
+  // 階数を少し見せてから明転
+  setTimeout(()=>{
+    announce.classList.remove('show');
+    fade.classList.remove('show');
+    setTimeout(()=>{ fade.classList.remove('floor-fade'); }, 450);
+  }, 1300);
+}
+
+// 死亡演出：その場で倒れ、画面が暗転してからエントランスへ戻る
+let deathAnim=null;
+function playDeathSequence(){
+  deathAnim={startTime:performance.now(),duration:700};
+  // 0.9秒後に暗転開始
+  setTimeout(()=>{
+    const fade=document.getElementById('fade-overlay');
+    fade.classList.add('show');
+  }, 900);
+  // 暗転しきった頃（0.9s + フェード0.5s ≒ 1.4s）にエントランスへ
+  setTimeout(()=>{
+    gameOverToEntrance();
+    // 復帰後、暗転を解除（フェードアウト）
+    const fade=document.getElementById('fade-overlay');
+    fade.classList.remove('show');
+  }, 1500);
+}
+
+// ゲームオーバー：所持金・持ち物を全ロストし、ステータスをリセットしてエントランスへ
+function gameOverToEntrance(){
+  inventory.length=0;
+  equippedWeapon=null; equippedArmor=null;
+  state.gold=0;
+  resetPlayerStatsForEntrance();
+  animLocked=false;
+  deathAnim=null;
+  // 倒れ演出でついた回転・浮きを元に戻す
+  playerGroup.rotation.x=0;
+  playerGroup.position.y=0;
+  showAction('装備も所持金も全て失った…',2200);
+  initEntrance();
+}
+
+// 薬を敵に当てた時の効果
+function applyPotionToEnemy(eff, e){
+  if(eff.heal){ e.hp=Math.min(e.maxHp,e.hp+eff.heal); showAction('敵が回復した…'); spawnDamageNum(e.mesh.position.x,2.0,e.mesh.position.z,`+${eff.heal}`,'#40e060'); }
+  else if(eff.damage){ e.hp-=eff.damage; spawnDamageNum(e.mesh.position.x,2.0,e.mesh.position.z,`${eff.damage}`,'#ffffff'); showAction(`敵に毒！ ${eff.damage}ダメージ`); if(e.hp<=0)damageEnemy(e,0); }
+  else if(eff.status==='sleep'){ e.sleep=6; showAction('敵が眠った！'); }
+  else if(eff.status==='confuse'){ e.confused=8; showAction('敵が混乱した！'); }
+  else if(eff.buff==='atk'||eff.buff==='def'||eff.buff==='maxhp'){ showAction('敵には効果がなかった'); }
+  else { showAction('敵には効果がないようだ'); }
+}
+function totalDef(){return state.def+(equippedArmor?(ITEM_DB[equippedArmor.key].def||0)+equippedArmor.plus:0);}
+
+function pickupItem(key,gx,gy){
+  if(inventory.length>=MAX_INV){showAction('持ち物がいっぱい！',1500);return false;}
+  const it=makeItem(key);
+  // エントランスの倉庫マスから拾う場合は保存されていたplus/chargesを復元
+  if(state.inEntrance && gx!==undefined){
+    const slot=getWarehouseSlot(gx,gy);
+    if(slot){
+      const saved=warehouseData[`${slot.sx},${slot.sy}`];
+      if(saved){ it.plus=saved.plus||0; if(saved.charges!==undefined)it.charges=saved.charges; }
+    }
+  }
+  inventory.unshift(it); // 最上部に追加
+  showAction(`${ITEM_DB[key].name}を拾った！`,1200);setLog('アイテム取得');
+  updateUI();
+  return true;
+}
+
+// エントランス帰還時：Lv・EXP・素のステータスをリセット（お金・アイテムは持ち帰り）
+function resetPlayerStatsForEntrance(){
+  state.lv=1; state.exp=0; state.nextExp=10;
+  state.hp=15; state.maxHp=15; state.atk=5; state.def=2;
+  state.food=100; state.maxFood=100; state.foodStep=0; state.stepCount=0;
+  state.haste=0; state.charge=false; state.invis=0; state.confuse=0;
+  playerSleepTurns=0;
+  // 金貨・持ち物（inventory）・装備・倉庫はそのまま維持
+}
+
+function checkStepOn(){
+  // エントランス内：ダンジョン入口に乗ったら1Fへ
+  if(state.inEntrance && entranceInfo && state.x===entranceInfo.doorX && state.y===entranceInfo.doorY){
+    sfxStairs();
+    fadeTransition(()=>{ initFloor(1); }, '地下 1 階');
+    return;
+  }
+  if(stairsPos&&state.x===stairsPos.x&&state.y===stairsPos.y){
+    if(state.floor>=10){showAction('最深部に到達！',2000);return;}
+    showConfirm('次のフロアに移りますか？',()=>{
+      const nextFloor=state.floor+1;
+      setLog(`${nextFloor}F`);
+      sfxStairs();
+      fadeTransition(()=>{ state.floor=nextFloor; initFloor(state.floor); }, `地下 ${nextFloor} 階`);
+    });
+    return;
+  }
+  if(returnPos&&state.x===returnPos.x&&state.y===returnPos.y){
+    showConfirm('エントランスに戻りますか？',()=>{
+      setLog('帰還');
+      fadeTransition(()=>{
+        resetPlayerStatsForEntrance();
+        initEntrance();
+      }, 'エントランス');
+    });
+    return;
+  }
+  // ダッシュモード中は床のアイテム・金貨を拾わないが、何の上に乗ったかは名前を表示する
+  if(dashMode){
+    const it=floorItems.find(i=>i.x===state.x&&i.y===state.y);
+    if(it){
+      if(it.key==='gold'){
+        showAction(`${it.gold}💰`,900);
+      } else {
+        showAction(`${ITEM_DB[it.key].name}`,900);
+      }
+    }
+    return;
+  }
+  const item=floorItems.find(i=>i.x===state.x&&i.y===state.y);
+  if(item){
+    if(item.key==='gold'){
+      // 金貨を拾う
+      state.gold+=item.gold;
+      showAction(`${item.gold}💰 拾った！`,1200);
+      sfxItem();
+      scene.remove(item.mesh);
+      if(item.light)scene.remove(item.light);
+      floorItems.splice(floorItems.indexOf(item),1);
+      updateUI();
+    } else if(pickupItem(item.key,state.x,state.y)){
+      sfxItem();
+      scene.remove(item.mesh);floorItems.splice(floorItems.indexOf(item),1);
+      // エントランスの倉庫マスから拾った場合は永続データからも削除
+      if(state.inEntrance) removeFromWarehouseAt(state.x,state.y);
+    }
+  }
+}
+
+// 倉庫マス座標判定（storageRoom内の5x5のどこにいるか。範囲外はnull）
+function getWarehouseSlot(gx,gy){
+  if(!entranceInfo)return null;
+  const room=entranceInfo.storageRoom;
+  const baseX=room.cx-2, baseY=room.cy-2;
+  const sx=gx-baseX, sy=gy-baseY;
+  if(sx<0||sx>=5||sy<0||sy>=5)return null;
+  return {sx,sy,idx:sy*5+sx};
+}
+function removeFromWarehouseAt(gx,gy){
+  const slot=getWarehouseSlot(gx,gy);
+  if(slot) delete warehouseData[`${slot.sx},${slot.sy}`];
+}
+
+// アニメーション管理
+const anims=[];
+let cameraShake={active:false,startTime:0,duration:0};
+let animLocked=false; // アニメ中は入力ブロック
+
+// ヒットエフェクト（パーティクル）
+const hitParticles=[];
+function spawnHitEffect(wx,wz){
+  const geo=new THREE.SphereGeometry(0.08,4,4);
+  for(let i=0;i<8;i++){
+    const mat=new THREE.MeshBasicMaterial({color:0xffd040});
+    const p=new THREE.Mesh(geo,mat);
+    const angle=Math.random()*Math.PI*2;
+    const spd=(0.5+Math.random()*0.5);
+    p.position.set(wx,0.8+Math.random()*0.5,wz);
+    p.userData.vx=Math.cos(angle)*spd;
+    p.userData.vz=Math.sin(angle)*spd;
+    p.userData.vy=0.5+Math.random()*0.5;
+    p.userData.life=0;
+    scene.add(p);
+    hitParticles.push(p);
+  }
+}
+function updateHitParticles(dt){
+  for(let i=hitParticles.length-1;i>=0;i--){
+    const p=hitParticles[i];
+    p.userData.life+=dt;
+    p.userData.vy-=dt*3;
+    p.position.x+=p.userData.vx*dt;
+    p.position.y+=p.userData.vy*dt;
+    p.position.z+=p.userData.vz*dt;
+    p.material.opacity=Math.max(0,1-p.userData.life/0.4);
+    p.material.transparent=true;
+    if(p.userData.life>0.4){scene.remove(p);hitParticles.splice(i,1);}
+  }
+}
+
+// 画面フラッシュ
+let flashEffect={active:false,startTime:0,duration:0,color:'rgba(255,60,60,'};
+function triggerFlash(color='rgba(255,60,60,'){
+  flashEffect={active:true,startTime:performance.now(),duration:300,color};
+}
+function drawFlash(){
+  if(!flashEffect.active)return;
+  const t=(performance.now()-flashEffect.startTime)/flashEffect.duration;
+  if(t>=1){flashEffect.active=false;return;}
+  const alpha=Math.sin(t*Math.PI)*0.5;
+  const W=overlay.width,H=overlay.height;
+  // 画面端グラデーション
+  const grad=octx.createRadialGradient(W/2,H/2,H*0.2,W/2,H/2,H*0.7);
+  grad.addColorStop(0,`${flashEffect.color}0)`);
+  grad.addColorStop(1,`${flashEffect.color}${alpha})`);
+  octx.fillStyle=grad;
+  octx.fillRect(0,0,W,H);
+}
+
+// フローティングダメージ数値
+const floatingNums=[];
+function spawnDamageNum(wx,wy,wz,text,color='#ff4040'){
+  const vec=new THREE.Vector3(wx,wy,wz);
+  vec.project(camera);
+  const sx=(vec.x+1)/2*overlay.width;
+  const sy=(-vec.y+1)/2*overlay.height;
+  floatingNums.push({x:sx,y:sy,text,color,startTime:performance.now(),duration:900});
+}
+
+function drawFloatingNums(){
+  const now=performance.now();
+  for(let i=floatingNums.length-1;i>=0;i--){
+    const f=floatingNums[i];
+    const t=(now-f.startTime)/f.duration;
+    if(t>=1){floatingNums.splice(i,1);continue;}
+    const alpha=1-t;
+    const offsetY=t*60;
+    const size=Math.round(28+t*6);
+    octx.save();
+    octx.globalAlpha=alpha;
+    octx.font=`bold ${size}px 'Courier New'`;
+    octx.textAlign='center';
+    octx.strokeStyle='rgba(0,0,0,0.9)';
+    octx.lineWidth=4;
+    octx.strokeText(f.text,f.x,f.y-offsetY);
+    octx.fillStyle=f.color;
+    octx.fillText(f.text,f.x,f.y-offsetY);
+    octx.restore();
+  }
+}
+
+function addAnim(obj){anims.push({...obj,startTime:performance.now()});}
+
+// 睡眠中キャラ頭上にzzZを描画
+function drawSleepMarks(){
+  const now=performance.now()/300;
+  function drawZ(wx,wy,wz){
+    const vec=new THREE.Vector3(wx,wy,wz);
+    vec.project(camera);
+    if(vec.z>1)return;
+    const sx=(vec.x+1)/2*overlay.width;
+    const sy=(-vec.y+1)/2*overlay.height;
+    octx.save();
+    octx.font="bold 22px 'Courier New'";
+    octx.textAlign='center';
+    for(let k=0;k<3;k++){
+      const ph=now+k*0.7;
+      const fl=(ph%3);
+      const a=Math.max(0,1-fl/3);
+      octx.globalAlpha=a;
+      octx.fillStyle='#a0d0ff';
+      octx.strokeStyle='rgba(0,0,0,0.7)';
+      octx.lineWidth=3;
+      const zx=sx+10+fl*8;
+      const zy=sy-fl*16;
+      const ch=k===0?'z':k===1?'Z':'z';
+      octx.strokeText(ch,zx,zy);
+      octx.fillText(ch,zx,zy);
+    }
+    octx.restore();
+  }
+  // 眠っている敵（睡眠状態 or まだ気づいていない＝寝ている。徘徊型は起きて歩いているので対象外）
+  enemies.forEach(e=>{ if(e.hp>0&&(e.sleep>0||(!e.aware&&e.type!=='wander'))&&e.mesh.visible) drawZ(e.mesh.position.x,2.2,e.mesh.position.z); });
+  // 眠っているプレイヤー
+  if(playerSleepTurns>0) drawZ(playerGroup.position.x,2.6,playerGroup.position.z);
+}
+
+function updateAnims(dt){
+  const now=performance.now();
+  let hasActive=false;
+  for(let i=anims.length-1;i>=0;i--){
+    const a=anims[i];
+    const t=Math.min((now-a.startTime)/a.duration,1);
+    if(a.type==='lunge'){
+      const offset=Math.sin(t*Math.PI)*a.dist;
+      a.mesh.position.x=a.baseX+a.dx*offset;
+      a.mesh.position.z=a.baseZ+a.dz*offset;
+      hasActive=true;
+    } else if(a.type==='shake'){
+      const s=Math.sin(t*Math.PI*8)*(1-t)*0.15;
+      a.mesh.position.x=a.baseX+s;
+      a.mesh.position.z=a.baseZ+s*0.5;
+      hasActive=true;
+    } else if(a.type==='delay'){
+      hasActive=true; // 位置は動かさず時間だけ経過（攻防の間）
+    }
+    if(t>=1){
+      a.mesh.position.x=a.baseX;
+      a.mesh.position.z=a.baseZ;
+      if(a.onEnd)a.onEnd();
+      anims.splice(i,1);
+    }
+  }
+  // カメラ振動
+  if(cameraShake.active){
+    const t=Math.min((performance.now()-cameraShake.startTime)/cameraShake.duration,1);
+    if(t<1){
+      const s=Math.sin(t*Math.PI*10)*(1-t)*0.3;
+      camera.position.x+=s;
+      camera.position.y+=s*0.5;
+    } else {
+      cameraShake.active=false;
+    }
+    hasActive=true;
+  }
+  animLocked=hasActive;
+  updateHitParticles(dt);
+
+  // 敵アニメ：気づいたら弾むように躍動
+  const nowSec=performance.now()/1000;
+  enemies.forEach(e=>{
+    if(e.hp<=0)return;
+    if(e.sleep>0){
+      // 睡眠中：自機を向かず、動かず静止（頭上のzzZは別途描画）
+      e.mesh.position.y=0;
+      e.mesh.scale.set(1.3,1.3,1.3);
+    } else if(e.aware){
+      // プレイヤー方向を向く
+      const dx=state.x*CELL-e.mesh.position.x;
+      const dz=state.y*CELL-e.mesh.position.z;
+      e.mesh.rotation.y=Math.atan2(dx,dz);
+      // 弾むジャンプ（|sin|で地面から跳ねる動き）
+      const phase=nowSec*5+e.x*1.3+e.y*0.7;
+      const jump=Math.abs(Math.sin(phase))*0.32;
+      e.mesh.position.y=jump;
+      // スクワッシュ＆ストレッチ（潰れと伸び）
+      const stretch=1+Math.cos(phase)*0.12;
+      const squash=1-Math.cos(phase)*0.10;
+      e.mesh.scale.set(1.3*squash, 1.3*stretch, 1.3*squash);
+    } else if(e.type==='wander'){
+      // 徘徊型：未発見でも歩いているので軽く揺れる
+      const phase=nowSec*3+e.x*1.3+e.y*0.7;
+      e.mesh.position.y=Math.abs(Math.sin(phase))*0.12;
+      e.mesh.scale.set(1.3,1.3,1.3);
+    } else {
+      // 未発見：静止
+      e.mesh.rotation.y=0;
+      e.mesh.position.y=0;
+      e.mesh.scale.set(1.3,1.3,1.3);
+    }
+  });
+}
+
+// プレイヤー攻撃突進（見た目のみ、ロジックは呼び出し元で即時処理済み）
+function playerLunge(tdx,tdz,onAnimEnd){
+  const bx=playerGroup.position.x,bz=playerGroup.position.z;
+  const isDiag=tdx!==0&&tdz!==0;
+  const dist=isDiag?CELL*0.3:CELL*0.45;
+  animLocked=true;
+  addAnim({
+    type:'lunge',mesh:playerGroup,baseX:bx,baseZ:bz,
+    dx:tdx,dz:tdz,dist,duration:300,
+    onEnd:()=>{
+      if(onAnimEnd)onAnimEnd();
+      // 攻撃の余韻を作ってから敵ターン（間を長く）
+      addAnim({
+        type:'delay',mesh:playerGroup,baseX:playerGroup.position.x,baseZ:playerGroup.position.z,
+        dx:0,dz:0,dist:0,duration:260,
+        onEnd:()=>{ animLocked=false; enemyTurn(); }
+      });
+    }
+  });
+}
+
+// 敵振動（位置をグリッド座標に固定）
+function enemyShake(e){
+  e.mesh.position.set(e.x*CELL, 0, e.y*CELL);
+}
+
+// 敵攻撃突進（アニメなし、位置はグリッド座標に固定）
+function enemyLunge(e){
+  // アニメは行わず、グリッド座標に位置を正確に固定するだけ
+  e.mesh.position.set(e.x*CELL, 0, e.y*CELL);
+}
+
+// カメラ振動
+function shakeCamera(){
+  cameraShake={active:true,startTime:performance.now(),duration:400};
+}
+
+// 敵AI
+function getPlayerRoomIdx(){
+  return rooms.findIndex(r=>state.x>=r.x&&state.x<r.x+r.w&&state.y>=r.y&&state.y<r.y+r.h);
+}
+function distToPlayer(e){return Math.abs(e.x-state.x)+Math.abs(e.y-state.y);}
+
+// 魔法弾
+const magicBolts=[];
+function fireMagicBolt(e, dmg){
+  const dx=Math.sign(state.x-e.x), dz=Math.sign(state.y-e.y);
+  // 直線チェック（縦か横のみ）
+  if(dx!==0&&dz!==0) return false; // 斜めは撃てない
+  // 壁チェック（直線上に壁があれば撃てない）
+  for(let step=1;step<=20;step++){
+    const cx=e.x+dx*step, cz=e.y+dz*step;
+    if(!isWalkable(cx,cz)) return false;
+    if(cx===state.x&&cz===state.y) break;
+  }
+  // ★ロジック即時：ダメージを発射時に確定（必中・避けられない）
+  const shEff=equippedArmor?ITEM_DB[equippedArmor.key].effect:null;
+  if(shEff&&shEff.reflect&&Math.random()<shEff.reflect){
+    showAction('魔法を反射した！',800);
+  } else {
+    let mdmg=dmg;
+    if(shEff&&shEff.resist==='magic') mdmg=Math.max(1,Math.round(mdmg*0.5));
+    state.hp=Math.max(0,state.hp-mdmg);
+    sfxHit();
+    spawnDamageNum(state.x*CELL,1.5,state.y*CELL,`${mdmg}`,'#ffffff');
+    showAction(`魔法を受けた！ ${mdmg}ダメージ`,800);
+    updateUI();
+    checkPlayerDeath();
+  }
+  // 見た目だけの弾（当たり判定なし、演出用）
+  const geo=new THREE.SphereGeometry(0.12,6,6);
+  const mat=new THREE.MeshBasicMaterial({color:0x80c0ff});
+  const bolt=new THREE.Mesh(geo,mat);
+  bolt.position.set(e.x*CELL,0.9,e.y*CELL);
+  scene.add(bolt);
+  const lt=new THREE.PointLight(0x80c0ff,3,2);
+  bolt.add(lt);
+  magicBolts.push({mesh:bolt,dx,dz,dmg:0,dist:0,maxDist:20,visualOnly:true,
+    targetX:state.x*CELL, targetY:state.y*CELL});
+  return true;
+}
+
+function updateMagicBolts(dt){
+  for(let i=magicBolts.length-1;i>=0;i--){
+    const b=magicBolts[i];
+    const speed=10;
+    b.dist+=speed*dt;
+    b.mesh.position.x+=b.dx*speed*dt*CELL;
+    b.mesh.position.z+=b.dz*speed*dt*CELL;
+    // 発射時に狙った着弾点（固定）に到達したら着弾。プレイヤーが動いても弾は当初の位置へ飛ぶ
+    const tx=b.targetX, tz=b.targetY;
+    const reached=(b.dx!==0 ? (b.dx>0?b.mesh.position.x>=tx:b.mesh.position.x<=tx)
+                            : (b.dz>0?b.mesh.position.z>=tz:b.mesh.position.z<=tz));
+    const gx=Math.round(b.mesh.position.x/CELL), gz=Math.round(b.mesh.position.z/CELL);
+    const wall=gx<0||gx>=MAP_W||gz<0||gz>=MAP_H||MAP[gz][gx]===1;
+    if(reached||wall||b.dist>25){
+      shakeCamera(); triggerFlash('rgba(80,160,255,');
+      scene.remove(b.mesh);
+      magicBolts.splice(i,1);
+    }
+  }
+}
+
+// ドラゴンの炎ブレス（直線上・射程無限・必中）
+const dragonFlames=[];
+function fireDragonBreath(e,dx,dz,dmg){
+  // ダメージは即座に確定（必中）
+  const shEff=equippedArmor?ITEM_DB[equippedArmor.key].effect:null;
+  let mdmg=dmg;
+  if(shEff&&shEff.resist==='magic') mdmg=Math.max(1,Math.round(mdmg*0.5));
+  state.hp=Math.max(0,state.hp-mdmg);
+  sfxHit();
+  spawnDamageNum(state.x*CELL,1.5,state.y*CELL,`🔥${mdmg}`,'#ffffff');
+  showAction(`ドラゴンの炎！ ${mdmg}ダメージ`,1000);
+  updateUI();
+  checkPlayerDeath();
+  // 見た目：炎の玉が直線に連なって飛ぶ演出
+  const dist=Math.max(Math.abs(state.x-e.x),Math.abs(state.y-e.y));
+  for(let s=1;s<=dist;s++){
+    const geo=new THREE.SphereGeometry(0.28,6,6);
+    const mat=new THREE.MeshBasicMaterial({color:s%2?0xff6020:0xffb020,transparent:true,opacity:0.9});
+    const fl=new THREE.Mesh(geo,mat);
+    fl.position.set((e.x+dx*s)*CELL,0.9,(e.y+dz*s)*CELL);
+    scene.add(fl);
+    dragonFlames.push({mesh:fl,life:0,delay:s*0.03});
+  }
+  triggerFlash('rgba(255,100,0,');
+  shakeCamera();
+}
+function updateDragonFlames(dt){
+  for(let i=dragonFlames.length-1;i>=0;i--){
+    const f=dragonFlames[i];
+    f.life+=dt;
+    if(f.life<f.delay)continue;
+    const t=(f.life-f.delay);
+    f.mesh.material.opacity=Math.max(0,0.9-t*2.2);
+    const sc=1+t*1.5;
+    f.mesh.scale.set(sc,sc,sc);
+    if(t>0.4){ scene.remove(f.mesh); dragonFlames.splice(i,1); }
+  }
+}
+
+let floorTurnCount=0; // このフロアでの経過ターン数（テスト表示用）
+function enemyTurn(){
+  floorTurnCount++;
+  updateTurnCounterDisplay();
+  const playerRoomIdx=getPlayerRoomIdx();
+  enemies.forEach(e=>{
+    if(e.hp<=0)return;
+    // 敵が睡眠中はスキップ
+    if(e.sleep>0){ e.sleep--; return; }
+    // 透明中のプレイヤーには気づかない
+    if(state.invis>0){ e.aware=false; return; }
+    // 気づき判定
+    if(!e.aware){
+      // 徘徊型：気づいていなくてもランダムにうろつく
+      if(e.type==='wander'){
+        if(Math.random()<0.6){ // 60%の確率で1歩動く
+          const dirs=[[0,-1],[0,1],[-1,0],[1,0]].sort(()=>Math.random()-0.5);
+          for(const [wx,wy] of dirs){
+            const nx=e.x+wx, ny=e.y+wy;
+            if(isWalkable(nx,ny)&&!enemies.some(o=>o!==e&&o.x===nx&&o.y===ny)&&!(nx===state.x&&ny===state.y)){
+              e.x=nx; e.y=ny;
+              e.mesh.position.set(e.x*CELL,0,e.y*CELL);
+              e.roomIdx=rooms.findIndex(r=>nx>=r.x&&nx<r.x+r.w&&ny>=r.y&&ny<r.y+r.h);
+              break;
+            }
+          }
+        }
+      }
+      if(e.type==='normal'||e.type==='mage'||e.type==='double'||e.type==='wander'){
+        if(playerRoomIdx>=0&&e.roomIdx===playerRoomIdx)e.aware=true;
+      } else {
+        if(distToPlayer(e)<=1)e.aware=true;
+      }
+    }
+    if(!e.aware)return;
+
+    // 混乱中：ランダムな方向へよろめき、攻撃できない
+    if(e.confused>0){
+      e.confused--;
+      const dirs=[[0,-1],[0,1],[-1,0],[1,0]].sort(()=>Math.random()-0.5);
+      for(const [wx,wy] of dirs){
+        const nx=e.x+wx, ny=e.y+wy;
+        if(isWalkable(nx,ny)&&!enemies.some(o=>o!==e&&o.x===nx&&o.y===ny)&&!(nx===state.x&&ny===state.y)){
+          e.x=nx; e.y=ny;
+          e.mesh.position.set(e.x*CELL,0,e.y*CELL);
+          break;
+        }
+      }
+      return;
+    }
+
+    const db=MONSTER_DB[e.monType]||{atk:3};
+    const atk=db.atk;
+
+    // 魔法使い系：部屋内で同一直線なら魔法、そうでなければ通常
+    if(e.type==='mage'){
+      const inSameRoom=playerRoomIdx>=0&&e.roomIdx===playerRoomIdx;
+      const dx=Math.sign(state.x-e.x), dz=Math.sign(state.y-e.y);
+      const inLine=(state.x===e.x||state.y===e.y); // 直線上
+      if(inSameRoom&&inLine&&distToPlayer(e)>1){
+        const dmg=calcDamage(Math.floor(atk*1.2), Math.floor(totalDef()*0.5));
+        fireMagicBolt(e,dmg);
+        return;
+      }
+    }
+
+    // ドラゴン：正面（同じ行または列の直線上）にプレイヤーがいたら炎を吐く（射程無限）
+    if(e.monType==='dragon'){
+      const dxg=Math.sign(state.x-e.x), dzg=Math.sign(state.y-e.y);
+      const inLine=(state.x===e.x||state.y===e.y);
+      if(inLine&&distToPlayer(e)>1){
+        // 直線上に壁がないか確認（射程は無限だが壁は貫通しない）
+        let blocked=false;
+        let cx=e.x+dxg, cz=e.y+dzg;
+        while(!(cx===state.x&&cz===state.y)){
+          if(!isWalkable(cx,cz)){ blocked=true; break; }
+          cx+=dxg; cz+=dzg;
+        }
+        if(!blocked){
+          const dmg=calcDamage(Math.floor(atk*1.3), Math.floor(totalDef()*0.5));
+          fireDragonBreath(e,dxg,dzg,dmg);
+          return;
+        }
+      }
+    }
+
+    // 通常移動・攻撃
+    const dx=state.x-e.x, dy=state.y-e.y;
+
+    // 自機と隣接（1マス以内）していれば移動せず攻撃
+    const doAttack=(e)=>{
+      const dmg=calcDamage(atk, totalDef());
+      state.hp=Math.max(0,state.hp-dmg);
+      sfxHit();
+      enemyLunge(e);shakeCamera();
+      triggerFlash('rgba(255,60,60,');
+      spawnDamageNum(state.x*CELL,1.5,state.y*CELL,`${dmg}`,'#ffffff');
+      showAction(`${dmg}ダメージを受けた！`,800);
+      // 盾のトゲ（鏡の盾）：受けたダメージの一部を敵に返す
+      const shEff=equippedArmor?ITEM_DB[equippedArmor.key].effect:null;
+      if(shEff&&shEff.thorns){
+        const back=Math.max(1,Math.round(dmg*shEff.thorns));
+        e.hp-=back;
+        spawnDamageNum(e.mesh.position.x,2.0,e.mesh.position.z,`反射${back}`,'#ffffff');
+        if(e.hp<=0) damageEnemy(e,0);
+      }
+      updateUI();
+      checkPlayerDeath();
+    };
+
+    // 自機と隣接（1マス以内）していれば移動せず攻撃（斜めは角抜け＝壁越しを禁止）
+    const isDiagAdj=dx!==0&&dy!==0;
+    const diagBlocked=isDiagAdj&&(!isWalkable(e.x+dx,e.y)||!isWalkable(e.x,e.y+dy));
+    if(Math.abs(dx)<=1&&Math.abs(dy)<=1&&(dx!==0||dy!==0)&&!diagBlocked){
+      doAttack(e);
+      if(e.type==='double'&&state.hp>0) doAttack(e);
+      return;
+    }
+
+    const candidates=[];
+    const sx=Math.sign(dx), sy=Math.sign(dy);
+    // プレイヤーが斜め方向にいるなら、まず斜め移動を最優先で試す
+    if(sx!==0&&sy!==0){
+      candidates.push([sx,sy]);   // 斜め（最短）
+      // 斜めが無理な場合の代替：距離が大きい軸を優先
+      if(Math.abs(dx)>=Math.abs(dy)){
+        candidates.push([sx,0]);
+        candidates.push([0,sy]);
+      } else {
+        candidates.push([0,sy]);
+        candidates.push([sx,0]);
+      }
+    } else {
+      // 縦か横に真っ直ぐ
+      if(Math.abs(dx)>=Math.abs(dy)){
+        if(dx!==0)candidates.push([sx,0]);
+        if(dy!==0)candidates.push([0,sy]);
+      } else {
+        if(dy!==0)candidates.push([0,sy]);
+        if(dx!==0)candidates.push([sx,0]);
+      }
+    }
+
+    let attacked=false;
+    let moved=false;
+    for(const [mx,my] of candidates){
+      const nx=e.x+mx, ny=e.y+my;
+      if(!isWalkable(nx,ny))continue;
+      // 斜め移動時は角抜け（壁越し）を禁止：隣接2マスのどちらかが壁なら不可
+      if(mx!==0&&my!==0){
+        if(!isWalkable(e.x+mx,e.y)||!isWalkable(e.x,e.y+my))continue;
+      }
+      if(enemies.some(o=>o!==e&&o.x===nx&&o.y===ny))continue;
+      if(nx===state.x&&ny===state.y){
+        doAttack(e);
+        attacked=true;
+        if(e.type==='double'&&state.hp>0) doAttack(e);
+        moved=true;
+        break;
+      }
+      // 移動実行
+      e.x=nx;e.y=ny;
+      e.mesh.position.set(e.x*CELL,0,e.y*CELL);
+      e.roomIdx=rooms.findIndex(r=>nx>=r.x&&nx<r.x+r.w&&ny>=r.y&&ny<r.y+r.h);
+      moved=true;
+      break;
+    }
+    // 移動も攻撃もできない場合はその場で待機（ワープしない）
+    if(!moved){
+      e.mesh.position.set(e.x*CELL,0,e.y*CELL);
+    }
+  });
+  saveGameThrottled();
+}
+
+// 移動
+function isWalkable(x,y){return x>=0&&x<MAP_W&&y>=0&&y<MAP_H&&MAP[y][x]===0;}
+function hasEnemy(x,y){return enemies.some(e=>e.x===x&&e.y===y&&e.hp>0);}
+function moveForward(dash=false){
+  const dx=DIR_DX[state.dir],dy=DIR_DY[state.dir],diag=dx!==0&&dy!==0;
+  function ok(tx,ty){
+    if(!isWalkable(tx,ty))return false;
+    if(diag){
+      // 斜め移動は隣接2マスが壁でないことが条件（敵がいてもOK）
+      if(!isWalkable(state.x+dx,state.y)||!isWalkable(state.x,state.y+dy))return false;
+    }
+    return true;
+  }
+  if(dash){
+    const mx=state.x+dx,my=state.y+dy,nx=state.x+dx*2,ny=state.y+dy*2;
+    // ダッシュ中に敵がいたら止まる
+    if(ok(mx,my)&&hasEnemy(mx,my)){showAction('敵にぶつかった！');setLog('接触');}
+    else if(ok(mx,my)&&ok(nx,ny)&&!hasEnemy(nx,ny)){state.x=nx;state.y=ny;showAction('ダッシュ！');setLog('ダッシュ');stepHeal();stepHeal();}
+    else if(ok(mx,my)&&!hasEnemy(mx,my)){state.x=mx;state.y=my;showAction('ダッシュ！');setLog('ダッシュ');stepHeal();}
+    else{setLog('壁');}
+  } else {
+    const nx=state.x+dx,ny=state.y+dy;
+    // 前方にNPCがいれば会話（移動・攻撃より優先。NPCのマスには進めない＝入り口を塞ぐ）
+    const npc=npcList.find(n=>n.x===nx&&n.y===ny);
+    if(npc){
+      showDialogue(npc.name||'案内人', npc.text||'', npc);
+      setLog(npc.name||'NPC');
+      return;
+    }
+    if(ok(nx,ny)&&hasEnemy(nx,ny)){
+      if(animLocked)return;
+      const target=enemies.find(e=>e.x===nx&&e.y===ny&&e.hp>0);
+      if(target){
+        const tdx=Math.sign(target.x-state.x);
+        const tdz=Math.sign(target.y-state.y);
+        const wpEff=equippedWeapon?ITEM_DB[equippedWeapon.key].effect:null;
+        // 命中判定（両手剣など）
+        if(wpEff&&wpEff.miss&&Math.random()<wpEff.miss){
+          showAction('攻撃を外した！',800);
+          sfxAttack();
+          playerLunge(tdx,tdz);
+          updatePlayerPos();updateUI();checkStepOn();enemyTurn();
+          return;
+        }
+        // ダメージ計算
+        let dmg=calcDamage(totalAtk(), target.def||0);
+        // ちからため：次の一撃2倍
+        if(state.charge){ dmg*=2; state.charge=false; showAction('渾身の一撃！',800); }
+        // 龍特効
+        if(wpEff&&wpEff.slayer&&target.monType===wpEff.slayer){ dmg*=2; showAction('特効！',800); }
+        target.hp-=dmg;
+        target.aware=true; // 攻撃を受けたら即座に気づく（鈍感型・斜め隣接でも確実に）
+        sfxAttack();
+        spawnHitEffect(target.mesh.position.x,target.mesh.position.z);
+        // 炎エフェクト
+        if(wpEff&&wpEff.onhit==='fire'&&Math.random()<0.4){
+          const extra=Math.round(dmg*0.5);
+          target.hp-=extra;
+          triggerFlash('rgba(255,100,0,');
+          spawnDamageNum(target.mesh.position.x,2.6,target.mesh.position.z,`🔥${extra}`,'#ffffff');
+        } else if(wpEff&&wpEff.onhit==='sleep'&&Math.random()<0.35){
+          target.sleep=(target.sleep||0)+5;
+          triggerFlash('rgba(120,180,255,');
+          spawnDamageNum(target.mesh.position.x,2.6,target.mesh.position.z,`zzZ`,'#a0d0ff');
+        } else if(wpEff&&wpEff.onhit==='poison'&&Math.random()<0.35){
+          target.poisoned=(target.poisoned||0)+5;
+          triggerFlash('rgba(160,60,200,');
+          spawnDamageNum(target.mesh.position.x,2.6,target.mesh.position.z,`毒`,'#a040c0');
+        } else {
+          triggerFlash('rgba(255,200,0,');
+        }
+        spawnDamageNum(target.mesh.position.x,2.0,target.mesh.position.z,`${dmg}`,'#ffffff');
+        showAction(`${dmg}ダメージ！`,800);
+        setLog('攻撃');
+        playerLunge(tdx,tdz);
+        enemyShake(target);
+        // 反動（ムラマサ）
+        if(wpEff&&wpEff.recoil&&Math.random()<wpEff.recoil){
+          const rec=Math.max(1,Math.round(dmg*0.3));
+          state.hp=Math.max(0,state.hp-rec);
+          spawnDamageNum(state.x*CELL,1.5,state.y*CELL,`反動${rec}`,'#ffffff');
+        }
+        if(target.hp<=0) damageEnemy(target,0);
+      }
+      updatePlayerPos();updateUI();checkStepOn();
+      return;
+    } else if(ok(nx,ny)&&!hasEnemy(nx,ny)){
+      state.x=nx;state.y=ny;setLog('前進');
+      stepHeal();
+    } else {
+      setLog('壁');
+    }
+  }
+  updatePlayerPos();updateUI();checkStepOn();updateExplored();
+  checkDialogueDistance();
+  // すばやさ中：2回に1回だけ敵ターン（プレイヤーが2倍動ける）
+  if(state.haste>0){
+    state._hasteToggle=!state._hasteToggle;
+    if(state._hasteToggle){ return; } // この移動では敵を動かさない
+  }
+  enemyTurn();
+}
+
+// 旋回
+function rotateToward(sx){const d=(sx-window.innerWidth/2)/(window.innerWidth/2);state.targetAngle=state.angle+d*(Math.PI/2)*(P.ROT_SPEED/3);}
+function commitRotation(){
+  let a=state.angle%(Math.PI*2);if(a<-Math.PI)a+=Math.PI*2;if(a>Math.PI)a-=Math.PI*2;
+  const snaps=[-Math.PI/2,-Math.PI/4,0,Math.PI/4,Math.PI/2,3*Math.PI/4,Math.PI,-3*Math.PI/4];
+  let best=0,bestD=Infinity;snaps.forEach((s,i)=>{let d=Math.abs(a-s);if(d>Math.PI)d=Math.PI*2-d;if(d<bestD){bestD=d;best=i;}});
+  state.dir=best;state.angle=state.targetAngle=snaps[best];setLog('旋回→'+DIRS[best]);updateUI();
+}
+
+// ============================================================
+// インベントリ UI
+// ============================================================
+let selectedItem=null;
+const invModal=document.getElementById('inv-modal');
+const actionModal=document.getElementById('action-modal');
+
+// YES/NO確認モーダル
+const confirmModal=document.getElementById('confirm-modal');
+let confirmYesCallback=null;
+let confirmNoCallback=null;
+function showConfirm(message, onYes, onNo){
+  document.getElementById('confirm-title').textContent=message;
+  confirmYesCallback=onYes;
+  confirmNoCallback=onNo||null;
+  confirmModal.classList.add('show');
+}
+function closeConfirm(){ confirmModal.classList.remove('show'); confirmYesCallback=null; confirmNoCallback=null; }
+document.getElementById('confirm-yes').onclick=()=>{
+  const cb=confirmYesCallback;
+  closeConfirm();
+  if(cb)cb();
+};
+document.getElementById('confirm-no').onclick=()=>{
+  const cb=confirmNoCallback;
+  closeConfirm();
+  if(cb)cb();
+};
+
+function openInventory(){ renderInventory(); updateUnderfootLabel(); invModal.classList.add('show'); }
+function closeInventory(){ invModal.classList.remove('show'); }
+
+// 足元ボタンのラベル（足元にあるアイテム名）を更新
+function getUnderfootItem(){
+  return floorItems.find(i=>i.x===state.x&&i.y===state.y)||null;
+}
+function underfootItemLabel(it){
+  if(!it)return 'なし';
+  if(it.key==='gold')return `${it.gold} ゴールド`;
+  return ITEM_DB[it.key].name;
+}
+function updateUnderfootLabel(){
+  const btn=document.getElementById('inv-underfoot');
+  const span=document.getElementById('uf-item');
+  const it=getUnderfootItem();
+  // 階段・帰還ポイントも足元表示に含める
+  let label=underfootItemLabel(it);
+  let empty=!it;
+  if(!it){
+    if(stairsPos&&state.x===stairsPos.x&&state.y===stairsPos.y){ label='階段'; empty=false; }
+    else if(returnPos&&state.x===returnPos.x&&state.y===returnPos.y){ label='帰還の間'; empty=false; }
+    else if(state.inEntrance&&entranceInfo&&state.x===entranceInfo.doorX&&state.y===entranceInfo.doorY){ label='ダンジョン入口'; empty=false; }
+  }
+  span.textContent=label;
+  btn.classList.toggle('empty', empty);
+}
+
+function renderInventory(){
+  const list=document.getElementById('inv-list');
+  list.innerHTML='';
+  if(inventory.length===0){
+    list.innerHTML='<div class="inv-empty">持ち物は空です</div>';
+    return;
+  }
+  inventory.forEach(it=>{
+    const db=ITEM_DB[it.key];
+    const div=document.createElement('div');
+    div.className='inv-item'+(it.equipped?' equipped':'');
+    const plusStr=it.plus>0?`<span class="inv-plus">+${it.plus}</span>`:'';
+    const eqStr=it.equipped?'<span class="inv-eq">E</span>':'';
+    const chargeStr=(db.type==='staff')?`<span class="inv-plus">(残${it.charges})</span>`:'';
+    div.innerHTML=`<span class="inv-icon">${db.icon}</span>
+      <span class="inv-name" style="color:${db.color}">${db.name} ${plusStr}${chargeStr}</span> ${eqStr}`;
+    div.onclick=()=>openActionMenu(it);
+    list.appendChild(div);
+  });
+}
+
+function sortInventory(){
+  const order={weapon:0,shield:1,staff:2,potion:3,scroll:4,food:5,enhance:6};
+  inventory.sort((a,b)=>{
+    // 装備中のものは最優先で先頭へ
+    if(a.equipped&&!b.equipped)return -1;
+    if(!a.equipped&&b.equipped)return 1;
+    // 種別順
+    const oa=order[ITEM_DB[a.key].type], ob=order[ITEM_DB[b.key].type];
+    if(oa!==ob)return oa-ob;
+    return a.key<b.key?-1:1;
+  });
+  renderInventory();
+  showAction('整理した',800);
+}
+
+function openActionMenu(it){
+  selectedItem=it;
+  const db=ITEM_DB[it.key];
+  const chargeTxt=(db.type==='staff')?` (残${it.charges})`:'';
+  document.getElementById('action-title').textContent=db.name+(it.plus>0?` +${it.plus}`:'')+chargeTxt;
+  // 使う/装備するボタンのラベル切替
+  const useBtn=document.querySelector('.act-btn[data-act="use"]');
+  if(db.type==='weapon'||db.type==='armor'||db.type==='shield'){
+    useBtn.textContent=it.equipped?'はずす':'装備する';
+  } else if(db.type==='staff'){
+    useBtn.textContent='振る';
+  } else {
+    useBtn.textContent='使う';
+  }
+  actionModal.classList.add('show');
+}
+function closeActionMenu(){ actionModal.classList.remove('show'); selectedItem=null; }
+
+// アクション実行
+function doAction(act){
+  const it=selectedItem;
+  if(!it){closeActionMenu();return;}
+  const db=ITEM_DB[it.key];
+
+  if(act==='use'){
+    if(db.type==='weapon'){
+      if(it.equipped){ it.equipped=false; equippedWeapon=null; showAction('武器をはずした'); }
+      else { inventory.forEach(x=>{if(ITEM_DB[x.key].type==='weapon')x.equipped=false;}); it.equipped=true; equippedWeapon=it; showAction(`${db.name}を装備した`); }
+      closeActionMenu(); closeInventory(); renderInventory(); updateUI(); enemyTurn();
+    } else if(db.type==='staff'){
+      closeActionMenu(); closeInventory();
+      useStaff(it);
+      enemyTurn();
+      return;
+    } else if(db.type==='scroll'){
+      closeActionMenu(); closeInventory();
+      useScroll(it);
+      enemyTurn();
+      return;
+    } else if(db.type==='armor'||db.type==='shield'){
+      if(it.equipped){ it.equipped=false; equippedArmor=null; showAction('防具をはずした'); }
+      else { inventory.forEach(x=>{if(ITEM_DB[x.key].type==='armor'||ITEM_DB[x.key].type==='shield')x.equipped=false;}); it.equipped=true; equippedArmor=it; showAction(`${db.name}を装備した`); }
+      closeActionMenu(); closeInventory(); renderInventory(); updateUI(); enemyTurn();
+    } else if(db.type==='food'){
+      // 食べ物：満腹度を回復（くさったパンはHPダメージも）
+      closeActionMenu(); closeInventory();
+      const fill=db.effect.food||30;
+      state.food=Math.min(state.maxFood,state.food+fill);
+      if(db.effect.damage){
+        state.hp=Math.max(0,state.hp-db.effect.damage);
+        showAction(`${db.name}を食べた。腹痛でHP-${db.effect.damage}…`);
+        spawnDamageNum(state.x*CELL,1.5,state.y*CELL,`${db.effect.damage}`,'#ffffff');
+        checkPlayerDeath();
+      } else {
+        showAction(`${db.name}を食べた。満腹度+${fill}`);
+      }
+      removeFromInv(it);
+      updateUI();
+      enemyTurn();
+    } else if(db.type==='potion'){
+      closeActionMenu(); closeInventory();
+      applyPotionToPlayer(db.effect, db.name);
+      removeFromInv(it);
+      updateUI();
+      enemyTurn();
+    } else if(db.type==='enhance'){
+      const target=equippedWeapon||equippedArmor;
+      if(target){ closeActionMenu(); closeInventory(); target.plus++; showAction(`${ITEM_DB[target.key].name}が+${target.plus}に！`); removeFromInv(it); updateUI(); enemyTurn(); }
+      else { showAction('装備品がない'); closeActionMenu(); return; }
+    } else {
+      showAction('使えなかった');
+      closeActionMenu(); renderInventory(); updateUI();
+    }
+
+  } else if(act==='throw'){
+    closeActionMenu(); closeInventory();
+    throwItem(it);
+
+  } else if(act==='drop'){
+    // 足元に置く
+    if(floorItems.find(f=>f.x===state.x&&f.y===state.y)){ showAction('足元に物がある'); closeActionMenu(); return; }
+    // エントランスの倉庫マスなら永続保存
+    if(state.inEntrance){
+      const slot=getWarehouseSlot(state.x,state.y);
+      if(slot){
+        if(slot.idx>=warehouseUnlocked){ showAction('ここはまだ使えない…',1200); closeActionMenu(); return; }
+        warehouseData[`${slot.sx},${slot.sy}`]={itemKey:it.key, plus:it.plus||0, charges:it.charges};
+        spawnObject('item',state.x,state.y,it.key);
+        removeFromInv(it);
+        showAction(`${db.name}を倉庫に預けた`,1200);
+        closeActionMenu(); renderInventory(); updateUI();
+        return;
+      }
+    }
+    spawnObject('item',state.x,state.y,it.key);
+    removeFromInv(it);
+    showAction(`${db.name}を置いた`);
+    closeActionMenu(); renderInventory(); updateUI();
+
+  } else {
+    closeActionMenu();
+  }
+}
+
+function removeFromInv(it){
+  const i=inventory.indexOf(it);
+  if(i>=0)inventory.splice(i,1);
+  if(it.equipped){ if(equippedWeapon===it)equippedWeapon=null; if(equippedArmor===it)equippedArmor=null; }
+}
+
+// ============================================================
+// 投げる
+// ============================================================
+function throwItem(it){
+  const db=ITEM_DB[it.key];
+  const dx=DIR_DX[state.dir], dy=DIR_DY[state.dir];
+  let hitEnemy=null;
+  let landX=state.x, landY=state.y;
+
+  // 最大5マス進む
+  for(let step=1; step<=5; step++){
+    const nx=state.x+dx*step, ny=state.y+dy*step;
+    if(!isWalkable(nx,ny)){ break; } // 壁で停止、直前マスに落ちる
+    landX=nx; landY=ny;
+    const en=enemies.find(e=>e.x===nx&&e.y===ny);
+    if(en){ hitEnemy=en; break; }
+  }
+
+  // 命中率75%（外れたらすり抜けて先へ飛ぶ）
+  const willHit = hitEnemy ? Math.random()<0.75 : false;
+
+  if(hitEnemy && willHit){
+    // モンスター命中
+    removeFromInv(it);
+    renderInventory();updateUI();
+    spawnThrowTrail(state.x*CELL,state.y*CELL,hitEnemy.x*CELL,hitEnemy.y*CELL,db,()=>{
+      if(db.type==='potion'){
+        applyPotionToEnemy(db.effect, hitEnemy);
+      } else if(db.type==='staff'){
+        applyWandEffect(db.effect, hitEnemy, dx, dy);
+        showAction(`${db.name}が命中！`,1200);
+      } else {
+        damageEnemy(hitEnemy, 2+Math.floor(Math.random()*2));
+        showAction(`命中！`,1200);
+      }
+    });
+  } else {
+    // 外れ or 何もない：外れた場合はモンスターの足元に落ちる
+    if(hitEnemy && !willHit){
+      showAction(`${db.name}は外れた！`,1000);
+      landX=hitEnemy.x; landY=hitEnemy.y; // モンスターの足元
+    }
+    // 着地点にアイテム/階段があれば隣にずらす
+    let finalX=landX, finalY=landY;
+    const occupied=floorItems.find(f=>f.x===landX&&f.y===landY)||
+                   (stairsPos&&stairsPos.x===landX&&stairsPos.y===landY)||
+                   (returnPos&&returnPos.x===landX&&returnPos.y===landY);
+    if(occupied){
+      const dirs=[[0,-1],[1,0],[0,1],[-1,0],[1,-1],[1,1],[-1,1],[-1,-1]].sort(()=>Math.random()-0.5);
+      for(const [ox,oy] of dirs){
+        if(isWalkable(landX+ox,landY+oy)&&!floorItems.find(f=>f.x===landX+ox&&f.y===landY+oy)){
+          finalX=landX+ox; finalY=landY+oy; break;
+        }
+      }
+    }
+    removeFromInv(it);
+    renderInventory();updateUI();
+    spawnThrowTrail(state.x*CELL,state.y*CELL,finalX*CELL,finalY*CELL,db,()=>{
+      spawnObject('item',finalX,finalY,it.key);
+      if(!hitEnemy) showAction(`${db.name}を投げた`,1200);
+    });
+  }
+}
+
+// 投擲の軌跡演出（小さい弾が飛んでいく）
+const throwBolts=[];
+function spawnThrowTrail(sx,sz,ex,ez,db,onArrive){
+  const geo=new THREE.BoxGeometry(0.18,0.18,0.18);
+  const mat=new THREE.MeshBasicMaterial({color: db.type==='potion'?0x60d060 : db.type==='staff'?0xffe060 : 0xd0d0d0});
+  const mesh=new THREE.Mesh(geo,mat);
+  mesh.position.set(sx,0.9,sz);
+  scene.add(mesh);
+  const dist=Math.hypot(ex-sx,ez-sz);
+  throwBolts.push({mesh,sx,sz,ex,ez,dist,traveled:0,onArrive});
+}
+function updateThrowBolts(dt){
+  for(let i=throwBolts.length-1;i>=0;i--){
+    const b=throwBolts[i];
+    const speed=20;
+    b.traveled+=speed*dt;
+    const t=Math.min(b.traveled/Math.max(b.dist,0.001),1);
+    b.mesh.position.x=b.sx+(b.ex-b.sx)*t;
+    b.mesh.position.z=b.sz+(b.ez-b.sz)*t;
+    // 山なりに少し弧を描く
+    b.mesh.position.y=0.9+Math.sin(t*Math.PI)*0.5;
+    b.mesh.rotation.x+=dt*10;
+    b.mesh.rotation.y+=dt*8;
+    if(t>=1){
+      scene.remove(b.mesh);
+      throwBolts.splice(i,1);
+      if(b.onArrive)b.onArrive();
+    }
+  }
+}
+
+function damageEnemy(en, dmg){
+  en.hp-=dmg;
+  if(en.hp<=0){
+    scene.remove(en.mesh);
+    enemies.splice(enemies.indexOf(en),1);
+    gainExp(en.exp||5);
+    const name=MONSTER_DB[en.monType]?MONSTER_DB[en.monType].name:'敵';
+    // ゲームクリア（ドラゴン撃破）
+    if(en.monType==='dragon'){
+      showAction('🐉 ドラゴンを倒した！ゲームクリア！！',4000);
+      setLog('GAME CLEAR！');
+      triggerFlash('rgba(255,215,0,');
+      sfxItem();
+      // クリア演出のあと、アイテム・お金は持ち帰ってエントランスへ（Lv・ステータスはリセット）
+      animLocked=true;
+      setTimeout(()=>{
+        fadeTransition(()=>{
+          resetPlayerStatsForEntrance();
+          initEntrance();
+          animLocked=false;
+        }, '✧ GAME CLEAR ✧');
+      }, 2600);
+      return;
+    }
+    showAction(`${name}を倒した！`,1200);
+  }
+}
+
+// 経験値獲得・レベルアップ
+function gainExp(amount){
+  state.exp+=amount;
+  if(state.exp>=state.nextExp) levelUp();
+  updateUI();
+}
+
+function levelUp(){
+  state.exp-=state.nextExp;
+  state.lv++;
+  state.nextExp=state.lv*10;
+  // ステータス上昇
+  state.maxHp+=10;
+  state.hp=state.maxHp; // レベルアップで全回復
+  state.atk+=2;
+  state.def+=1;
+  showAction(`Lv${state.lv}にあがった！ HP全回復`,2000);
+  // レベルアップ時は余剰経験値で連続レベルアップ
+  if(state.exp>=state.nextExp) levelUp();
+}
+
+// 歩行回復（5歩ごとにmaxHpの1%）＋満腹度減少（10歩ごとに1%）
+function stepHeal(){
+  const shEff=equippedArmor?ITEM_DB[equippedArmor.key].effect:null;
+  // 満腹度：10歩ごとに1%減（重装の盾は早く減る）。エントランスでは減らない
+  if(!state.inEntrance){
+    state.foodStep++;
+    const foodThreshold=(shEff&&shEff.hungry)?Math.round(10/shEff.hungry):10;
+    if(state.foodStep>=foodThreshold){
+      state.foodStep=0;
+      if(state.food>0){
+        state.food=Math.max(0,state.food-1);
+      }
+    }
+  }
+
+  if(state.food>0){
+    // 満腹なら通常回復（5歩ごと、聖なる盾は3歩ごと）
+    state.stepCount++;
+    const healThreshold=(shEff&&shEff.regen)?3:5;
+    if(state.stepCount>=healThreshold){
+      state.stepCount=0;
+      const heal=Math.floor(state.maxHp*0.01)||1;
+      if(state.hp<state.maxHp){
+        state.hp=Math.min(state.maxHp,state.hp+heal);
+      }
+    }
+  } else {
+    // 空腹：歩くごとにHP減少
+    state.hp=Math.max(0,state.hp-1);
+    showAction('お腹が空いた！',800);
+    if(state.hp<=0) showAction('力尽きた...💀',3000);
+  }
+  // 状態異常・バフのターン経過
+  if(state.haste>0)state.haste--;
+  if(state.invis>0){state.invis--;if(state.invis===0)showAction('透明が切れた');}
+  if(state.confuse>0){state.confuse--;if(state.confuse===0)showAction('混乱が治った');}
+  updateUI();
+}
+
+// ボタンイベント
+document.getElementById('inv-btn').onclick=openInventory;
+document.getElementById('inv-close').onclick=closeInventory;
+document.getElementById('inv-sort').onclick=sortInventory;
+
+// 「足元」ボタン：足元のアイテム/階段などに応じてメニューを出す
+const underfootModal=document.getElementById('underfoot-modal');
+let underfootTarget=null; // 対象の floorItems エントリ
+
+document.getElementById('inv-underfoot').onclick=()=>{
+  const it=getUnderfootItem();
+  if(it){
+    // アイテム/金貨が足元にある → 拾う/使う/投げるメニュー
+    if(it.key==='gold'){
+      // 金貨は拾うだけ
+      state.gold+=it.gold;
+      showAction(`${it.gold}💰 拾った！`,1200);
+      sfxItem();
+      scene.remove(it.mesh);
+      if(it.light)scene.remove(it.light);
+      floorItems.splice(floorItems.indexOf(it),1);
+      updateUI();updateUnderfootLabel();
+      return;
+    }
+    openUnderfootMenu(it);
+  } else {
+    // アイテムがない → 階段/帰還/入口などの足元判定を実行
+    closeInventory();
+    const wasDash=dashMode;
+    dashMode=false;
+    checkStepOn();
+    dashMode=wasDash;
+  }
+};
+
+function openUnderfootMenu(it){
+  underfootTarget=it;
+  const db=ITEM_DB[it.key];
+  document.getElementById('underfoot-title').textContent='足元：'+db.name;
+  // 使う/装備ボタンのラベルを種別で切替
+  const useBtn=underfootModal.querySelector('.act-btn[data-uf="use"]');
+  if(db.type==='weapon'||db.type==='armor'||db.type==='shield'){ useBtn.textContent='装備する'; }
+  else if(db.type==='staff'){ useBtn.textContent='振る'; }
+  else { useBtn.textContent='使う'; }
+  underfootModal.classList.add('show');
+}
+function closeUnderfootMenu(){ underfootModal.classList.remove('show'); underfootTarget=null; }
+
+// 足元アイテムを一旦インベントリに入れてから通常の処理に委ねる共通ヘルパー
+// （拾えない＝持ち物満杯の場合は false）
+function moveUnderfootToInventory(it, allowOverflow){
+  // 拾う場合は満杯チェックあり。使う/投げるは消費前提なので満杯でも一時的に入れる
+  if(!allowOverflow && inventory.length>=MAX_INV){ showAction('持ち物がいっぱい！',1500); return null; }
+  const newItem=makeItem(it.key);
+  // 倉庫マスから来た場合の plus/charges 復元（通常フロアでは無関係）
+  if(state.inEntrance){
+    const slot=getWarehouseSlot(it.x,it.y);
+    if(slot){ const saved=warehouseData[`${slot.sx},${slot.sy}`]; if(saved){ newItem.plus=saved.plus||0; if(saved.charges!==undefined)newItem.charges=saved.charges; } }
+  }
+  inventory.unshift(newItem);
+  // 床から除去
+  scene.remove(it.mesh); floorItems.splice(floorItems.indexOf(it),1);
+  if(state.inEntrance) removeFromWarehouseAt(it.x,it.y);
+  return newItem;
+}
+
+function doUnderfootAction(act){
+  const it=underfootTarget;
+  if(!it){ closeUnderfootMenu(); return; }
+  if(act==='cancel'){ closeUnderfootMenu(); return; }
+
+  if(act==='pick'){
+    const gained=moveUnderfootToInventory(it,false);
+    if(gained){ sfxItem(); showAction(`${ITEM_DB[it.key].name}を拾った！`,1200); updateUI(); }
+    closeUnderfootMenu(); renderInventory(); updateUnderfootLabel();
+    return;
+  }
+
+  // 使う / 投げる：一旦インベントリに入れて、通常のアクション処理に委ねる
+  // （消費されるので、持ち物が満杯でも一時的に入れることを許可する）
+  const gained=moveUnderfootToInventory(it,true);
+  if(!gained){ closeUnderfootMenu(); return; }
+  closeUnderfootMenu();
+  selectedItem=gained;
+  if(act==='use'){ doAction('use'); }
+  else if(act==='throw'){ doAction('throw'); }
+  updateUnderfootLabel();
+}
+
+underfootModal.querySelectorAll('.act-btn').forEach(b=>{
+  let lastFire=0;
+  const handler=()=>{
+    const now=Date.now();
+    if(now-lastFire<400)return; // touchstartとclickの二重発火を防ぐ
+    lastFire=now;
+    doUnderfootAction(b.dataset.uf);
+  };
+  b.addEventListener('touchstart',e=>{e.preventDefault();handler();},{passive:false});
+  b.addEventListener('click',handler);
+});
+underfootModal.onclick=e=>{ if(e.target===underfootModal)closeUnderfootMenu(); };
+
+// タブを離れた瞬間・閉じる直前は間引きなしで確実に保存
+document.addEventListener('visibilitychange',()=>{
+  if(document.hidden) saveGame();
+});
+window.addEventListener('beforeunload',()=>{ saveGame(); });
+window.addEventListener('pagehide',()=>{ saveGame(); });
+invModal.onclick=e=>{if(e.target===invModal)closeInventory();};
+actionModal.querySelectorAll('.act-btn').forEach(b=>{
+  b.onclick=()=>doAction(b.dataset.act);
+});
+actionModal.onclick=e=>{if(e.target===actionModal)closeActionMenu();};
+
+// 8方向パッド操作
+// dir: 0=北 1=北東 2=東 3=南東 4=南 5=南西 6=西 7=北西 -1=ダッシュ切替
+const ANGLE_OF=[-Math.PI/2,-Math.PI/4,0,Math.PI/4,Math.PI/2,3*Math.PI/4,Math.PI,-3*Math.PI/4];
+const MOVE_INTERVAL=210;      // 通常の移動連打間隔(ms)
+const DASH_INTERVAL=95;       // ダッシュ中の移動連打間隔(ms)
+
+function dpadPress(dir){
+  if(dir===-1)return;
+  // 睡眠中は行動できない（ターンだけ進む）
+  if(playerSleepTurns>0){
+    playerSleepTurns--;
+    showAction(playerSleepTurns>0?'眠っている…zzZ':'目が覚めた！',800);
+    enemyTurn();
+    return;
+  }
+  // 混乱中：50%の確率で狙った方向とは別のランダムな方向に行動してしまう
+  let actualDir=dir;
+  if(state.confuse>0 && Math.random()<0.5){
+    actualDir=Math.floor(Math.random()*8);
+    showAction('足がもつれた…',700);
+  }
+  // 通常移動・攻撃
+  state.dir=actualDir;
+  state.angle=ANGLE_OF[actualDir];
+  state.targetAngle=state.angle;
+  moveForward(false);
+}
+
+// ダッシュモードのオン/オフ切り替え
+function toggleDashMode(){
+  dashMode=!dashMode;
+  const nb=document.querySelector('.dp-neutral');
+  if(dashMode){
+    nb.classList.add('dash-on');
+  } else {
+    nb.classList.remove('dash-on');
+  }
+  updateDashIndicator();
+}
+
+// ダッシュモード表示（ステータスバーの下に配置し、ON中のみ表示）
+function updateDashIndicator(){
+  const el=document.getElementById('dash-indicator');
+  if(!el)return;
+  if(dashMode){
+    const topbarEl=document.getElementById('topbar');
+    const topbarH=topbarEl?topbarEl.getBoundingClientRect().height:40;
+    el.style.top=(topbarH+6)+'px';
+    el.classList.add('show');
+  } else {
+    el.classList.remove('show');
+  }
+  updateTurnCounterDisplay();
+}
+
+// ターン数表示の位置とテキストを更新（ダッシュ表示があればその下、無ければステータスバー直下）
+function updateTurnCounterDisplay(){
+  const el=document.getElementById('turn-counter');
+  if(!el)return;
+  el.textContent='Turn '+floorTurnCount;
+  const topbarEl=document.getElementById('topbar');
+  const topbarH=topbarEl?topbarEl.getBoundingClientRect().height:40;
+  const dashEl=document.getElementById('dash-indicator');
+  let top=topbarH+6;
+  if(dashEl&&dashEl.classList.contains('show')){
+    top=topbarH+6+dashEl.getBoundingClientRect().height+6;
+  }
+  el.style.top=top+'px';
+}
+
+// その場で待機（1ターン経過）
+function doWait(){
+  if(playerSleepTurns>0){
+    playerSleepTurns--;
+    showAction(playerSleepTurns>0?'眠っている…zzZ':'目が覚めた！',800);
+    enemyTurn();
+    return;
+  }
+  enemyTurn();
+}
+
+// 向いている方向へ攻撃（敵がいれば攻撃、いなければ空振り）
+function doAttackButton(){
+  if(animLocked)return;
+  if(playerSleepTurns>0){ doWait(); return; }
+  const dx=DIR_DX[state.dir], dy=DIR_DY[state.dir];
+  const nx=state.x+dx, ny=state.y+dy;
+  if(hasEnemy(nx,ny)){
+    // 前方に敵がいる → moveForwardの攻撃処理に委ねる
+    moveForward(false);
+  } else {
+    // 空振り（攻撃モーション＋音、敵ターンは進む。テキストは出さない）
+    sfxAttack();
+    playerLunge(dx,dy);
+    enemyTurn();
+  }
+}
+
+document.querySelectorAll('.dp').forEach(btn=>{
+  const dir=parseInt(btn.dataset.dir);
+  if(dir===-1){
+    // 中央ボタン：ドラッグで向き変更／ドラッグせず押して離すとダッシュON/OFF
+    const nb=btn;
+    let originX=0, originY=0, moved=false;
+
+    function angleToDir(dx,dy){
+      let ang=Math.atan2(dx,-dy); // 北を0、時計回り
+      let idx=Math.round(ang/(Math.PI/4));
+      idx=((idx%8)+8)%8;
+      return idx;
+    }
+
+    const start=(x,y)=>{window._turnDragging=true;moved=false;originX=x;originY=y;nb.classList.add('turn-on');};
+    const move=(x,y)=>{
+      if(!window._turnDragging)return;
+      const dx=x-originX, dy=y-originY;
+      const dist=Math.hypot(dx,dy);
+      if(dist>14){
+        moved=true;
+        const d=angleToDir(dx,dy);
+        state.dir=d;
+        state.angle=ANGLE_OF[d];
+        state.targetAngle=state.angle;
+        updatePlayerPos();
+      }
+    };
+    const end=()=>{
+      if(!window._turnDragging)return;
+      window._turnDragging=false;nb.classList.remove('turn-on');
+      // ドラッグしていなければ（＝その場で押して離しただけ）ダッシュ切替
+      if(!moved){ toggleDashMode(); }
+    };
+
+    nb.addEventListener('touchstart',e=>{e.preventDefault();const t=e.touches[0];start(t.clientX,t.clientY);},{passive:false});
+    nb.addEventListener('touchmove',e=>{e.preventDefault();const t=e.touches[0];move(t.clientX,t.clientY);},{passive:false});
+    nb.addEventListener('touchend',e=>{e.preventDefault();end();},{passive:false});
+    nb.addEventListener('touchcancel',e=>{e.preventDefault();end();},{passive:false});
+    nb.addEventListener('mousedown',e=>{e.preventDefault();start(e.clientX,e.clientY);});
+    window.addEventListener('mousemove',e=>{if(window._turnDragging)move(e.clientX,e.clientY);});
+    window.addEventListener('mouseup',e=>{if(window._turnDragging)end();});
+  } else {
+    let repeatTimer=null;
+    const startMove=()=>{
+      dpadPress(dir); // 1歩目は即座に
+      clearInterval(repeatTimer);
+      const interval=dashMode?DASH_INTERVAL:MOVE_INTERVAL;
+      repeatTimer=setInterval(()=>{dpadPress(dir);},interval);
+    };
+    const stopMove=()=>{clearInterval(repeatTimer);repeatTimer=null;};
+    btn.addEventListener('touchstart',e=>{e.preventDefault();startMove();},{passive:false});
+    btn.addEventListener('touchend',e=>{e.preventDefault();stopMove();},{passive:false});
+    btn.addEventListener('touchcancel',e=>{e.preventDefault();stopMove();},{passive:false});
+    btn.addEventListener('mousedown',e=>{e.preventDefault();startMove();});
+    btn.addEventListener('mouseup',e=>{e.preventDefault();stopMove();});
+    btn.addEventListener('mouseleave',e=>{stopMove();});
+  }
+});
+
+// 攻撃ボタン
+(()=>{
+  const ab=document.getElementById('attack-btn');
+  ab.addEventListener('touchstart',e=>{e.preventDefault();doAttackButton();},{passive:false});
+  ab.addEventListener('mousedown',e=>{e.preventDefault();doAttackButton();});
+})();
+
+// 待機ボタン（押しっぱなしでその場高速足踏み＝連続で待機ターンを消化）
+(()=>{
+  const wb=document.getElementById('wait-btn');
+  let repeatTimer=null;
+  const startWait=()=>{
+    doWait(); // 1回目は即座に
+    clearInterval(repeatTimer);
+    repeatTimer=setInterval(()=>{doWait();},DASH_INTERVAL);
+  };
+  const stopWait=()=>{clearInterval(repeatTimer);repeatTimer=null;};
+  wb.addEventListener('touchstart',e=>{e.preventDefault();startWait();},{passive:false});
+  wb.addEventListener('touchend',e=>{e.preventDefault();stopWait();},{passive:false});
+  wb.addEventListener('touchcancel',e=>{e.preventDefault();stopWait();},{passive:false});
+  wb.addEventListener('mousedown',e=>{e.preventDefault();startWait();});
+  wb.addEventListener('mouseup',e=>{e.preventDefault();stopWait();});
+  wb.addEventListener('mouseleave',e=>{stopWait();});
+})();
+
+// オーバーレイ
+const overlay=document.getElementById('overlay');
+const octx=overlay.getContext('2d');
+
+function drawPlayerHPBar(){
+  // 自機頭上（ワールド座標Y=2.2）をスクリーン座標に変換
+  const wx=state.x*CELL, wz=state.y*CELL;
+  const vec=new THREE.Vector3(wx,2.2,wz);
+  vec.project(camera);
+
+  // カメラ後方（画面外）なら描画しない
+  if(vec.z>1) return;
+
+  const sx=(vec.x+1)/2*overlay.width;
+  const sy=(-vec.y+1)/2*overlay.height;
+
+  const barW=60, barH=8;
+  const ratio=Math.max(0,state.hp/state.maxHp);
+
+  octx.save();
+  // 背景
+  octx.fillStyle='rgba(0,0,0,0.6)';
+  octx.fillRect(sx-barW/2-1, sy-1, barW+2, barH+2);
+  // HPバー（残量で色変化）
+  const col=ratio>0.5?'#40e040':ratio>0.25?'#e0c040':'#e04040';
+  octx.fillStyle=col;
+  octx.fillRect(sx-barW/2, sy, barW*ratio, barH);
+  // 枠
+  octx.strokeStyle='rgba(255,255,255,0.3)';
+  octx.lineWidth=1;
+  octx.strokeRect(sx-barW/2, sy, barW, barH);
+  // HP数値
+  octx.fillStyle='#ffffff';
+  octx.font='bold 10px Courier New';
+  octx.textAlign='center';
+  octx.fillText(`${state.hp}/${state.maxHp}`, sx, sy+barH+12);
+  octx.restore();
+}
+
+function drawOverlay(){
+  const W=overlay.width,H=overlay.height;octx.clearRect(0,0,W,H);
+
+  // 自機頭上HPバー
+  // drawPlayerHPBar(); // 一旦非表示
+}
+
+// 探索済み領域を更新（周囲＋入った部屋全体）
+function updateExplored(){
+  if(!explored.length)return;
+  // 自分の周囲3x3を開示
+  for(let dy=-1;dy<=1;dy++)for(let dx=-1;dx<=1;dx++){
+    const nx=state.x+dx, ny=state.y+dy;
+    if(nx>=0&&nx<MAP_W&&ny>=0&&ny<MAP_H) explored[ny][nx]=true;
+  }
+  // 部屋に入っていればその部屋全体を開示
+  const room=rooms.find(r=>state.x>=r.x&&state.x<r.x+r.w&&state.y>=r.y&&state.y<r.y+r.h);
+  if(room){
+    for(let y=room.y;y<room.y+room.h;y++)for(let x=room.x;x<room.x+room.w;x++){
+      if(x>=0&&x<MAP_W&&y>=0&&y<MAP_H) explored[y][x]=true;
+    }
+    // 部屋の外周に隣接する床（＝通路の入り口）を一歩だけ開示
+    for(let y=room.y-1;y<=room.y+room.h;y++)for(let x=room.x-1;x<=room.x+room.w;x++){
+      if(x<0||x>=MAP_W||y<0||y>=MAP_H)continue;
+      // 部屋の内側はスキップ
+      if(x>=room.x&&x<room.x+room.w&&y>=room.y&&y<room.y+room.h)continue;
+      // 床（通路）なら開示
+      if(MAP[y][x]===0) explored[y][x]=true;
+    }
+  }
+}
+
+function drawMinimap(){
+  if(!MAP.length||!explored.length)return;
+  const S=3,ox=10;
+  const topbarEl=document.getElementById('topbar');
+  const topbarH=topbarEl?topbarEl.getBoundingClientRect().height:0;
+  const oy=topbarH+12; // ステータスバーの下に配置（重ならないよう余白を確保）
+  octx.save();
+  octx.fillStyle='rgba(0,0,0,0.6)';octx.fillRect(ox-2,oy-2,MAP_W*S+4,MAP_H*S+4);
+  // 探索済みマスのみ描画
+  for(let y=0;y<MAP_H;y++)for(let x=0;x<MAP_W;x++){
+    if(!explored[y][x])continue;
+    octx.fillStyle=MAP[y][x]===1?'#3a2c18':'#2a4858';
+    octx.fillRect(ox+x*S,oy+y*S,S-1,S-1);
+  }
+  // 階段・帰還（探索済みのみ）
+  if(stairsPos&&explored[stairsPos.y][stairsPos.x]){octx.fillStyle='#d4a820';octx.fillRect(ox+stairsPos.x*S,oy+stairsPos.y*S,S,S);}
+  if(returnPos&&explored[returnPos.y][returnPos.x]){octx.fillStyle='#4080ff';octx.fillRect(ox+returnPos.x*S,oy+returnPos.y*S,S,S);}
+  // アイテム（探索済みのみ）
+  floorItems.forEach(i=>{if(explored[i.y][i.x]){octx.fillStyle='#c08030';octx.fillRect(ox+i.x*S,oy+i.y*S,S-1,S-1);}});
+  // 敵（探索済みのみ）
+  enemies.forEach(e=>{if(e.hp>0&&explored[e.y][e.x]){octx.fillStyle='#e04040';octx.fillRect(ox+e.x*S,oy+e.y*S,S,S);}});
+  // 自分
+  octx.fillStyle='#f0d080';octx.fillRect(ox+state.x*S,oy+state.y*S,S,S);
+  octx.restore();
+}
+
+const clock=new THREE.Clock();
+function animate(){
+  requestAnimationFrame(animate);
+  const dt=clock.getDelta();
+  // 総プレイ時間を加算（タブ非表示や長い中断中の巨大なdtは除外）
+  if(!document.hidden && dt<1){ state.playTimeMs+=dt*1000; }
+  updateDeathAnim();
+  updatePlayerSmooth(dt);if(window._turnDragging)updateHighlight(true);updateCamera();updateAnims(dt);updateMagicBolts(dt);updateWandBolts(dt);updateThrowBolts(dt);updateDragonFlames(dt);updatePlayerVisibility();renderer.render(scene,camera);drawOverlay();drawFlash();drawFloatingNums();drawSleepMarks();drawMinimap();
+}
+
+// 死亡演出：自機がその場でバタッと倒れる（X軸回転）
+function updateDeathAnim(){
+  if(!deathAnim)return;
+  const t=Math.min((performance.now()-deathAnim.startTime)/deathAnim.duration,1);
+  // イージング（最後にバウンドせず倒れ込む）
+  const e=1-Math.pow(1-t,3);
+  playerGroup.rotation.x=e*(Math.PI/2)*0.95; // ほぼ真横に倒れる
+  playerGroup.position.y=Math.sin(e*Math.PI)*0.1; // わずかに浮いて着地
+  if(t>=1){ deathAnim=null; }
+}
+
+// 起動
+let gameStarted=false;
+function beginAnimation(){
+  if(gameStarted)return;
+  gameStarted=true;
+  // ダッシュモードは毎回オフから開始
+  dashMode=false;
+  const nb=document.querySelector('.dp-neutral');
+  if(nb)nb.classList.remove('dash-on');
+  updateDashIndicator();
+  animate();
+  updateUI();
+}
+
+const titleScreen=document.getElementById('title-screen');
+const titleContinueBtn=document.getElementById('title-continue');
+const titleNewGameBtn=document.getElementById('title-newgame');
+
+function hideTitleScreen(){ titleScreen.classList.add('hide'); }
+function showTitleScreen(){
+  renderSaveSlot();
+  titleScreen.classList.remove('hide');
+}
+
+// プレイ時間(ms)を「H時間M分」または「M分S秒」形式に整形
+function formatPlayTime(ms){
+  const totalSec=Math.floor((ms||0)/1000);
+  const h=Math.floor(totalSec/3600);
+  const m=Math.floor((totalSec%3600)/60);
+  const s=totalSec%60;
+  if(h>0) return `${h}時間${m}分`;
+  if(m>0) return `${m}分${s}秒`;
+  return `${s}秒`;
+}
+// 保存日時を YYYY/MM/DD HH:MM に整形
+function formatSavedAt(ts){
+  if(!ts)return '';
+  const d=new Date(ts);
+  const p=n=>String(n).padStart(2,'0');
+  return `${d.getFullYear()}/${p(d.getMonth()+1)}/${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+// セーブデータから現在地の表示名を作る
+function saveLocationLabel(st){
+  if(!st)return '—';
+  if(st.inEntrance) return 'エントランス';
+  return `迷宮 地下${st.floor}階`;
+}
+
+// タイトルのセーブスロット欄を描画
+function renderSaveSlot(){
+  const btn=titleContinueBtn;
+  const data=hasSaveData()?loadSaveData():null;
+  if(!data||!data.state){
+    btn.classList.add('empty');
+    btn.disabled=true;
+    return;
+  }
+  btn.classList.remove('empty');
+  btn.disabled=false;
+  const st=data.state;
+  document.getElementById('slot-date').textContent=formatSavedAt(data.savedAt);
+  document.getElementById('slot-loc').textContent=saveLocationLabel(st);
+  document.getElementById('slot-lv').textContent=st.lv!==undefined?st.lv:'—';
+  document.getElementById('slot-gold').textContent=(st.gold!==undefined?st.gold:0)+' G';
+  document.getElementById('slot-time').textContent=formatPlayTime(st.playTimeMs);
+}
+
+// 中断してタイトルへ戻る（進行はオートセーブ済みだが念のため保存してから戻る）
+function suspendToTitle(){
+  saveGame();
+  // 各種モーダルを閉じる
+  invModal.classList.remove('show');
+  actionModal.classList.remove('show');
+  dialogueBox.classList.remove('show');
+  showTitleScreen();
+}
+
+titleContinueBtn.onclick=()=>{
+  if(!hasSaveData())return;
+  try{
+    const data=loadSaveData();
+    if(data){ applySave(data); }
+    else { resetFullGameState(); initEntrance(); }
+  }catch(err){
+    console.error('セーブデータの復元に失敗したため、エントランスから開始します',err);
+    resetFullGameState();
+    initEntrance();
+  }
+  updateCamera();
+  hideTitleScreen();
+  beginAnimation();
+};
+
+titleNewGameBtn.onclick=()=>{
+  const startFresh=()=>{
+    resetFullGameState();
+    initEntrance();
+    updateCamera();
+    hideTitleScreen();
+    beginAnimation();
+  };
+  if(hasSaveData()){
+    showConfirm('既存のデータが上書きされます。はじめから始めますか？', startFresh);
+  } else {
+    startFresh();
+  }
+};
+
+setTimeout(()=>{
+  resizeRenderer();
+  renderSaveSlot();
+}, 50);
+</script>
+</body>
+</html>
