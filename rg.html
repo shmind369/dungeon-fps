@@ -356,7 +356,7 @@ body { background:#0a0a0f; overflow:hidden; font-family:'Courier New',monospace;
 <div id="fade-overlay"></div>
 <div id="floor-announce"></div>
 <div id="title-screen">
-  <div id="title-logo">Wanderer's Dungeon<span class="title-ver">ver 0.3</span></div>
+  <div id="title-logo">Wanderer's Dungeon<span class="title-ver">ver 0.3.1</span></div>
   <div id="title-buttons">
     <button id="title-continue" class="title-btn slot-btn">
       <div class="slot-head">
@@ -648,6 +648,23 @@ function sfxAttack(){
   src.start(now); src.stop(now+0.16);
 }
 
+// 何もない場所への素振り「シュッ」：命中音より短く軽く高め（衝撃感を出さない）
+function sfxSwing(){
+  const ctx=getAudioCtx(); if(!ctx)return;
+  const now=ctx.currentTime;
+  const src=ctx.createBufferSource(); src.buffer=getNoiseBuffer(ctx);
+  const bp=ctx.createBiquadFilter(); bp.type='bandpass';
+  bp.frequency.setValueAtTime(4200,now);
+  bp.frequency.exponentialRampToValueAtTime(1800,now+0.08);
+  bp.Q.value=0.8;
+  const gain=ctx.createGain();
+  gain.gain.setValueAtTime(0.0001,now);
+  gain.gain.exponentialRampToValueAtTime(0.28,now+0.008);
+  gain.gain.exponentialRampToValueAtTime(0.0001,now+0.09);
+  src.connect(bp); bp.connect(gain); gain.connect(ctx.destination);
+  src.start(now); src.stop(now+0.1);
+}
+
 // 敵→自機への被弾「ドンっ」：低音のサイン波+ノイズの衝撃
 function sfxHit(){
   const ctx=getAudioCtx(); if(!ctx)return;
@@ -909,6 +926,16 @@ function updatePlayerSmooth(dt){
   if(anims.some(a=>a.mesh===playerGroup))return;
   playerGroup.position.x+=(tx-playerGroup.position.x)*k;
   playerGroup.position.z+=(tz-playerGroup.position.z)*k;
+}
+// 敵の表示座標も自機と同様に論理座標へ滑らかに近づける
+function updateEnemiesSmooth(dt){
+  const k=Math.min(dt*7,1);
+  enemies.forEach(e=>{
+    if(e.hp<=0)return;
+    const tx=e.x*CELL, tz=e.y*CELL;
+    e.mesh.position.x+=(tx-e.mesh.position.x)*k;
+    e.mesh.position.z+=(tz-e.mesh.position.z)*k;
+  });
 }
 
 // マップ生成
@@ -2885,7 +2912,7 @@ function wanderStep(e){
     if(enemies.some(o=>o!==e&&o.x===nx&&o.y===ny))continue;
     if(nx===state.x&&ny===state.y)continue;
     e.x=nx; e.y=ny;
-    e.mesh.position.set(e.x*CELL,0,e.y*CELL);
+    // 表示座標は毎フレームのupdateEnemiesSmoothで滑らかに追従させる
     e.roomIdx=rooms.findIndex(r=>nx>=r.x&&nx<r.x+r.w&&ny>=r.y&&ny<r.y+r.h);
     return;
   }
@@ -2925,7 +2952,6 @@ function enemyTurn(){
         const nx=e.x+wx, ny=e.y+wy;
         if(isWalkable(nx,ny)&&!enemies.some(o=>o!==e&&o.x===nx&&o.y===ny)&&!(nx===state.x&&ny===state.y)){
           e.x=nx; e.y=ny;
-          e.mesh.position.set(e.x*CELL,0,e.y*CELL);
           break;
         }
       }
@@ -3025,8 +3051,6 @@ function enemyTurn(){
       candidates.push([sx,-1]);
     }
 
-    let attacked=false;
-    let moved=false;
     for(const [mx,my] of candidates){
       const nx=e.x+mx, ny=e.y+my;
       if(!isWalkable(nx,ny))continue;
@@ -3037,21 +3061,13 @@ function enemyTurn(){
       if(enemies.some(o=>o!==e&&o.x===nx&&o.y===ny))continue;
       if(nx===state.x&&ny===state.y){
         doAttack(e);
-        attacked=true;
         if(e.type==='double'&&state.hp>0) doAttack(e);
-        moved=true;
         break;
       }
-      // 移動実行
+      // 移動実行（表示座標は毎フレームのupdateEnemiesSmoothで滑らかに追従させる）
       e.x=nx;e.y=ny;
-      e.mesh.position.set(e.x*CELL,0,e.y*CELL);
       e.roomIdx=rooms.findIndex(r=>nx>=r.x&&nx<r.x+r.w&&ny>=r.y&&ny<r.y+r.h);
-      moved=true;
       break;
-    }
-    // 移動も攻撃もできない場合はその場で待機（ワープしない）
-    if(!moved){
-      e.mesh.position.set(e.x*CELL,0,e.y*CELL);
     }
   });
   saveGameThrottled();
@@ -3775,7 +3791,7 @@ function doAttackButton(){
     moveForward(false);
   } else {
     // 空振り（攻撃モーション＋音、敵ターンは進む。テキストは出さない）
-    sfxAttack();
+    sfxSwing();
     playerLunge(dx,dy);
     enemyTurn();
   }
@@ -3972,7 +3988,7 @@ function animate(){
   if(!document.hidden && dt<1){ state.playTimeMs+=dt*1000; }
   updateDeathAnim();
   updateDashBob();
-  updatePlayerSmooth(dt);if(window._turnDragging)updateHighlight(true);updateCamera();updateAnims(dt);updateMagicBolts(dt);updateWandBolts(dt);updateThrowBolts(dt);updateDragonFlames(dt);updatePlayerVisibility();renderer.render(scene,camera);drawOverlay();drawFlash();drawFloatingNums();drawSleepMarks();drawConfuseMarks();drawMinimap();
+  updatePlayerSmooth(dt);updateEnemiesSmooth(dt);if(window._turnDragging)updateHighlight(true);updateCamera();updateAnims(dt);updateMagicBolts(dt);updateWandBolts(dt);updateThrowBolts(dt);updateDragonFlames(dt);updatePlayerVisibility();renderer.render(scene,camera);drawOverlay();drawFlash();drawFloatingNums();drawSleepMarks();drawConfuseMarks();drawMinimap();
 }
 
 // 死亡演出：自機がその場でバタッと倒れる（X軸回転）
