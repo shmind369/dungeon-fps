@@ -356,7 +356,7 @@ body { background:#0a0a0f; overflow:hidden; font-family:'Courier New',monospace;
 <div id="fade-overlay"></div>
 <div id="floor-announce"></div>
 <div id="title-screen">
-  <div id="title-logo">Wanderer's Dungeon<span class="title-ver">ver 0.3.2</span></div>
+  <div id="title-logo">Wanderer's Dungeon<span class="title-ver">ver 6.5</span></div>
   <div id="title-buttons">
     <button id="title-continue" class="title-btn slot-btn">
       <div class="slot-head">
@@ -1912,7 +1912,7 @@ function initFloor(floor){
 
   // 階層別モンスタースポーン
   const floorMonsters={
-    1:['slime','bat','goblin'],2:['slime','bat','goblin'],
+    1:['slime','bat'],2:['slime','bat'],
     3:['zombie','mage','goblin'],4:['zombie','mage','goblin'],
     5:['knight','chimera'],6:['knight','chimera'],
     7:['golem','wizard','devilape'],8:['golem','wizard','devilape'],
@@ -3009,6 +3009,12 @@ function enemyTurn(){
 
     // 自機と隣接（1マス以内）していれば移動せず攻撃
     const doAttack=(e)=>{
+      // 命中率7/8（約87.5%）
+      if(Math.random()>=7/8){
+        enemyLunge(e);
+        showAction('敵の攻撃を外した！',800);
+        return;
+      }
       const dmg=calcDamage(atk, totalDef());
       state.hp=Math.max(0,state.hp-dmg);
       sfxHit();
@@ -3120,8 +3126,9 @@ function moveForward(dash=false){
         const tdx=Math.sign(target.x-state.x);
         const tdz=Math.sign(target.y-state.y);
         const wpEff=equippedWeapon?ITEM_DB[equippedWeapon.key].effect:null;
-        // 命中判定（両手剣など）
-        if(wpEff&&wpEff.miss&&Math.random()<wpEff.miss){
+        // 命中判定：基本命中率117/128（約91.4%）＋両手剣など武器固有の追加ミス率
+        const baseMiss=Math.random()>=117/128;
+        if(baseMiss||(wpEff&&wpEff.miss&&Math.random()<wpEff.miss)){
           showAction('攻撃を外した！',800);
           sfxAttack();
           playerLunge(tdx,tdz);
@@ -3417,8 +3424,8 @@ function throwItem(it){
     if(en){ hitEnemy=en; break; }
   }
 
-  // 命中率75%（外れたらすり抜けて先へ飛ぶ）
-  const willHit = hitEnemy ? Math.random()<0.75 : false;
+  // 命中率7/8（約87.5%）。外れたらすり抜けて先へ飛ぶ
+  const willHit = hitEnemy ? Math.random()<7/8 : false;
 
   if(hitEnemy && willHit){
     // モンスター命中
