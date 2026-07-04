@@ -50,7 +50,7 @@ body { background:#0a0a0f; overflow:hidden; font-family:'Courier New',monospace;
 #status { display:none; }
 #action-label {
   position:absolute; bottom:14px; left:50%; transform:translateX(-50%);
-  min-width:160px; max-width:86%; box-sizing:border-box;
+  min-width:160px; max-width:94%; box-sizing:border-box;
   background:transparent;
   border:2px solid #f8f8f8;
   box-shadow:0 0 0 1px #000818, 0 4px 10px rgba(0,0,0,0.5);
@@ -2734,15 +2734,23 @@ function fireMagicBolt(e, dmg){
   const dx=Math.sign(state.x-e.x), dz=Math.sign(state.y-e.y);
   // 直線チェック（縦か横のみ）
   if(dx!==0&&dz!==0) return false; // 斜めは撃てない
-  // 壁チェック（直線上に壁があれば撃てない）
+  // 壁チェック（直線上に壁があれば撃てない）。途中に別の敵がいれば、そこで着弾させる（自機まで貫通させない）
+  let blockerEnemy=null, hitX=state.x, hitY=state.y;
   for(let step=1;step<=20;step++){
     const cx=e.x+dx*step, cz=e.y+dz*step;
     if(!isWalkable(cx,cz)) return false;
+    const other=enemies.find(o=>o!==e&&o.hp>0&&o.x===cx&&o.y===cz);
+    if(other){ blockerEnemy=other; hitX=cx; hitY=cz; break; }
     if(cx===state.x&&cz===state.y) break;
   }
   // ★ロジック即時：ダメージを発射時に確定（必中・避けられない）
   const shEff=equippedArmor?ITEM_DB[equippedArmor.key].effect:null;
-  if(shEff&&shEff.reflect&&Math.random()<shEff.reflect){
+  if(blockerEnemy){
+    blockerEnemy.hp-=dmg;
+    spawnDamageNum(blockerEnemy.mesh.position.x,2.0,blockerEnemy.mesh.position.z,`${dmg}`,'#ffffff');
+    showAction('魔法が他の敵に当たった！',800);
+    if(blockerEnemy.hp<=0) damageEnemy(blockerEnemy,0);
+  } else if(shEff&&shEff.reflect&&Math.random()<shEff.reflect){
     showAction('魔法を反射した！',800);
   } else {
     let mdmg=dmg;
@@ -2763,7 +2771,7 @@ function fireMagicBolt(e, dmg){
   const lt=new THREE.PointLight(0x80c0ff,3,2);
   bolt.add(lt);
   magicBolts.push({mesh:bolt,dx,dz,dmg:0,dist:0,maxDist:20,visualOnly:true,
-    targetX:state.x*CELL, targetY:state.y*CELL});
+    targetX:hitX*CELL, targetY:hitY*CELL});
   return true;
 }
 
