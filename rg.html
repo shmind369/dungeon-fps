@@ -298,6 +298,9 @@ body { background:#0a0a0f; overflow:hidden; font-family:'Courier New',monospace;
 #title-logo .sub-jp {
   display:block; font-size:12px; color:#9a8458; letter-spacing:4px; margin-top:10px;
 }
+#title-logo .title-ver {
+  display:block; font-size:11px; color:#7a6a48; letter-spacing:2px; margin-top:8px;
+}
 #title-buttons { display:flex; flex-direction:column; gap:14px; width:72%; max-width:280px; }
 .title-btn {
   background:#1c1610; border:2px solid #6a5430; color:#e8d4a0;
@@ -353,7 +356,7 @@ body { background:#0a0a0f; overflow:hidden; font-family:'Courier New',monospace;
 <div id="fade-overlay"></div>
 <div id="floor-announce"></div>
 <div id="title-screen">
-  <div id="title-logo">Wanderer's Dungeon</div>
+  <div id="title-logo">Wanderer's Dungeon<span class="title-ver">ver 0.3</span></div>
   <div id="title-buttons">
     <button id="title-continue" class="title-btn slot-btn">
       <div class="slot-head">
@@ -489,6 +492,7 @@ function bindRange(id,vid,key){const el=document.getElementById(id),vl=document.
 bindRange('t-charge','v-charge','CHARGE_TIME');bindRange('t-camdist','v-camdist','CAM_DIST');bindRange('t-camh','v-camh','CAM_H');
 
 const MAP_W=30,MAP_H=30,CELL=2,WALL_H=2.6;
+const ENEMY_SCALE=1.3*1.2; // 敵オブジェクトの基本スケール（従来の1.2倍）
 const RETURN_FLOORS=[3,6,9];
 const DIRS=['北','北東','東','南東','南','南西','西','北西'];
 const DIR_DX=[0,1,1,1,0,-1,-1,-1];
@@ -1537,6 +1541,9 @@ function getStairsTexture(){
   const cv=document.createElement('canvas');
   cv.width=S; cv.height=S;
   const c=cv.getContext('2d');
+  // 階段の向きを上下反転させるため、描画自体をY軸反転しておく
+  c.translate(0,S);
+  c.scale(1,-1);
   // 背景（黒い外枠）
   c.fillStyle='#0a0a0e'; c.fillRect(0,0,S,S);
   // 内側の穴
@@ -1671,7 +1678,7 @@ function spawnObject(type,gx,gy,arg){
     const db=MONSTER_DB[monType];
     const g=new THREE.Group();
     db.buildMesh(g);
-    g.scale.set(1.3,1.3,1.3);
+    g.scale.set(ENEMY_SCALE,ENEMY_SCALE,ENEMY_SCALE);
     g.position.set(wx,0,wz);
     scene.add(g);objectMeshes.push(g);
     const roomIdx=rooms.findIndex(r=>gx>=r.x&&gx<r.x+r.w&&gy>=r.y&&gy<r.y+r.h);
@@ -2664,7 +2671,7 @@ function updateAnims(dt){
     if(e.sleep>0){
       // 睡眠中：自機を向かず、動かず静止（頭上のzzZは別途描画）
       e.mesh.position.y=0;
-      e.mesh.scale.set(1.3,1.3,1.3);
+      e.mesh.scale.set(ENEMY_SCALE,ENEMY_SCALE,ENEMY_SCALE);
     } else if(e.aware){
       // プレイヤー方向を向く
       const dx=state.x*CELL-e.mesh.position.x;
@@ -2677,17 +2684,17 @@ function updateAnims(dt){
       // スクワッシュ＆ストレッチ（潰れと伸び）
       const stretch=1+Math.cos(phase)*0.12;
       const squash=1-Math.cos(phase)*0.10;
-      e.mesh.scale.set(1.3*squash, 1.3*stretch, 1.3*squash);
+      e.mesh.scale.set(ENEMY_SCALE*squash, ENEMY_SCALE*stretch, ENEMY_SCALE*squash);
     } else if(e.type==='wander'){
       // 徘徊型：未発見でも歩いているので軽く揺れる
       const phase=nowSec*3+e.x*1.3+e.y*0.7;
       e.mesh.position.y=Math.abs(Math.sin(phase))*0.12;
-      e.mesh.scale.set(1.3,1.3,1.3);
+      e.mesh.scale.set(ENEMY_SCALE,ENEMY_SCALE,ENEMY_SCALE);
     } else {
       // 未発見：静止
       e.mesh.rotation.y=0;
       e.mesh.position.y=0;
-      e.mesh.scale.set(1.3,1.3,1.3);
+      e.mesh.scale.set(ENEMY_SCALE,ENEMY_SCALE,ENEMY_SCALE);
     }
   });
 }
