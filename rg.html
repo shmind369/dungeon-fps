@@ -503,7 +503,7 @@ const DIRS=['北','北東','東','南東','南','南西','西','北西'];
 const DIR_DX=[0,1,1,1,0,-1,-1,-1];
 const DIR_DY=[-1,-1,0,1,1,1,0,-1];
 const state={x:0,y:0,dir:0,angle:-Math.PI/2,targetAngle:-Math.PI/2,actionTimer:0,floor:1,
-  hp:15,maxHp:15,str:0,def:0,lv:1,exp:0,nextExp:10,stepCount:0,
+  hp:15,maxHp:15,str:0,lv:1,exp:0,nextExp:10,stepCount:0,
   food:100,maxFood:100,foodStep:0,gold:0,
   haste:0,charge:false,invis:0,confuse:0,inEntrance:false,playTimeMs:0};
 let MAP=[],rooms=[],stairsPos=null,returnPos=null,floorItems=[],explored=[];
@@ -542,7 +542,6 @@ const ITEM_DB={
   herb:     {name:'薬草',        type:'potion', icon:'🧪', color:'#c0c0c0', effect:{heal:20}},
   hiherb:   {name:'高級薬草',    type:'potion', icon:'🧪', color:'#c0c0c0', effect:{heal:50}},
   powerp:   {name:'ちからの薬',  type:'potion', icon:'🧪', color:'#c0c0c0', effect:{buff:'atk'}},
-  guardp:   {name:'まもりの薬',  type:'potion', icon:'🧪', color:'#c0c0c0', effect:{buff:'def'}},
   lifep:    {name:'命の薬',      type:'potion', icon:'🧪', color:'#c0c0c0', effect:{buff:'maxhp'}},
   speedp:   {name:'すばやさの薬',type:'potion', icon:'🧪', color:'#c0c0c0', effect:{status:'haste'}},
   chargep:  {name:'ちからため薬',type:'potion', icon:'🧪', color:'#c0c0c0', effect:{status:'charge'}},
@@ -583,7 +582,7 @@ const ITEM_DB={
 const ITEM_KEYS=Object.keys(ITEM_DB);
 // 床に落ちるアイテム候補（装備は控えめ、消費を多め）
 const FLOOR_ITEM_KEYS=['herb','herb','hiherb','bread','bread','bigbread','badbread',
-  'powerp','guardp','lifep','speedp','chargep','invisp','poisonp','confusep','sleepp','curep','revivep',
+  'powerp','lifep','speedp','chargep','invisp','poisonp','confusep','sleepp','curep','revivep',
   'iron','copper','club','woodsh','bronzesh','ironsh','flame','ice','poison','steel','flamesh','poisonsh','steelsh',
   'st_atk','st_fire','st_sleep','st_confuse','st_swap','st_knock','st_weak','st_seal','st_pull',
   'sc_enchant','sc_uncurse','sc_fire','sc_teleport','sc_return','sc_pitfall','sc_barrier','sc_confuse','sc_sleep','sc_luck','sc_nuke','sc_map','sc_seal'];
@@ -2064,7 +2063,7 @@ function applySave(data){
 function resetFullGameState(){
   Object.assign(state, {
     x:0,y:0,dir:0,angle:-Math.PI/2,targetAngle:-Math.PI/2,actionTimer:0,floor:1,
-    hp:15,maxHp:15,str:0,def:0,lv:1,exp:0,nextExp:10,stepCount:0,
+    hp:15,maxHp:15,str:0,lv:1,exp:0,nextExp:10,stepCount:0,
     food:100,maxFood:100,foodStep:0,gold:0,
     haste:0,charge:false,invis:0,confuse:0,inEntrance:false,playTimeMs:0
   });
@@ -2282,7 +2281,6 @@ function applyPotionToPlayer(eff, name){
   if(eff.heal){ state.hp=Math.min(state.maxHp,state.hp+eff.heal); showAction(`${n}を飲んだ。HPが${eff.heal}回復した！`); spawnDamageNum(state.x*CELL,1.5,state.y*CELL,`${eff.heal}`,'#40e060',true); }
   else if(eff.damage){ state.hp=Math.max(0,state.hp-eff.damage); showAction(`${n}を飲んだ。毒だ！HPが${eff.damage}減った`); spawnDamageNum(state.x*CELL,1.5,state.y*CELL,`${eff.damage}`,'#ffffff'); checkPlayerDeath(); }
   else if(eff.buff==='atk'){ state.str=(state.str||0)+1; showAction(`${n}を飲んだ。ちからが上がった！`); }
-  else if(eff.buff==='def'){ state.def=(state.def||0)+1; showAction(`${n}を飲んだ。防御力が上がった！`); }
   else if(eff.buff==='maxhp'){ state.maxHp+=10; state.hp+=10; showAction(`${n}を飲んだ。最大HPが増えた！`); }
   else if(eff.status==='haste'){ state.haste=15; showAction(`${n}を飲んだ。素早くなった！`); }
   else if(eff.status==='charge'){ state.charge=true; showAction(`${n}を飲んだ。力をためた！次の一撃が2倍`); }
@@ -2396,8 +2394,8 @@ function applyPotionToEnemy(eff, e){
   else if(eff.buff==='atk'||eff.buff==='def'||eff.buff==='maxhp'){ showAction('敵には効果がなかった'); }
   else { showAction('敵には効果がないようだ'); }
 }
-// 防御力＝盾の強さ（state.defはまもりの薬による永続ボーナスの積み増し分）
-function totalDef(){return (equippedArmor?(ITEM_DB[equippedArmor.key].def||0)+equippedArmor.plus:0)+(state.def||0);}
+// 防御力＝盾の強さ
+function totalDef(){return equippedArmor?(ITEM_DB[equippedArmor.key].def||0)+equippedArmor.plus:0;}
 
 function pickupItem(key,gx,gy){
   if(inventory.length>=MAX_INV){showAction(`持ち物がいっぱい！${ITEM_DB[key].name}の上に乗った。`,1500);return false;}
@@ -2419,7 +2417,7 @@ function pickupItem(key,gx,gy){
 // エントランス帰還時：Lv・EXP・素のステータスをリセット（お金・アイテムは持ち帰り）
 function resetPlayerStatsForEntrance(){
   state.lv=1; state.exp=0; state.nextExp=10;
-  state.hp=15; state.maxHp=15; state.str=0; state.def=0;
+  state.hp=15; state.maxHp=15; state.str=0;
   state.food=100; state.maxFood=100; state.foodStep=0; state.stepCount=0;
   state.haste=0; state.charge=false; state.invis=0; state.confuse=0;
   playerSleepTurns=0;
