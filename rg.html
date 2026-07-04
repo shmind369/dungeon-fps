@@ -356,7 +356,7 @@ body { background:#0a0a0f; overflow:hidden; font-family:'Courier New',monospace;
 <div id="fade-overlay"></div>
 <div id="floor-announce"></div>
 <div id="title-screen">
-  <div id="title-logo">Wanderer's Dungeon<span class="title-ver">ver 6.5</span></div>
+  <div id="title-logo">Wanderer's Dungeon<span class="title-ver">ver 7.0</span></div>
   <div id="title-buttons">
     <button id="title-continue" class="title-btn slot-btn">
       <div class="slot-head">
@@ -1506,7 +1506,7 @@ const MONSTER_DB={
     }
   },
   devilape:{
-    name:'デビルエイプ',hp:35,atk:20,def:15,exp:30,aiType:'double',
+    name:'デビルエイプ',hp:35,atk:20,def:15,exp:30,aiType:'normal',
     buildMesh(g){
       // 足
       vox(0.22,0.35,0.22, 0x301820, -0.14,0.175,0, g);
@@ -2947,7 +2947,7 @@ function enemyTurn(){
       if(e.type==='wander'){
         wanderStep(e);
       }
-      if(e.type==='normal'||e.type==='mage'||e.type==='double'||e.type==='wander'){
+      if(e.type==='normal'||e.type==='mage'||e.type==='wander'){
         if(playerRoomIdx>=0&&e.roomIdx===playerRoomIdx)e.aware=true;
       } else {
         if(distToPlayer(e)<=1)e.aware=true;
@@ -3012,6 +3012,7 @@ function enemyTurn(){
       // 命中率7/8（約87.5%）
       if(Math.random()>=7/8){
         enemyLunge(e);
+        sfxSwing();
         showAction('敵の攻撃を外した！',800);
         return;
       }
@@ -3039,7 +3040,6 @@ function enemyTurn(){
     const diagBlocked=isDiagAdj&&(!isWalkable(e.x+dx,e.y)||!isWalkable(e.x,e.y+dy));
     if(Math.abs(dx)<=1&&Math.abs(dy)<=1&&(dx!==0||dy!==0)&&!diagBlocked){
       doAttack(e);
-      if(e.type==='double'&&state.hp>0) doAttack(e);
       return;
     }
 
@@ -3078,7 +3078,6 @@ function enemyTurn(){
       if(enemies.some(o=>o!==e&&o.x===nx&&o.y===ny))continue;
       if(nx===state.x&&ny===state.y){
         doAttack(e);
-        if(e.type==='double'&&state.hp>0) doAttack(e);
         break;
       }
       // 移動実行（表示座標は毎フレームのupdateEnemiesSmoothで滑らかに追従させる）
@@ -3127,8 +3126,10 @@ function moveForward(dash=false){
         const tdz=Math.sign(target.y-state.y);
         const wpEff=equippedWeapon?ITEM_DB[equippedWeapon.key].effect:null;
         // 命中判定：基本命中率117/128（約91.4%）＋両手剣など武器固有の追加ミス率
-        const baseMiss=Math.random()>=117/128;
-        if(baseMiss||(wpEff&&wpEff.miss&&Math.random()<wpEff.miss)){
+        // 眠っている敵への攻撃は先制攻撃として必ず命中する
+        const isSneakAttack=target.sleep>0;
+        const baseMiss=!isSneakAttack&&Math.random()>=117/128;
+        if(baseMiss||(!isSneakAttack&&wpEff&&wpEff.miss&&Math.random()<wpEff.miss)){
           showAction('攻撃を外した！',800);
           sfxAttack();
           playerLunge(tdx,tdz);
@@ -3410,6 +3411,10 @@ function removeFromInv(it){
 // 投げる
 // ============================================================
 function throwItem(it){
+  // 投擲アニメーション中に次の行動を受け付けてしまうと、着弾時のenemyTurn()と
+  // 別の行動によるenemyTurn()が重複して敵が2回連続で攻撃したように見えるため、
+  // 着弾するまで入力をロックする
+  animLocked=true;
   const db=ITEM_DB[it.key];
   const dx=DIR_DX[state.dir], dy=DIR_DY[state.dir];
   let hitEnemy=null;
@@ -3441,6 +3446,7 @@ function throwItem(it){
         damageEnemy(hitEnemy, 1+Math.floor(Math.random()*2));
         showAction(`命中！`,1200);
       }
+      animLocked=false;
       enemyTurn();
     });
   } else {
@@ -3475,6 +3481,7 @@ function throwItem(it){
         spawnObject('item',finalX,finalY,it.key);
         if(!hitEnemy) showAction(`${db.name}を投げた`,1200);
       }
+      animLocked=false;
       enemyTurn();
     });
   }
