@@ -188,6 +188,7 @@ body { background:#0a0a0f; overflow:hidden; font-family:'Courier New',monospace;
 .inv-name { flex:1; }
 .inv-eq { color:#ffd040; font-weight:bold; font-size:12px; border:1px solid #c0a040; border-radius:3px; padding:1px 5px; }
 .inv-plus { color:#80c0ff; font-size:13px; }
+.inv-stat { color:#ff9060; font-weight:bold; font-size:12px; border:1px solid #a05838; border-radius:3px; padding:1px 5px; flex-shrink:0; }
 .inv-empty { text-align:center; color:#6a5a40; padding:30px; font-size:13px; }
 
 #inv-footer {
@@ -356,7 +357,7 @@ body { background:#0a0a0f; overflow:hidden; font-family:'Courier New',monospace;
 <div id="fade-overlay"></div>
 <div id="floor-announce"></div>
 <div id="title-screen">
-  <div id="title-logo">Wanderer's Dungeon<span class="title-ver">ver 7.5</span></div>
+  <div id="title-logo">Wanderer's Dungeon<span class="title-ver">ver 8.0</span></div>
   <div id="title-buttons">
     <button id="title-continue" class="title-btn slot-btn">
       <div class="slot-head">
@@ -1567,6 +1568,25 @@ const MONSTER_DB={
 const objectMeshes=[];
 // 下り階段のテクスチャをCanvasで生成（一度だけ作って使い回す）
 let _stairsTexture=null;
+// 金貨コインに貼る黒い$マークのテクスチャをCanvasで生成（一度だけ作って使い回す）
+let _dollarMarkTexture=null;
+function getDollarMarkTexture(){
+  if(_dollarMarkTexture)return _dollarMarkTexture;
+  const S=64;
+  const cv=document.createElement('canvas');
+  cv.width=S; cv.height=S;
+  const c=cv.getContext('2d');
+  c.clearRect(0,0,S,S);
+  c.font='bold 46px "Courier New", monospace';
+  c.textAlign='center';
+  c.textBaseline='middle';
+  c.fillStyle='#000000';
+  c.fillText('$', S/2, S/2+2);
+  const tex=new THREE.CanvasTexture(cv);
+  tex.magFilter=THREE.NearestFilter;
+  _dollarMarkTexture=tex;
+  return tex;
+}
 
 function getStairsTexture(){
   if(_stairsTexture)return _stairsTexture;
@@ -1693,6 +1713,15 @@ function spawnObject(type,gx,gy,arg){
     );
     core.position.set(0,0.17,0);
     g.add(core);
+    // 視認しやすいよう、コイン表面に黒い$マークを重ねて描く
+    const markTex=getDollarMarkTexture();
+    const mark=new THREE.Mesh(
+      new THREE.PlaneGeometry(0.22,0.22),
+      new THREE.MeshBasicMaterial({map:markTex, transparent:true})
+    );
+    mark.rotation.x=-Math.PI/2;
+    mark.position.set(0,0.182,0);
+    g.add(mark);
     g.scale.set(1.5,1.5,1.5);
     g.position.set(wx,0.05,wz);
     g.userData={gx,gy,isGold:true};
@@ -3110,12 +3139,13 @@ function moveForward(dash=false){
     }
     return true;
   }
+  let acted=false; // 実際に移動できた場合のみtrue（壁にぶつかっただけならターンを消費しない）
   if(dash){
     const mx=state.x+dx,my=state.y+dy,nx=state.x+dx*2,ny=state.y+dy*2;
     // ダッシュ中に敵がいたら止まる
     if(ok(mx,my)&&hasEnemy(mx,my)){showAction('敵にぶつかった！');setLog('接触');}
-    else if(ok(mx,my)&&ok(nx,ny)&&!hasEnemy(nx,ny)){state.x=nx;state.y=ny;showAction('ダッシュ！');setLog('ダッシュ');stepHeal();stepHeal();}
-    else if(ok(mx,my)&&!hasEnemy(mx,my)){state.x=mx;state.y=my;showAction('ダッシュ！');setLog('ダッシュ');stepHeal();}
+    else if(ok(mx,my)&&ok(nx,ny)&&!hasEnemy(nx,ny)){state.x=nx;state.y=ny;showAction('ダッシュ！');setLog('ダッシュ');stepHeal();stepHeal();acted=true;}
+    else if(ok(mx,my)&&!hasEnemy(mx,my)){state.x=mx;state.y=my;showAction('ダッシュ！');setLog('ダッシュ');stepHeal();acted=true;}
     else{setLog('壁');}
   } else {
     const nx=state.x+dx,ny=state.y+dy;
@@ -3160,7 +3190,7 @@ function moveForward(dash=false){
           target.hp-=extra;
           triggerFlash('rgba(255,100,0,');
           spawnDamageNum(target.mesh.position.x,2.6,target.mesh.position.z,`🔥${extra}`,'#ffffff');
-        } else if(wpEff&&wpEff.onhit==='sleep'&&Math.random()<0.35){
+        } else if(wpEff&&wpEff.onhit==='sleep'&&Math.random()<0.035){
           target.sleep=(target.sleep||0)+5;
           triggerFlash('rgba(120,180,255,');
           spawnDamageNum(target.mesh.position.x,2.6,target.mesh.position.z,`zzZ`,'#a0d0ff');
@@ -3189,12 +3219,14 @@ function moveForward(dash=false){
     } else if(ok(nx,ny)&&!hasEnemy(nx,ny)){
       state.x=nx;state.y=ny;setLog('前進');
       stepHeal();
+      acted=true;
     } else {
       setLog('壁');
     }
   }
   updatePlayerPos();updateUI();checkStepOn();updateExplored();
   checkDialogueDistance();
+  if(!acted)return; // 壁にぶつかっただけ等、実際に行動していなければターンを消費しない
   // すばやさ中：2回に1回だけ敵ターン（プレイヤーが2倍動ける）
   if(state.haste>0){
     state._hasteToggle=!state._hasteToggle;
@@ -3283,8 +3315,12 @@ function renderInventory(){
     const plusStr=it.plus>0?`<span class="inv-plus">+${it.plus}</span>`:'';
     const eqStr=it.equipped?'<span class="inv-eq">E</span>':'';
     const chargeStr=(db.type==='staff')?`<span class="inv-plus">(残${it.charges})</span>`:'';
+    // 武器/盾は攻撃力・防御力を一目でわかるように表示
+    const statVal=db.type==='weapon'?(db.atk||db.effect?.damage||0)+(it.plus||0)
+      :(db.type==='shield'||db.type==='armor')?(db.def||0)+(it.plus||0):null;
+    const statStr=statVal!==null?`<span class="inv-stat">${db.type==='weapon'?'攻':'防'}${statVal}</span>`:'';
     div.innerHTML=`<span class="inv-icon">${db.icon}</span>
-      <span class="inv-name" style="color:${db.color}">${db.name} ${plusStr}${chargeStr}</span> ${eqStr}`;
+      <span class="inv-name" style="color:${db.color}">${db.name} ${plusStr}${chargeStr}</span>${statStr} ${eqStr}`;
     div.onclick=()=>openActionMenu(it);
     list.appendChild(div);
   });
@@ -3732,6 +3768,7 @@ actionModal.onclick=e=>{if(e.target===actionModal)closeActionMenu();};
 const ANGLE_OF=[-Math.PI/2,-Math.PI/4,0,Math.PI/4,Math.PI/2,3*Math.PI/4,Math.PI,-3*Math.PI/4];
 const MOVE_INTERVAL=210;      // 通常の移動連打間隔(ms)
 const DASH_INTERVAL=95;       // ダッシュ中の移動連打間隔(ms)
+const WAIT_INTERVAL=Math.round(DASH_INTERVAL/1.2); // 待機の連打間隔(ms)。ターン消化速度を1.2倍に
 
 function dpadPress(dir){
   if(dir===-1)return;
@@ -3904,7 +3941,7 @@ document.querySelectorAll('.dp').forEach(btn=>{
   const startWait=()=>{
     doWait(); // 1回目は即座に
     clearInterval(repeatTimer);
-    repeatTimer=setInterval(()=>{doWait();},DASH_INTERVAL);
+    repeatTimer=setInterval(()=>{doWait();},WAIT_INTERVAL);
   };
   const stopWait=()=>{clearInterval(repeatTimer);repeatTimer=null;};
   wb.addEventListener('touchstart',e=>{e.preventDefault();startWait();},{passive:false});
