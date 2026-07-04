@@ -2228,7 +2228,7 @@ function calcDamage(atk, def){
 // 薬の効果をプレイヤーに適用
 function applyPotionToPlayer(eff, name){
   const n=name||'薬';
-  if(eff.heal){ state.hp=Math.min(state.maxHp,state.hp+eff.heal); showAction(`${n}を飲んだ。HPが${eff.heal}回復した！`); spawnDamageNum(state.x*CELL,1.5,state.y*CELL,`+${eff.heal}`,'#40e060',true); }
+  if(eff.heal){ state.hp=Math.min(state.maxHp,state.hp+eff.heal); showAction(`${n}を飲んだ。HPが${eff.heal}回復した！`); spawnDamageNum(state.x*CELL,1.5,state.y*CELL,`${eff.heal}`,'#40e060',true); }
   else if(eff.damage){ state.hp=Math.max(0,state.hp-eff.damage); showAction(`${n}を飲んだ。毒だ！HPが${eff.damage}減った`); spawnDamageNum(state.x*CELL,1.5,state.y*CELL,`${eff.damage}`,'#ffffff'); checkPlayerDeath(); }
   else if(eff.buff==='atk'){ state.atk+=1; showAction(`${n}を飲んだ。攻撃力が上がった！`); }
   else if(eff.buff==='def'){ state.def+=1; showAction(`${n}を飲んだ。防御力が上がった！`); }
@@ -2338,7 +2338,7 @@ function gameOverToEntrance(){
 
 // 薬を敵に当てた時の効果
 function applyPotionToEnemy(eff, e){
-  if(eff.heal){ e.hp=Math.min(e.maxHp,e.hp+eff.heal); showAction('敵が回復した…'); spawnDamageNum(e.mesh.position.x,2.0,e.mesh.position.z,`+${eff.heal}`,'#40e060',true); }
+  if(eff.heal){ e.hp=Math.min(e.maxHp,e.hp+eff.heal); showAction('敵が回復した…'); spawnDamageNum(e.mesh.position.x,2.0,e.mesh.position.z,`${eff.heal}`,'#40e060',true); }
   else if(eff.damage){ e.hp-=eff.damage; spawnDamageNum(e.mesh.position.x,2.0,e.mesh.position.z,`${eff.damage}`,'#ffffff'); showAction(`敵に毒！ ${eff.damage}ダメージ`); if(e.hp<=0)damageEnemy(e,0); }
   else if(eff.status==='sleep'){ e.sleep=6; showAction('敵が眠った！'); }
   else if(eff.status==='confuse'){ e.confused=8; showAction('敵が混乱した！'); }
@@ -2528,9 +2528,11 @@ function drawFloatingNums(){
       drawY=f.y-t*60;
       size=Math.round(28+t*6);
     } else {
-      // ダメージ：下に落ちて激しくバウンドし、フェードなしでバウンド終了後にパッと消える
-      const fall=50*t;
-      const bounce=Math.abs(Math.sin(t*Math.PI*4))*Math.pow(1-t,1.4)*26;
+      // ダメージ：マスの中央まで素早く落ちて、そこで小刻みにバウンドしながら止まる。
+      // フェードなしでバウンド終了後にパッと消える
+      const fallT=Math.min(t/0.4,1);
+      const fall=(1-Math.pow(1-fallT,2))*40; // マス中央付近まで素早く落下（イーズアウト）
+      const bounce=Math.abs(Math.sin(t*Math.PI*10))*Math.pow(1-t,1.6)*9; // 小刻み・小振幅で減衰
       drawY=f.y+fall-bounce;
       alpha=1;
       size=Math.round(30-t*4);
@@ -2836,6 +2838,49 @@ function updateDragonFlames(dt){
 }
 
 let floorTurnCount=0; // このフロアでの経過ターン数（テスト表示用）
+// 徘徊行動：部屋を巡回目標地点としてランダムに選び、そこへ向かって移動する。
+// 着いたら（または詰まったら）次の目標を選び直すので、ランダムウォークより効率よく
+// フロア全体（通路を含む）を巡回できる。
+function wanderStep(e){
+  if(Math.random()>=0.6)return; // 60%の確率で1歩動く
+  if(!e.patrolTarget || (e.x===e.patrolTarget.x&&e.y===e.patrolTarget.y)){
+    const others=rooms.filter((r,i)=>i!==e.roomIdx);
+    const pool=others.length?others:rooms;
+    const room=pool[Math.floor(Math.random()*pool.length)];
+    const p=rndInRoom(room);
+    e.patrolTarget={x:p.x,y:p.y};
+  }
+  const tdx=e.patrolTarget.x-e.x, tdy=e.patrolTarget.y-e.y;
+  const tsx=Math.sign(tdx), tsy=Math.sign(tdy);
+  let dirs;
+  if(tsx!==0&&tsy!==0){
+    dirs=[[tsx,tsy]];
+    if(Math.abs(tdx)>=Math.abs(tdy)){ dirs.push([tsx,0],[0,tsy]); }
+    else { dirs.push([0,tsy],[tsx,0]); }
+  } else if(tsy!==0){
+    dirs=[[0,tsy],[1,tsy],[-1,tsy]];
+  } else if(tsx!==0){
+    dirs=[[tsx,0],[tsx,1],[tsx,-1]];
+  } else {
+    dirs=[[0,-1],[0,1],[-1,0],[1,0]].sort(()=>Math.random()-0.5);
+  }
+  for(const [wx,wy] of dirs){
+    const nx=e.x+wx, ny=e.y+wy;
+    if(!isWalkable(nx,ny))continue;
+    if(wx!==0&&wy!==0){
+      if(!isWalkable(e.x+wx,e.y)||!isWalkable(e.x,e.y+wy))continue;
+    }
+    if(enemies.some(o=>o!==e&&o.x===nx&&o.y===ny))continue;
+    if(nx===state.x&&ny===state.y)continue;
+    e.x=nx; e.y=ny;
+    e.mesh.position.set(e.x*CELL,0,e.y*CELL);
+    e.roomIdx=rooms.findIndex(r=>nx>=r.x&&nx<r.x+r.w&&ny>=r.y&&ny<r.y+r.h);
+    return;
+  }
+  // どこにも動けなければ目標を選び直す（次ターンに再試行）
+  e.patrolTarget=null;
+}
+
 function enemyTurn(){
   floorTurnCount++;
   updateTurnCounterDisplay();
@@ -2844,32 +2889,13 @@ function enemyTurn(){
     if(e.hp<=0)return;
     // 敵が睡眠中はスキップ
     if(e.sleep>0){ e.sleep--; return; }
-    // 透明中のプレイヤーには気づかない
-    if(state.invis>0){ e.aware=false; return; }
+    // 透明中のプレイヤーには気づかない。その場で眠るのではなく適当に徘徊させる
+    if(state.invis>0){ e.aware=false; wanderStep(e); return; }
     // 気づき判定
     if(!e.aware){
-      // 徘徊型：気づいていなくてもランダムにうろつく（同じ方向へ進み続けやすくして、
-      // 部屋の中だけでなく通路を抜けてフロア全体を移動できるようにする）
+      // 徘徊型：気づいていなくてもランダムにうろつく
       if(e.type==='wander'){
-        if(Math.random()<0.6){ // 60%の確率で1歩動く
-          let dirs;
-          if(e.wanderDir&&Math.random()<0.75){
-            // 大体は今の進行方向を優先し、行き止まりなら他方向を試す
-            dirs=[e.wanderDir,...[[0,-1],[0,1],[-1,0],[1,0]].sort(()=>Math.random()-0.5)];
-          } else {
-            dirs=[[0,-1],[0,1],[-1,0],[1,0]].sort(()=>Math.random()-0.5);
-          }
-          for(const [wx,wy] of dirs){
-            const nx=e.x+wx, ny=e.y+wy;
-            if(isWalkable(nx,ny)&&!enemies.some(o=>o!==e&&o.x===nx&&o.y===ny)&&!(nx===state.x&&ny===state.y)){
-              e.x=nx; e.y=ny;
-              e.wanderDir=[wx,wy];
-              e.mesh.position.set(e.x*CELL,0,e.y*CELL);
-              e.roomIdx=rooms.findIndex(r=>nx>=r.x&&nx<r.x+r.w&&ny>=r.y&&ny<r.y+r.h);
-              break;
-            }
-          }
-        }
+        wanderStep(e);
       }
       if(e.type==='normal'||e.type==='mage'||e.type==='double'||e.type==='wander'){
         if(playerRoomIdx>=0&&e.roomIdx===playerRoomIdx)e.aware=true;
