@@ -353,7 +353,7 @@ body { background:#0a0a0f; overflow:hidden; font-family:'Courier New',monospace;
 <div id="fade-overlay"></div>
 <div id="floor-announce"></div>
 <div id="title-screen">
-  <div id="title-logo">Wanderer's Dungeon<span class="sub-jp">さすらいのダンジョン</span></div>
+  <div id="title-logo">Wanderer's Dungeon</div>
   <div id="title-buttons">
     <button id="title-continue" class="title-btn slot-btn">
       <div class="slot-head">
@@ -827,12 +827,17 @@ function updateHighlight(show){
   if(show){
     const px=playerGroup.position.x, pz=playerGroup.position.z;
     const len=CELL*8;
+    // 斜め方向はDIR_DX/DIR_DYの長さが√2になるため、正規化してから使う
+    // （正規化しないと斜め方向だけ中心が遠くにずれ、線が自機の位置から出なくなる）
+    const rawX=DIR_DX[state.dir], rawZ=DIR_DY[state.dir];
+    const mag=Math.hypot(rawX,rawZ)||1;
+    const ux=rawX/mag, uz=rawZ/mag;
     // 線の中心を自機から向き方向へ半分ずらす
-    const cx=px+DIR_DX[state.dir]*len/2;
-    const cz=pz+DIR_DY[state.dir]*len/2;
+    const cx=px+ux*len/2;
+    const cz=pz+uz*len/2;
     guideLine.position.set(cx,0.4,cz);
     // 向きに合わせて回転（Z軸が長辺）
-    guideLine.rotation.y=Math.atan2(DIR_DX[state.dir],DIR_DY[state.dir]);
+    guideLine.rotation.y=Math.atan2(ux,uz);
     guideLine.material.opacity=0.8;
   } else {
     guideLine.material.opacity=0.0;
