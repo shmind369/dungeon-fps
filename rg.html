@@ -494,11 +494,16 @@ bindRange('t-charge','v-charge','CHARGE_TIME');bindRange('t-camdist','v-camdist'
 const MAP_W=30,MAP_H=30,CELL=2,WALL_H=2.6;
 const ENEMY_SCALE=1.3*1.2; // 敵オブジェクトの基本スケール（従来の1.2倍）
 const RETURN_FLOORS=[3,6,9];
+// レベル別「基本攻撃力」（index=レベル。0は未使用）
+const LEVEL_BASE=[0,5,7,9,11,13,15,17,19,21,23,26,29,32,35,38,41,44,47,50,53,56,59,62,65,68,71,74,77,80,82,84,86,88,90,91,92,93,94,95,96,97,98,99,100,101,102,103,104,105,106,107,108,109,110,111,112,113,115,116,117];
+// レベル別「そのレベルに到達するまでの累計必要経験値」（index=レベル。0は未使用）
+const LEVEL_EXP_TOTAL=[0,0,10,30,60,100,150,230,350,500,700,950,1200,1500,1800,2300,2800,3500,4200,5000,6000,7000,8000,10000,13000,16000,20000,25000,30000,36000,42000,48000,54000,60000,70000,80000,90000,100000,115000,130000,145000,160000,175000,200000,230000,260000,290000,320000,350000,380000,410000,440000,470000,500000,530000,560000,590000,620000,650000,680000,710000];
+const MAX_LEVEL=60;
 const DIRS=['北','北東','東','南東','南','南西','西','北西'];
 const DIR_DX=[0,1,1,1,0,-1,-1,-1];
 const DIR_DY=[-1,-1,0,1,1,1,0,-1];
 const state={x:0,y:0,dir:0,angle:-Math.PI/2,targetAngle:-Math.PI/2,actionTimer:0,floor:1,
-  hp:15,maxHp:15,atk:5,def:2,lv:1,exp:0,nextExp:10,stepCount:0,
+  hp:15,maxHp:15,str:0,def:0,lv:1,exp:0,nextExp:10,stepCount:0,
   food:100,maxFood:100,foodStep:0,gold:0,
   haste:0,charge:false,invis:0,confuse:0,inEntrance:false,playTimeMs:0};
 let MAP=[],rooms=[],stairsPos=null,returnPos=null,floorItems=[],explored=[];
@@ -1337,7 +1342,7 @@ function buildItemMesh(g, itemType){
 // モンスターDB
 const MONSTER_DB={
   slime:{
-    name:'スライム',hp:8,atk:3,def:0,exp:3,aiType:'normal',
+    name:'スライム',hp:5,atk:2,def:1,exp:2,aiType:'normal',
     buildMesh(g){
       // 体（横に潰れた形）
       vox(0.8,0.4,0.8, 0x40c040, 0,0.2,0, g);
@@ -1351,7 +1356,7 @@ const MONSTER_DB={
     }
   },
   bat:{
-    name:'コウモリ',hp:10,atk:4,def:0,exp:4,aiType:'normal',
+    name:'コウモリ',hp:6,atk:3,def:4,exp:4,aiType:'normal',
     buildMesh(g){
       // 体
       vox(0.3,0.3,0.25, 0x4a2060, 0,0.6,0, g);
@@ -1372,7 +1377,7 @@ const MONSTER_DB={
     }
   },
   goblin:{
-    name:'ゴブリン',hp:14,atk:6,def:1,exp:7,aiType:'wander',
+    name:'ゴブリン',hp:8,atk:7,def:10,exp:8,aiType:'wander',
     buildMesh(g){
       // 足
       vox(0.16,0.28,0.16, 0x3a6030, -0.12,0.14,0, g);
@@ -1393,7 +1398,7 @@ const MONSTER_DB={
     }
   },
   zombie:{
-    name:'ゾンビ',hp:18,atk:4,def:2,exp:6,aiType:'dull',
+    name:'ゾンビ',hp:11,atk:10,def:9,exp:11,aiType:'dull',
     buildMesh(g){
       vox(0.18,0.3,0.18, 0x506040, -0.13,0.15,0, g);
       vox(0.18,0.3,0.18, 0x506040,  0.13,0.15,0, g);
@@ -1407,7 +1412,7 @@ const MONSTER_DB={
     }
   },
   mage:{
-    name:'魔法使い（見習い）',hp:14,atk:5,def:1,exp:8,aiType:'mage',
+    name:'魔法使い（見習い）',hp:7,atk:4,def:10,exp:8,aiType:'mage',
     buildMesh(g){
       // 足
       vox(0.15,0.28,0.15, 0x303060, -0.1,0.14,0, g);
@@ -1428,7 +1433,7 @@ const MONSTER_DB={
     }
   },
   knight:{
-    name:'ナイト',hp:25,atk:9,def:5,exp:15,aiType:'normal',
+    name:'ナイト',hp:25,atk:15,def:10,exp:30,aiType:'normal',
     buildMesh(g){
       vox(0.2,0.32,0.2, 0x606070, -0.12,0.16,0, g);
       vox(0.2,0.32,0.2, 0x606070,  0.12,0.16,0, g);
@@ -1446,7 +1451,7 @@ const MONSTER_DB={
     }
   },
   chimera:{
-    name:'キメラ',hp:22,atk:10,def:3,exp:14,aiType:'normal',
+    name:'キメラ',hp:22,atk:10,def:7,exp:25,aiType:'normal',
     buildMesh(g){
       // 体（大きめ）
       vox(0.65,0.38,0.5, 0x806040, 0,0.4,0, g);
@@ -1465,7 +1470,7 @@ const MONSTER_DB={
     }
   },
   golem:{
-    name:'ゴーレム',hp:45,atk:12,def:8,exp:25,aiType:'dull',
+    name:'ゴーレム',hp:45,atk:25,def:25,exp:60,aiType:'dull',
     buildMesh(g){
       vox(0.3,0.4,0.28, 0x707060, -0.18,0.2,0, g);
       vox(0.3,0.4,0.28, 0x707060,  0.18,0.2,0, g);
@@ -1485,7 +1490,7 @@ const MONSTER_DB={
     }
   },
   wizard:{
-    name:'魔法使い',hp:20,atk:15,def:2,exp:28,aiType:'mage',
+    name:'魔法使い',hp:20,atk:15,def:12,exp:40,aiType:'mage',
     buildMesh(g){
       vox(0.16,0.3,0.16, 0x1a0a30, -0.1,0.15,0, g);
       vox(0.16,0.3,0.16, 0x1a0a30,  0.1,0.15,0, g);
@@ -1502,7 +1507,7 @@ const MONSTER_DB={
     }
   },
   devilape:{
-    name:'デビルエイプ',hp:35,atk:10,def:4,exp:30,aiType:'double',
+    name:'デビルエイプ',hp:35,atk:20,def:15,exp:30,aiType:'double',
     buildMesh(g){
       // 足
       vox(0.22,0.35,0.22, 0x301820, -0.14,0.175,0, g);
@@ -1526,7 +1531,7 @@ const MONSTER_DB={
     }
   },
   dragon:{
-    name:'ドラゴン',hp:80,atk:20,def:10,exp:100,aiType:'normal',
+    name:'ドラゴン',hp:60,atk:20,def:20,exp:100,aiType:'normal',
     buildMesh(g){
       // 胴（長い）
       vox(0.7,0.55,0.9, 0x804020, 0,0.48,0, g);
@@ -2059,7 +2064,7 @@ function applySave(data){
 function resetFullGameState(){
   Object.assign(state, {
     x:0,y:0,dir:0,angle:-Math.PI/2,targetAngle:-Math.PI/2,actionTimer:0,floor:1,
-    hp:15,maxHp:15,atk:5,def:2,lv:1,exp:0,nextExp:10,stepCount:0,
+    hp:15,maxHp:15,str:0,def:0,lv:1,exp:0,nextExp:10,stepCount:0,
     food:100,maxFood:100,foodStep:0,gold:0,
     haste:0,charge:false,invis:0,confuse:0,inEntrance:false,playTimeMs:0
   });
@@ -2255,12 +2260,19 @@ function updateUI(){
   }
 }
 
-function totalAtk(){return state.atk+(equippedWeapon?(ITEM_DB[equippedWeapon.key].atk||ITEM_DB[equippedWeapon.key].effect?.damage||0)+equippedWeapon.plus:0);}
+// 攻撃力＝基本攻撃力+基本攻撃力×(剣の強さ+ちから-8)/16の小数点以下を四捨五入した値（上限255）
+function totalAtk(){
+  const base=LEVEL_BASE[Math.min(state.lv,MAX_LEVEL)];
+  const weaponPower=equippedWeapon?(ITEM_DB[equippedWeapon.key].atk||ITEM_DB[equippedWeapon.key].effect?.damage||0)+equippedWeapon.plus:0;
+  const str=state.str||0;
+  const atk=base+Math.round(base*(weaponPower+str-8)/16);
+  return Math.max(0,Math.min(255,atk));
+}
 
-// シレン式ダメージ計算：攻撃力 × (15/16)^防御力 × 乱数(0.875〜1.125)
+// ダメージ計算：攻撃力 ÷ 2^(防御力÷10) × 乱数(0.9〜1.1、約±10%)
 function calcDamage(atk, def){
-  const base = atk * Math.pow(15/16, Math.max(0,def));
-  const rnd = 0.875 + Math.random()*0.25; // 7/8〜9/8
+  const base = atk / Math.pow(2, Math.max(0,def)/10);
+  const rnd = 0.9 + Math.random()*0.2;
   return Math.max(1, Math.round(base * rnd));
 }
 
@@ -2269,8 +2281,8 @@ function applyPotionToPlayer(eff, name){
   const n=name||'薬';
   if(eff.heal){ state.hp=Math.min(state.maxHp,state.hp+eff.heal); showAction(`${n}を飲んだ。HPが${eff.heal}回復した！`); spawnDamageNum(state.x*CELL,1.5,state.y*CELL,`${eff.heal}`,'#40e060',true); }
   else if(eff.damage){ state.hp=Math.max(0,state.hp-eff.damage); showAction(`${n}を飲んだ。毒だ！HPが${eff.damage}減った`); spawnDamageNum(state.x*CELL,1.5,state.y*CELL,`${eff.damage}`,'#ffffff'); checkPlayerDeath(); }
-  else if(eff.buff==='atk'){ state.atk+=1; showAction(`${n}を飲んだ。攻撃力が上がった！`); }
-  else if(eff.buff==='def'){ state.def+=1; showAction(`${n}を飲んだ。防御力が上がった！`); }
+  else if(eff.buff==='atk'){ state.str=(state.str||0)+1; showAction(`${n}を飲んだ。ちからが上がった！`); }
+  else if(eff.buff==='def'){ state.def=(state.def||0)+1; showAction(`${n}を飲んだ。防御力が上がった！`); }
   else if(eff.buff==='maxhp'){ state.maxHp+=10; state.hp+=10; showAction(`${n}を飲んだ。最大HPが増えた！`); }
   else if(eff.status==='haste'){ state.haste=15; showAction(`${n}を飲んだ。素早くなった！`); }
   else if(eff.status==='charge'){ state.charge=true; showAction(`${n}を飲んだ。力をためた！次の一撃が2倍`); }
@@ -2384,7 +2396,8 @@ function applyPotionToEnemy(eff, e){
   else if(eff.buff==='atk'||eff.buff==='def'||eff.buff==='maxhp'){ showAction('敵には効果がなかった'); }
   else { showAction('敵には効果がないようだ'); }
 }
-function totalDef(){return state.def+(equippedArmor?(ITEM_DB[equippedArmor.key].def||0)+equippedArmor.plus:0);}
+// 防御力＝盾の強さ（state.defはまもりの薬による永続ボーナスの積み増し分）
+function totalDef(){return (equippedArmor?(ITEM_DB[equippedArmor.key].def||0)+equippedArmor.plus:0)+(state.def||0);}
 
 function pickupItem(key,gx,gy){
   if(inventory.length>=MAX_INV){showAction(`持ち物がいっぱい！${ITEM_DB[key].name}の上に乗った。`,1500);return false;}
@@ -2406,7 +2419,7 @@ function pickupItem(key,gx,gy){
 // エントランス帰還時：Lv・EXP・素のステータスをリセット（お金・アイテムは持ち帰り）
 function resetPlayerStatsForEntrance(){
   state.lv=1; state.exp=0; state.nextExp=10;
-  state.hp=15; state.maxHp=15; state.atk=5; state.def=2;
+  state.hp=15; state.maxHp=15; state.str=0; state.def=0;
   state.food=100; state.maxFood=100; state.foodStep=0; state.stepCount=0;
   state.haste=0; state.charge=false; state.invis=0; state.confuse=0;
   playerSleepTurns=0;
@@ -3523,6 +3536,7 @@ function damageEnemy(en, dmg){
 
 // 経験値獲得・レベルアップ
 function gainExp(amount){
+  if(state.lv>=MAX_LEVEL)return; // 最大レベルでは経験値を得ない
   state.exp+=amount;
   if(state.exp>=state.nextExp) levelUp();
   updateUI();
@@ -3531,15 +3545,13 @@ function gainExp(amount){
 function levelUp(){
   state.exp-=state.nextExp;
   state.lv++;
-  state.nextExp=state.lv*10;
-  // ステータス上昇
-  state.maxHp+=10;
+  state.nextExp = state.lv<MAX_LEVEL ? (LEVEL_EXP_TOTAL[state.lv+1]-LEVEL_EXP_TOTAL[state.lv]) : Infinity;
+  // ステータス上昇（攻撃力・防御力は装備/ちからから毎回算出するのでここでは加算しない）
+  state.maxHp+=5;
   state.hp=state.maxHp; // レベルアップで全回復
-  state.atk+=2;
-  state.def+=1;
   showAction(`Lv${state.lv}にあがった！ HP全回復`,2000);
-  // レベルアップ時は余剰経験値で連続レベルアップ
-  if(state.exp>=state.nextExp) levelUp();
+  // レベルアップ時は余剰経験値で連続レベルアップ（最大レベルまで）
+  if(state.lv<MAX_LEVEL && state.exp>=state.nextExp) levelUp();
 }
 
 // 歩行回復（5歩ごとにmaxHpの1%）＋満腹度減少（10歩ごとに1%）
