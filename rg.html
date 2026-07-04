@@ -32,10 +32,13 @@ body { background:#0a0a0f; overflow:hidden; font-family:'Courier New',monospace;
 
 #ui { position:absolute; top:0; left:0; right:0; pointer-events:none; z-index:10; }
 #topbar {
-  display:flex; flex-wrap:wrap; align-items:center; gap:4px 12px;
+  display:flex; flex-direction:column; gap:4px;
   background:rgba(10,8,4,0.82); border-bottom:1px solid #4a3418;
   padding:6px 10px; font-size:13px; color:#e8d4a0;
 }
+/* バー付きステータス(EXP/HP/満腹)は左端・中央・右端に固定で並べる */
+#topbar-bars { display:flex; justify-content:space-between; align-items:center; width:100%; }
+#topbar-stats { display:flex; flex-wrap:wrap; align-items:center; gap:4px 12px; }
 .tb-item { display:flex; align-items:center; gap:3px; white-space:nowrap; }
 .tb-label { color:#9a8458; font-size:11px; }
 .stat-bar {
@@ -50,7 +53,7 @@ body { background:#0a0a0f; overflow:hidden; font-family:'Courier New',monospace;
 #status { display:none; }
 #action-label {
   position:absolute; bottom:14px; left:50%; transform:translateX(-50%);
-  min-width:160px; max-width:94%; box-sizing:border-box;
+  min-width:240px; max-width:94%; box-sizing:border-box;
   background:transparent;
   border:2px solid #f8f8f8;
   box-shadow:0 0 0 1px #000818, 0 4px 10px rgba(0,0,0,0.5);
@@ -74,6 +77,14 @@ body { background:#0a0a0f; overflow:hidden; font-family:'Courier New',monospace;
   text-shadow:0 0 4px rgba(96,255,144,0.5);
 }
 #dash-indicator.show { display:block; }
+
+/* 階数表示（左上・ミニマップの少し上に配置） */
+#floor-indicator {
+  position:absolute; left:8px;
+  background:rgba(20,20,24,0.6); border:1px solid #4a3a20; border-radius:4px;
+  color:#f0d080; font-size:11px; font-weight:bold; letter-spacing:1px;
+  padding:3px 8px; z-index:11; pointer-events:none;
+}
 
 /* ターン数表示（テスト用、右上・ステータスバー下） */
 #turn-counter {
@@ -350,7 +361,7 @@ body { background:#0a0a0f; overflow:hidden; font-family:'Courier New',monospace;
 <div id="fade-overlay"></div>
 <div id="floor-announce"></div>
 <div id="title-screen">
-  <div id="title-logo">Wanderer's Dungeon<span class="title-ver">ver 8.8</span></div>
+  <div id="title-logo">Wanderer's Dungeon<span class="title-ver">ver 9.0</span></div>
   <div id="title-buttons">
     <button id="title-continue" class="title-btn slot-btn">
       <div class="slot-head">
@@ -372,16 +383,20 @@ body { background:#0a0a0f; overflow:hidden; font-family:'Courier New',monospace;
 <div id="game-area">
   <div id="ui">
     <div id="topbar">
-      <div class="tb-item" id="floor-item"><span class="tb-label">階</span><span id="floor-disp">1</span>F</div>
-      <div class="tb-item"><span class="tb-label">Lv</span><span id="lv-disp">1</span></div>
-      <div class="tb-item"><span class="tb-label">HP</span><span id="hp-disp">15/15</span><span class="stat-bar"><span class="stat-bar-fill" id="hp-bar"></span></span></div>
-      <div class="tb-item"><span class="tb-label">満腹</span><span id="food-disp">100</span>%<span class="stat-bar"><span class="stat-bar-fill" id="food-bar"></span></span></div>
-      <div class="tb-item"><span class="tb-label">攻</span><span id="atk-disp">5</span></div>
-      <div class="tb-item"><span class="tb-label">防</span><span id="def-disp">2</span></div>
-      <div class="tb-item"><span class="tb-label">EXP</span><span id="exp-disp">0/10</span><span class="stat-bar"><span class="stat-bar-fill" id="exp-bar"></span></span></div>
-      <div class="tb-item"><span class="tb-label">💰</span><span id="gold-disp">0</span></div>
+      <div id="topbar-bars">
+        <div class="tb-item"><span class="tb-label">EXP</span><span id="exp-disp">0/10</span><span class="stat-bar"><span class="stat-bar-fill" id="exp-bar"></span></span></div>
+        <div class="tb-item"><span class="tb-label">HP</span><span id="hp-disp">15/15</span><span class="stat-bar"><span class="stat-bar-fill" id="hp-bar"></span></span></div>
+        <div class="tb-item"><span class="tb-label">満腹</span><span id="food-disp">100</span>%<span class="stat-bar"><span class="stat-bar-fill" id="food-bar"></span></span></div>
+      </div>
+      <div id="topbar-stats">
+        <div class="tb-item"><span class="tb-label">Lv</span><span id="lv-disp">1</span></div>
+        <div class="tb-item"><span class="tb-label">攻</span><span id="atk-disp">5</span></div>
+        <div class="tb-item"><span class="tb-label">防</span><span id="def-disp">2</span></div>
+        <div class="tb-item"><span class="tb-label">💰</span><span id="gold-disp">0</span></div>
+      </div>
     </div>
   </div>
+  <div id="floor-indicator">1F</div>
   <div id="action-label"></div>
   <div id="dash-indicator">▶ ダッシュモード中</div>
   <div id="turn-counter">Turn 0</div>
@@ -832,13 +847,13 @@ pvox(0.06,0.09,0.04, 0x305080,  0.1,1.06,0.185);
 pvox(0.04,0.09,0.08, 0x305080,  0.195,1.06,0.12);
 // 鼻（前面中央に突起、顔の向きを明確化）
 pvox(0.07,0.07,0.06, 0xd0a070, 0,0.99,0.2);
-// 剣（右手・背中に背負う）
+// 剣（右手・背中に背負う。武器未装備の間は手ぶらにするため後でvisibleを切り替える）
 const swordMesh=pvox(0.07,0.6,0.07, 0xc0ccd8, 0.0,0.95,-0.22);
 swordMesh.rotation.z=0.3;
-pvox(0.22,0.07,0.07, 0xa08040, 0.0,0.68,-0.22); // 鍔
-// 盾（左腕）
+const swordGuardMesh=pvox(0.22,0.07,0.07, 0xa08040, 0.0,0.68,-0.22); // 鍔
+// 盾（左腕。盾未装備の間は手ぶらにするため後でvisibleを切り替える）
 const shieldMesh=pvox(0.06,0.4,0.34, 0x7a4020, -0.42,0.6,0);
-pvox(0.05,0.12,0.12, 0xd0a020, -0.45,0.6,0); // 盾の紋章
+const shieldEmblemMesh=pvox(0.05,0.12,0.12, 0xd0a020, -0.45,0.6,0); // 盾の紋章
 
 playerGroup.scale.set(1.4,1.4,1.4); // マスいっぱいに
 
@@ -973,7 +988,52 @@ function generateMap(floor){
     while(cx!==b.cx){m[cy][cx]=0;cx+=cx<b.cx?1:-1;}
     while(cy!==b.cy){m[cy][cx]=0;cy+=cy<b.cy?1:-1;}
   }
+  // 別々の部屋間通路がたまたま隣接して2マス幅に見えてしまう箇所を、
+  // 全体の連結性を保ったまま1マス幅に間引く
+  thinWideCorridors(m,rs,MAP_W,MAP_H);
   return{cells:m,rooms:rs};
+}
+
+// 通路が偶然重なって2マス以上の幅になっている箇所を検出し、
+// 部屋同士の連結性（通行可能性）を崩さない範囲で1マス幅に間引く
+function thinWideCorridors(m,rooms,W,H){
+  function inAnyRoom(x,y){ return rooms.some(r=>x>=r.x&&x<r.x+r.w&&y>=r.y&&y<r.y+r.h); }
+  function isFloor(x,y){ return x>=0&&x<W&&y>=0&&y<H&&m[y][x]===0; }
+  function countComponents(){
+    const seen=Array.from({length:H},()=>Array(W).fill(false));
+    let comps=0;
+    for(let y=0;y<H;y++)for(let x=0;x<W;x++){
+      if(m[y][x]!==0||seen[y][x])continue;
+      comps++;
+      const stack=[[x,y]];seen[y][x]=true;
+      while(stack.length){
+        const [cx,cy]=stack.pop();
+        [[1,0],[-1,0],[0,1],[0,-1]].forEach(([dx,dy])=>{
+          const nx=cx+dx,ny=cy+dy;
+          if(isFloor(nx,ny)&&!seen[ny][nx]){seen[ny][nx]=true;stack.push([nx,ny]);}
+        });
+      }
+    }
+    return comps;
+  }
+  const baseComps=countComponents();
+  let changed=true,guard=0;
+  while(changed&&guard<2000){
+    changed=false;guard++;
+    for(let y=0;y<H&&!changed;y++){
+      for(let x=0;x<W&&!changed;x++){
+        if(m[y][x]!==0||inAnyRoom(x,y))continue;
+        // このマスを左上とする2x2が全て通路（部屋外の床）なら幅2以上とみなす
+        if(isFloor(x+1,y)&&!inAnyRoom(x+1,y)&&isFloor(x,y+1)&&!inAnyRoom(x,y+1)&&isFloor(x+1,y+1)&&!inAnyRoom(x+1,y+1)){
+          for(const [tx,ty] of [[x+1,y+1],[x+1,y],[x,y+1],[x,y]]){
+            m[ty][tx]=1;
+            if(countComponents()===baseComps){changed=true;break;}
+            m[ty][tx]=0; // 連結性が崩れる場合は元に戻して次の候補を試す
+          }
+        }
+      }
+    }
+  }
 }
 function rndInRoom(r){return{x:r.x+1+Math.floor(Math.random()*Math.max(1,r.w-2)),y:r.y+1+Math.floor(Math.random()*Math.max(1,r.h-2))};}
 
@@ -1682,8 +1742,7 @@ function spawnObject(type,gx,gy,arg){
     const center=box.getCenter(new THREE.Vector3());
     const size=box.getSize(new THREE.Vector3());
     g.children.forEach(child=>{ child.position.sub(center); });
-    // 食べ物は見やすいよう一回り大きく表示する
-    const itemScale=db.type==='food'?2.2*1.5:2.2;
+    const itemScale=db.type==='food'?2.2*0.75:2.2;
     g.scale.set(itemScale,itemScale,itemScale);
     // 縦長の武器・盾・杖・巻物は寝かせる、薬・食べ物は立てたまま
     if(db.type==='weapon'||db.type==='shield'||db.type==='staff'||db.type==='scroll'){
@@ -2277,11 +2336,12 @@ function checkDialogueDistance(){
 }
 
 function updateUI(){
-  const floorItem=document.getElementById('floor-item');
-  if(state.inEntrance){
-    floorItem.innerHTML='<span class="tb-label">ENTRANCE</span>';
-  } else {
-    floorItem.innerHTML=`<span class="tb-label">階</span><span id="floor-disp">${state.floor}</span>F`;
+  const floorEl=document.getElementById('floor-indicator');
+  if(floorEl){
+    floorEl.textContent=state.inEntrance?'ENTRANCE':`${state.floor}F`;
+    const topbarEl=document.getElementById('topbar');
+    const topbarH=topbarEl?topbarEl.getBoundingClientRect().height:40;
+    floorEl.style.top=(topbarH+2)+'px';
   }
   const hpEl=document.getElementById('hp-disp');
   if(hpEl){
@@ -2310,6 +2370,10 @@ function updateUI(){
       foodBar.style.width=(r*100)+'%';
       foodBar.style.backgroundColor = r>0.25 ? '#40c050' : '#e04040';
     }
+    // 手に持つ武器・盾の表示：未装備なら手ぶらにする
+    const hasShield=!!(equippedArmor&&ITEM_DB[equippedArmor.key].type==='shield');
+    swordMesh.visible=swordGuardMesh.visible=!!equippedWeapon;
+    shieldMesh.visible=shieldEmblemMesh.visible=hasShield;
     // 次のレベルアップまでのゲージ（青、溜まればレベルアップ）
     const expBar=document.getElementById('exp-bar');
     if(expBar){
@@ -3244,9 +3308,11 @@ function moveForward(dash=false){
   let acted=false; // 実際に移動できた場合のみtrue（壁にぶつかっただけならターンを消費しない）
   if(dash){
     const mx=state.x+dx,my=state.y+dy,nx=state.x+dx*2,ny=state.y+dy*2;
+    // 手前のマスにアイテムがあれば、通り過ぎないよう1マス先で一旦ブレーキをかける
+    const itemAtNear=floorItems.some(f=>f.x===mx&&f.y===my);
     // ダッシュ中に敵がいたら止まる
     if(ok(mx,my)&&hasEnemy(mx,my)){showAction('敵にぶつかった！');setLog('接触');}
-    else if(ok(mx,my)&&ok(nx,ny)&&!hasEnemy(nx,ny)){state.x=nx;state.y=ny;showAction('ダッシュ！');setLog('ダッシュ');stepHeal();stepHeal();acted=true;}
+    else if(ok(mx,my)&&ok(nx,ny)&&!hasEnemy(nx,ny)&&!itemAtNear){state.x=nx;state.y=ny;showAction('ダッシュ！');setLog('ダッシュ');stepHeal();stepHeal();acted=true;}
     else if(ok(mx,my)&&!hasEnemy(mx,my)){state.x=mx;state.y=my;showAction('ダッシュ！');setLog('ダッシュ');stepHeal();acted=true;}
     else{setLog('壁');}
   } else {
@@ -4126,13 +4192,16 @@ function drawMinimap(){
   const S=3,ox=10;
   const topbarEl=document.getElementById('topbar');
   const topbarH=topbarEl?topbarEl.getBoundingClientRect().height:0;
-  const oy=topbarH+12; // ステータスバーの下に配置（重ならないよう余白を確保）
+  const floorEl=document.getElementById('floor-indicator');
+  const floorH=floorEl?floorEl.getBoundingClientRect().height:0;
+  const oy=topbarH+2+floorH+6; // 階数表示のすぐ下に配置（重ならないよう余白を確保）
   octx.save();
   octx.fillStyle='rgba(0,0,0,0.6)';octx.fillRect(ox-2,oy-2,MAP_W*S+4,MAP_H*S+4);
-  // 探索済みマスのみ描画
+  // 探索済みマスのみ描画（壁は表示せず、床のみ描く）
   for(let y=0;y<MAP_H;y++)for(let x=0;x<MAP_W;x++){
     if(!explored[y][x])continue;
-    octx.fillStyle=MAP[y][x]===1?'#3a2c18':'#2a4858';
+    if(MAP[y][x]===1)continue;
+    octx.fillStyle='#2a4858';
     octx.fillRect(ox+x*S,oy+y*S,S-1,S-1);
   }
   // 階段・帰還（探索済みのみ）
