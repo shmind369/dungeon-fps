@@ -356,7 +356,7 @@ body { background:#0a0a0f; overflow:hidden; font-family:'Courier New',monospace;
 <div id="fade-overlay"></div>
 <div id="floor-announce"></div>
 <div id="title-screen">
-  <div id="title-logo">Wanderer's Dungeon<span class="title-ver">ver 7.0</span></div>
+  <div id="title-logo">Wanderer's Dungeon<span class="title-ver">ver 7.5</span></div>
   <div id="title-buttons">
     <button id="title-continue" class="title-btn slot-btn">
       <div class="slot-head">
@@ -936,6 +936,8 @@ function updateEnemiesSmooth(dt){
   const k=Math.min(dt*7,1);
   enemies.forEach(e=>{
     if(e.hp<=0)return;
+    // 突進アニメ中はそちらに任せる（干渉回避）
+    if(anims.some(a=>a.mesh===e.mesh))return;
     const tx=e.x*CELL, tz=e.y*CELL;
     e.mesh.position.x+=(tx-e.mesh.position.x)*k;
     e.mesh.position.z+=(tz-e.mesh.position.z)*k;
@@ -2631,7 +2633,8 @@ function drawSleepMarks(){
     octx.restore();
   }
   // 眠っている敵（睡眠状態 or まだ気づいていない＝寝ている。徘徊型は起きて歩いているので対象外）
-  enemies.forEach(e=>{ if(e.hp>0&&(e.sleep>0||(!e.aware&&e.type!=='wander'))&&e.mesh.visible) drawZ(e.mesh.position.x,2.2,e.mesh.position.z); });
+  // ただし自機が透明化中は、透明ゆえに気づいていないだけなので「寝ている」表示は出さない
+  enemies.forEach(e=>{ if(e.hp>0&&(e.sleep>0||(!e.aware&&e.type!=='wander'&&state.invis<=0))&&e.mesh.visible) drawZ(e.mesh.position.x,2.2,e.mesh.position.z); });
   // 眠っているプレイヤー
   if(playerSleepTurns>0) drawZ(playerGroup.position.x,2.6,playerGroup.position.z);
 }
@@ -2763,10 +2766,15 @@ function enemyShake(e){
   e.mesh.position.set(e.x*CELL, 0, e.y*CELL);
 }
 
-// 敵攻撃突進（アニメなし、位置はグリッド座標に固定）
+// 敵攻撃突進：自機と同様に、向いている方向へ短く突進してから戻る
 function enemyLunge(e){
-  // アニメは行わず、グリッド座標に位置を正確に固定するだけ
-  e.mesh.position.set(e.x*CELL, 0, e.y*CELL);
+  const tdx=Math.sign(state.x-e.x), tdz=Math.sign(state.y-e.y);
+  const isDiag=tdx!==0&&tdz!==0;
+  const dist=isDiag?CELL*0.3:CELL*0.45;
+  addAnim({
+    type:'lunge',mesh:e.mesh,baseX:e.x*CELL,baseZ:e.y*CELL,
+    dx:tdx,dz:tdz,dist,duration:260
+  });
 }
 
 // カメラ振動
