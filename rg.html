@@ -357,7 +357,7 @@ body { background:#0a0a0f; overflow:hidden; font-family:'Courier New',monospace;
 <div id="fade-overlay"></div>
 <div id="floor-announce"></div>
 <div id="title-screen">
-  <div id="title-logo">Wanderer's Dungeon<span class="title-ver">ver 8.0</span></div>
+  <div id="title-logo">Wanderer's Dungeon<span class="title-ver">ver 8.5</span></div>
   <div id="title-buttons">
     <button id="title-continue" class="title-btn slot-btn">
       <div class="slot-head">
@@ -518,16 +518,16 @@ let enemies=[];
 // アイテムマスタ定義
 const ITEM_DB={
   // === 武器 ===
-  club:     {name:'こん棒',      type:'weapon', icon:'🏏', color:'#c0c0c0', atk:2},
+  club:     {name:'こん棒',      type:'weapon', icon:'⚔️', color:'#c0c0c0', atk:2},
   copper:   {name:'銅の剣',      type:'weapon', icon:'⚔️', color:'#c0c0c0', atk:4},
   iron:     {name:'鉄の剣',      type:'weapon', icon:'⚔️', color:'#c0c0c0', atk:6},
   steel:    {name:'鋼の剣',      type:'weapon', icon:'⚔️', color:'#c0c0c0', atk:9},
-  flame:    {name:'炎の剣',      type:'weapon', icon:'🗡️', color:'#c0c0c0', atk:8, effect:{onhit:'fire'}},
-  ice:      {name:'まどろみの剣',type:'weapon', icon:'🗡️', color:'#c0c0c0', atk:8, effect:{onhit:'sleep'}},
-  poison:   {name:'毒の短剣',    type:'weapon', icon:'🗡️', color:'#c0c0c0', atk:5, effect:{onhit:'poison'}},
+  flame:    {name:'炎の剣',      type:'weapon', icon:'⚔️', color:'#c0c0c0', atk:8, effect:{onhit:'fire'}},
+  ice:      {name:'まどろみの剣',type:'weapon', icon:'⚔️', color:'#c0c0c0', atk:8, effect:{onhit:'sleep'}},
+  poison:   {name:'毒の短剣',    type:'weapon', icon:'⚔️', color:'#c0c0c0', atk:5, effect:{onhit:'poison'}},
   greatsw:  {name:'両手剣',      type:'weapon', icon:'⚔️', color:'#c0c0c0', atk:13, effect:{miss:0.2}},
-  dragon:   {name:'龍殺しの剣',  type:'weapon', icon:'🗡️', color:'#c0c0c0', atk:11, effect:{slayer:'dragon'}},
-  murasama: {name:'妖刀ムラマサ',type:'weapon', icon:'🗡️', color:'#c0c0c0', atk:16, effect:{recoil:0.15}},
+  dragon:   {name:'龍殺しの剣',  type:'weapon', icon:'⚔️', color:'#c0c0c0', atk:11, effect:{slayer:'dragon'}},
+  murasama: {name:'妖刀ムラマサ',type:'weapon', icon:'⚔️', color:'#c0c0c0', atk:16, effect:{recoil:0.15}},
   // === 防具（盾） ===
   woodsh:   {name:'木の盾',      type:'shield', icon:'🛡️', color:'#c0c0c0', def:2},
   bronzesh: {name:'青銅の盾',    type:'shield', icon:'🛡️', color:'#c0c0c0', def:4},
@@ -724,6 +724,24 @@ function sfxItem(){
   gain.gain.exponentialRampToValueAtTime(0.0001,now+0.16);
   osc.connect(gain); gain.connect(ctx.destination);
   osc.start(now); osc.stop(now+0.18);
+}
+
+// レベルアップ「ファンファーレ」：上昇する短いアルペジオ
+function sfxLevelUp(){
+  const ctx=getAudioCtx(); if(!ctx)return;
+  const now=ctx.currentTime;
+  const notes=[523.25, 659.25, 783.99, 1046.5]; // C5, E5, G5, C6
+  notes.forEach((freq,i)=>{
+    const t=now+i*0.09;
+    const osc=ctx.createOscillator(); osc.type='triangle';
+    osc.frequency.setValueAtTime(freq,t);
+    const gain=ctx.createGain();
+    gain.gain.setValueAtTime(0.0001,t);
+    gain.gain.exponentialRampToValueAtTime(0.35,t+0.015);
+    gain.gain.exponentialRampToValueAtTime(0.0001,t+0.22);
+    osc.connect(gain); gain.connect(ctx.destination);
+    osc.start(t); osc.stop(t+0.24);
+  });
 }
 
 const scene=new THREE.Scene();
@@ -1264,15 +1282,18 @@ function applyWandEffect(eff,e,wdx,wdz){
       e.sealed=10; showAction('敵の能力を封じた！',1000);
       break;
     case 'pull': {
+      // 自機の目の前のマスまで引き寄せる（対象は直線上にいるので、自機との距離-1マス分進める）
       const dxp=Math.sign(state.x-e.x), dzp=Math.sign(state.y-e.y);
+      const dist=Math.max(Math.abs(state.x-e.x), Math.abs(state.y-e.y));
       let nx=e.x, ny=e.y;
-      for(let s=0;s<3;s++){
+      for(let s=0;s<dist-1;s++){
         const tx=e.x+dxp*(s+1), ty=e.y+dzp*(s+1);
         if(!isWalkable(tx,ty))break;
         nx=tx;ny=ty;
       }
       e.x=nx; e.y=ny;
       e.mesh.position.set(e.x*CELL,0,e.y*CELL);
+      e.pullStun=true; // 引き寄せた直後のターンは攻撃してこない
       showAction('敵を引き寄せた！',1000);
       break;
     }
@@ -1332,10 +1353,21 @@ function buildItemMesh(g, itemType){
     vox(0.3,0.02,0.02, 0x907040, 0,0.28,0.04, g);
     vox(0.3,0.02,0.02, 0x907040, 0,0.13,0.04, g);
   } else if(itemType==='food'){
-    // パン：こんがり茶色
-    vox(0.28,0.16,0.22, BROWN, 0,0.1,0,  g); // 本体
-    vox(0.2,0.1,0.16,   BROWN, 0,0.2,0,  g); // 山
-    vox(0.1,0.06,0.1,   0xe0a860, 0,0.25,0, g); // 焼き色ハイライト
+    // パン：スフィアを潰して丸みのある俵形に（こんがり茶色）
+    const loaf=new THREE.Mesh(
+      new THREE.SphereGeometry(0.22,14,10),
+      new THREE.MeshLambertMaterial({color:BROWN})
+    );
+    loaf.scale.set(1.25,0.7,1);
+    loaf.position.set(0,0.16,0);
+    g.add(loaf);
+    const top=new THREE.Mesh(
+      new THREE.SphereGeometry(0.15,12,8),
+      new THREE.MeshLambertMaterial({color:0xe0a860})
+    );
+    top.scale.set(1.05,0.55,0.85);
+    top.position.set(0,0.26,0);
+    g.add(top);
   } else {
     vox(0.3,0.25,0.3, SILVER, 0,0.13,0, g);
   }
@@ -1577,7 +1609,7 @@ function getDollarMarkTexture(){
   cv.width=S; cv.height=S;
   const c=cv.getContext('2d');
   c.clearRect(0,0,S,S);
-  c.font='bold 46px "Courier New", monospace';
+  c.font='bold 58px "Courier New", monospace';
   c.textAlign='center';
   c.textBaseline='middle';
   c.fillStyle='#000000';
@@ -1661,15 +1693,17 @@ function spawnObject(type,gx,gy,arg){
     const center=box.getCenter(new THREE.Vector3());
     const size=box.getSize(new THREE.Vector3());
     g.children.forEach(child=>{ child.position.sub(center); });
-    g.scale.set(2.2,2.2,2.2);
+    // 食べ物は見やすいよう一回り大きく表示する
+    const itemScale=db.type==='food'?2.2*1.5:2.2;
+    g.scale.set(itemScale,itemScale,itemScale);
     // 縦長の武器・盾・杖・巻物は寝かせる、薬・食べ物は立てたまま
     if(db.type==='weapon'||db.type==='shield'||db.type==='staff'||db.type==='scroll'){
       g.rotation.x=-Math.PI/2;
       // 寝かせた時、床から浮く高さ = 回転後に厚みとなるローカルZサイズの半分
-      g.position.set(wx, Math.max(0.06,(size.z/2)*2.2), wz);
+      g.position.set(wx, Math.max(0.06,(size.z/2)*itemScale), wz);
     } else {
       // 立てたまま：底面が床に接するよう高さの半分だけ持ち上げる
-      g.position.set(wx, (size.y/2)*2.2, wz);
+      g.position.set(wx, (size.y/2)*itemScale, wz);
     }
     scene.add(g);
     g.userData={gx,gy};
@@ -1716,7 +1750,7 @@ function spawnObject(type,gx,gy,arg){
     // 視認しやすいよう、コイン表面に黒い$マークを重ねて描く
     const markTex=getDollarMarkTexture();
     const mark=new THREE.Mesh(
-      new THREE.PlaneGeometry(0.22,0.22),
+      new THREE.PlaneGeometry(0.28,0.28),
       new THREE.MeshBasicMaterial({map:markTex, transparent:true})
     );
     mark.rotation.x=-Math.PI/2;
@@ -2693,6 +2727,27 @@ function drawConfuseMarks(){
   if(state.confuse>0) drawQ(playerGroup.position.x,2.9,playerGroup.position.z);
 }
 
+// 自機がすばやさ状態の間、頭上に「⚡」を表示（一目で効果中とわかるように）
+function drawHasteMark(){
+  if(!(state.haste>0))return;
+  const now=performance.now()/300;
+  const vec=new THREE.Vector3(playerGroup.position.x,3.2,playerGroup.position.z);
+  vec.project(camera);
+  if(vec.z>1)return;
+  const sx=(vec.x+1)/2*overlay.width;
+  const sy=(-vec.y+1)/2*overlay.height;
+  const bob=Math.sin(now*4)*4;
+  octx.save();
+  octx.font="bold 24px 'Courier New'";
+  octx.textAlign='center';
+  octx.fillStyle='#ffe860';
+  octx.strokeStyle='rgba(0,0,0,0.7)';
+  octx.lineWidth=3;
+  octx.strokeText('⚡',sx,sy+bob);
+  octx.fillText('⚡',sx,sy+bob);
+  octx.restore();
+}
+
 function updateAnims(dt){
   const now=performance.now();
   let hasActive=false;
@@ -2976,6 +3031,8 @@ function enemyTurn(){
     if(e.hp<=0)return;
     // 敵が睡眠中はスキップ
     if(e.sleep>0){ e.sleep--; return; }
+    // 引き寄せられた直後のターンは行動しない
+    if(e.pullStun){ e.pullStun=false; return; }
     // 透明中のプレイヤーには気づかない。その場で眠るのではなく適当に徘徊させる
     if(state.invis>0){ e.aware=false; wanderStep(e); return; }
     // 気づき判定
@@ -3487,8 +3544,9 @@ function throwItem(it){
         applyWandEffect(db.effect, hitEnemy, dx, dy);
         showAction(`${db.name}が命中！`,1200);
       } else {
-        damageEnemy(hitEnemy, 1+Math.floor(Math.random()*2));
-        showAction(`命中！`,1200);
+        const dmg=1+Math.floor(Math.random()*2);
+        spawnDamageNum(hitEnemy.mesh.position.x,2.0,hitEnemy.mesh.position.z,`${dmg}`,'#ffffff');
+        damageEnemy(hitEnemy, dmg);
       }
       animLocked=false;
       enemyTurn();
@@ -3606,6 +3664,7 @@ function levelUp(){
   state.maxHp+=5;
   state.hp=state.maxHp; // レベルアップで全回復
   showAction(`Lv${state.lv}にあがった！ HP全回復`,2000);
+  sfxLevelUp();
   // レベルアップ時は余剰経験値で連続レベルアップ（最大レベルまで）
   if(state.lv<MAX_LEVEL && state.exp>=state.nextExp) levelUp();
 }
@@ -4057,7 +4116,7 @@ function animate(){
   if(!document.hidden && dt<1){ state.playTimeMs+=dt*1000; }
   updateDeathAnim();
   updateDashBob();
-  updatePlayerSmooth(dt);updateEnemiesSmooth(dt);if(window._turnDragging)updateHighlight(true);updateCamera();updateAnims(dt);updateMagicBolts(dt);updateWandBolts(dt);updateThrowBolts(dt);updateDragonFlames(dt);updatePlayerVisibility();renderer.render(scene,camera);drawOverlay();drawFlash();drawFloatingNums();drawSleepMarks();drawConfuseMarks();drawMinimap();
+  updatePlayerSmooth(dt);updateEnemiesSmooth(dt);if(window._turnDragging)updateHighlight(true);updateCamera();updateAnims(dt);updateMagicBolts(dt);updateWandBolts(dt);updateThrowBolts(dt);updateDragonFlames(dt);updatePlayerVisibility();renderer.render(scene,camera);drawOverlay();drawFlash();drawFloatingNums();drawSleepMarks();drawConfuseMarks();drawHasteMark();drawMinimap();
 }
 
 // 死亡演出：自機がその場でバタッと倒れる（X軸回転）
