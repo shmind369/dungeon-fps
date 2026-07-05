@@ -817,19 +817,36 @@ function pvox(w,h,d,col,x,y,z){
   m.position.set(x,y,z);m.castShadow=true;playerGroup.add(m);playerParts.push(m);
   return m;
 }
-// 脚
-pvox(0.18,0.4,0.18, 0x3a4a8a, -0.13,0.2,0);  // 左脚
-pvox(0.18,0.4,0.18, 0x3a4a8a,  0.13,0.2,0);  // 右脚
+// 歩行モーションで前後に振れるよう、脚は股関節・腕は肩を支点としたグループに入れる
+function makeLimbPivot(px,py,pz){
+  const g=new THREE.Group();
+  g.position.set(px,py,pz);
+  playerGroup.add(g);
+  return g;
+}
+function pvoxIn(pivot,w,h,d,col,localX,localY,localZ){
+  const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),new THREE.MeshLambertMaterial({color:col}));
+  m.position.set(localX,localY,localZ);m.castShadow=true;pivot.add(m);playerParts.push(m);
+  return m;
+}
+// 脚（股関節=腰の高さを支点に前後へ振れる）
+const legPivotY=0.4;
+const leftLegPivot=makeLimbPivot(-0.13,legPivotY,0);
+pvoxIn(leftLegPivot,0.18,0.4,0.18,0x3a4a8a, 0,0.2-legPivotY,0);  // 左脚
+const rightLegPivot=makeLimbPivot(0.13,legPivotY,0);
+pvoxIn(rightLegPivot,0.18,0.4,0.18,0x3a4a8a, 0,0.2-legPivotY,0); // 右脚
 // 胴体（青い服）
 pvox(0.5,0.45,0.3, 0x4a5ab0, 0,0.62,0);
 // ベルト
 pvox(0.52,0.08,0.32, 0x2a2a40, 0,0.42,0);
-// 腕
-pvox(0.14,0.4,0.16, 0x4a5ab0, -0.32,0.6,0); // 左腕
-pvox(0.14,0.4,0.16, 0x4a5ab0,  0.32,0.6,0); // 右腕
-// 手
-pvox(0.12,0.12,0.14, 0xc09050, -0.32,0.36,0);
-pvox(0.12,0.12,0.14, 0xc09050,  0.32,0.36,0);
+// 腕（肩を支点に前後へ振れる。手も同じ支点にぶら下げて一緒に振れるようにする）
+const armPivotY=0.8;
+const leftArmPivot=makeLimbPivot(-0.32,armPivotY,0);
+pvoxIn(leftArmPivot,0.14,0.4,0.16,0x4a5ab0, 0,0.6-armPivotY,0);   // 左腕
+pvoxIn(leftArmPivot,0.12,0.12,0.14,0xc09050, 0,0.36-armPivotY,0); // 左手
+const rightArmPivot=makeLimbPivot(0.32,armPivotY,0);
+pvoxIn(rightArmPivot,0.14,0.4,0.16,0x4a5ab0, 0,0.6-armPivotY,0);   // 右腕
+pvoxIn(rightArmPivot,0.12,0.12,0.14,0xc09050, 0,0.36-armPivotY,0); // 右手
 // 頭
 const headMesh=pvox(0.38,0.36,0.36, 0xe0b080, 0,1.04,0);
 // 髪（黒髪）
@@ -847,13 +864,15 @@ pvox(0.04,0.09,0.08, 0x305080,  0.195,1.06,0.12);
 // 鼻（前面中央に突起、顔の向きを明確化）
 pvox(0.07,0.07,0.06, 0xd0a070, 0,0.99,0.2);
 // 剣（右手に持つ。肩・腕のパーツと重ならないよう、地面に対し垂直ではなく水平（前方向）に構える。
+// 右腕の支点にぶら下げ、歩行時に腕と一緒に振れるようにする。
 // 武器未装備の間は手ぶらにするため後でvisibleを切り替える）
-const swordMesh=pvox(0.07,0.6,0.07, 0xc0ccd8, 0.32,0.42,0.28);
+const swordMesh=pvoxIn(rightArmPivot,0.07,0.6,0.07, 0xc0ccd8, 0,0.42-armPivotY,0.28);
 swordMesh.rotation.x=Math.PI/2;
-const swordGuardMesh=pvox(0.22,0.07,0.07, 0xa08040, 0.32,0.42,0.02); // 鍔
-// 盾（左腕。盾未装備の間は手ぶらにするため後でvisibleを切り替える）
-const shieldMesh=pvox(0.06,0.4,0.34, 0x7a4020, -0.42,0.6,0);
-const shieldEmblemMesh=pvox(0.05,0.12,0.12, 0xd0a020, -0.45,0.6,0); // 盾の紋章
+const swordGuardMesh=pvoxIn(rightArmPivot,0.22,0.07,0.07, 0xa08040, 0,0.42-armPivotY,0.02); // 鍔
+// 盾（左腕の支点にぶら下げ、歩行時に腕と一緒に振れるようにする。
+// 盾未装備の間は手ぶらにするため後でvisibleを切り替える）
+const shieldMesh=pvoxIn(leftArmPivot,0.06,0.4,0.34, 0x7a4020, -0.10,0.6-armPivotY,0);
+const shieldEmblemMesh=pvoxIn(leftArmPivot,0.05,0.12,0.12, 0xd0a020, -0.13,0.6-armPivotY,0); // 盾の紋章
 
 playerGroup.scale.set(1.4,1.4,1.4); // マスいっぱいに
 
@@ -4259,7 +4278,7 @@ function animate(){
   if(!document.hidden && dt<1){ state.playTimeMs+=dt*1000; }
   updateDeathAnim();
   updateDashBob();
-  updatePlayerSmooth(dt);updateEnemiesSmooth(dt);if(window._turnDragging)updateHighlight(true);updateCamera();updateAnims(dt);updateMagicBolts(dt);updateWandBolts(dt);updateThrowBolts(dt);updateDragonFlames(dt);updatePlayerVisibility();renderer.render(scene,camera);drawOverlay();drawFlash();drawFloatingNums();drawSleepMarks();drawConfuseMarks();drawHasteMark();drawMinimap();
+  updatePlayerSmooth(dt);updateWalkCycle(dt);updateEnemiesSmooth(dt);if(window._turnDragging)updateHighlight(true);updateCamera();updateAnims(dt);updateMagicBolts(dt);updateWandBolts(dt);updateThrowBolts(dt);updateDragonFlames(dt);updatePlayerVisibility();renderer.render(scene,camera);drawOverlay();drawFlash();drawFloatingNums();drawSleepMarks();drawConfuseMarks();drawHasteMark();drawMinimap();
 }
 
 // 死亡演出：自機がその場でバタッと倒れる（X軸回転）
@@ -4282,6 +4301,23 @@ function updateDashBob(){
     // モンスターの徘徊時と同様に、軽く弾むような動きをつけて躍動感を出す
     playerGroup.position.y=Math.abs(Math.sin(performance.now()/300))*0.12;
   }
+}
+
+// 歩行モーション：マス移動中のみ脚・腕を振り子のように動かす（突進・死亡演出中は干渉しない）
+let walkSwingAmp=0, walkPhase=0;
+function updateWalkCycle(dt){
+  if(deathAnim)return;
+  const tx=state.x*CELL, tz=state.y*CELL;
+  const dist=Math.hypot(tx-playerGroup.position.x, tz-playerGroup.position.z);
+  const lungeAnim=anims.some(a=>a.mesh===playerGroup);
+  const isWalking=dist>0.03&&!lungeAnim;
+  walkSwingAmp+=((isWalking?1:0)-walkSwingAmp)*Math.min(dt*10,1);
+  if(isWalking) walkPhase+=dt*(dashMode?14:8);
+  const swing=Math.sin(walkPhase)*0.6*walkSwingAmp;
+  leftLegPivot.rotation.x=swing;
+  rightLegPivot.rotation.x=-swing;
+  leftArmPivot.rotation.x=-swing*0.8;
+  rightArmPivot.rotation.x=swing*0.8;
 }
 
 // 起動
