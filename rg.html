@@ -361,7 +361,7 @@ body { background:#0a0a0f; overflow:hidden; font-family:'Courier New',monospace;
 <div id="fade-overlay"></div>
 <div id="floor-announce"></div>
 <div id="title-screen">
-  <div id="title-logo">Wanderer's Dungeon<span class="title-ver">ver 9.0</span></div>
+  <div id="title-logo">Wanderer's Dungeon<span class="title-ver">ver 9.2</span></div>
   <div id="title-buttons">
     <button id="title-continue" class="title-btn slot-btn">
       <div class="slot-head">
@@ -552,7 +552,6 @@ const ITEM_DB={
   revivep:  {name:'復活の薬',    type:'potion', icon:'🧪', color:'#c0c0c0', effect:{revive:true}},
   // === 巻物（scroll・使い切り） ===
   sc_enchant: {name:'強化の巻物',    type:'scroll', icon:'📜', color:'#c0c0c0', effect:{scroll:'enchant'}},
-  sc_uncurse: {name:'呪い解きの巻物',type:'scroll', icon:'📜', color:'#c0c0c0', effect:{scroll:'uncurse'}},
   sc_fire:    {name:'炎の巻物',      type:'scroll', icon:'📜', color:'#c0c0c0', effect:{scroll:'fireAll', power:14}},
   sc_teleport:{name:'ワープの巻物',type:'scroll', icon:'📜', color:'#c0c0c0', effect:{scroll:'teleport'}},
   sc_return:  {name:'帰還の巻物',    type:'scroll', icon:'📜', color:'#c0c0c0', effect:{scroll:'return'}},
@@ -584,7 +583,7 @@ const FLOOR_ITEM_KEYS=['herb','herb','hiherb','bread','bread','bigbread','badbre
   'powerp','lifep','speedp','chargep','invisp','poisonp','confusep','sleepp','curep','revivep',
   'iron','copper','club','woodsh','bronzesh','ironsh','flame','ice','poison','steel','flamesh','poisonsh','steelsh',
   'st_atk','st_fire','st_sleep','st_confuse','st_swap','st_knock','st_weak','st_seal','st_pull',
-  'sc_enchant','sc_uncurse','sc_fire','sc_teleport','sc_return','sc_pitfall','sc_barrier','sc_confuse','sc_sleep','sc_luck','sc_nuke','sc_map','sc_seal'];
+  'sc_enchant','sc_fire','sc_teleport','sc_return','sc_pitfall','sc_barrier','sc_confuse','sc_sleep','sc_luck','sc_nuke','sc_map','sc_seal'];
 
 // インベントリ（最大20）
 const MAX_INV=20;
@@ -847,10 +846,10 @@ pvox(0.06,0.09,0.04, 0x305080,  0.1,1.06,0.185);
 pvox(0.04,0.09,0.08, 0x305080,  0.195,1.06,0.12);
 // 鼻（前面中央に突起、顔の向きを明確化）
 pvox(0.07,0.07,0.06, 0xd0a070, 0,0.99,0.2);
-// 剣（右手・背中に背負う。武器未装備の間は手ぶらにするため後でvisibleを切り替える）
-const swordMesh=pvox(0.07,0.6,0.07, 0xc0ccd8, 0.0,0.95,-0.22);
-swordMesh.rotation.z=0.3;
-const swordGuardMesh=pvox(0.22,0.07,0.07, 0xa08040, 0.0,0.68,-0.22); // 鍔
+// 剣（右手に持つ。武器未装備の間は手ぶらにするため後でvisibleを切り替える）
+const swordMesh=pvox(0.07,0.6,0.07, 0xc0ccd8, 0.32,0.7,0.03);
+swordMesh.rotation.z=-0.12;
+const swordGuardMesh=pvox(0.22,0.07,0.07, 0xa08040, 0.32,0.4,0.03); // 鍔
 // 盾（左腕。盾未装備の間は手ぶらにするため後でvisibleを切り替える）
 const shieldMesh=pvox(0.06,0.4,0.34, 0x7a4020, -0.42,0.6,0);
 const shieldEmblemMesh=pvox(0.05,0.12,0.12, 0xd0a020, -0.45,0.6,0); // 盾の紋章
@@ -991,7 +990,30 @@ function generateMap(floor){
   // 別々の部屋間通路がたまたま隣接して2マス幅に見えてしまう箇所を、
   // 全体の連結性を保ったまま1マス幅に間引く
   thinWideCorridors(m,rs,MAP_W,MAP_H);
+  // どの部屋にも繋がらない行き止まりの通路（枝分かれの先端）を除去する
+  pruneDeadEndCorridors(m,rs,MAP_W,MAP_H);
   return{cells:m,rooms:rs};
+}
+
+// 部屋の外にある通路マスのうち、隣接する通路/部屋が1つ以下（＝行き止まり）のものを
+// 壁に戻す。行き止まりは接続の要にはなり得ないため、連結性を損なわず安全に除去できる
+function pruneDeadEndCorridors(m,rooms,W,H){
+  function inAnyRoom(x,y){ return rooms.some(r=>x>=r.x&&x<r.x+r.w&&y>=r.y&&y<r.y+r.h); }
+  let changed=true,guard=0;
+  while(changed&&guard<3000){
+    changed=false;guard++;
+    for(let y=0;y<H;y++){
+      for(let x=0;x<W;x++){
+        if(m[y][x]!==0||inAnyRoom(x,y))continue;
+        let deg=0;
+        [[1,0],[-1,0],[0,1],[0,-1]].forEach(([dx,dy])=>{
+          const nx=x+dx,ny=y+dy;
+          if(nx>=0&&nx<W&&ny>=0&&ny<H&&m[ny][nx]===0)deg++;
+        });
+        if(deg<=1){ m[y][x]=1; changed=true; }
+      }
+    }
+  }
 }
 
 // 通路が偶然重なって2マス以上の幅になっている箇所を検出し、
@@ -1132,9 +1154,6 @@ function useScroll(it){
       else { showAction('強化できる装備がない…',1200); }
       break;
     }
-    case 'uncurse':
-      showAction('体が軽くなった気がする…',1200);
-      break;
     case 'fireAll':
       if(visEnemies.length===0){ showAction('何も起きなかった…',1000); break; }
       visEnemies.forEach(e=>{
@@ -3123,17 +3142,19 @@ function enemyTurn(){
     if(state.invis>0){ e.aware=false; wanderStep(e); return; }
     // 気づき判定
     if(!e.aware){
-      // 徘徊型：気づいていなくてもランダムにうろつく
-      if(e.type==='wander'){
-        wanderStep(e);
-      }
       if(e.type==='normal'||e.type==='mage'||e.type==='wander'){
         if(playerRoomIdx>=0&&e.roomIdx===playerRoomIdx)e.aware=true;
       } else {
         if(distToPlayer(e)<=1)e.aware=true;
       }
+      // 今まさに気づいた敵は、その場では攻撃も移動もせず様子を見るだけ（次のターンから行動開始）
+      if(e.aware)return;
+      // 徘徊型：気づいていなくてもランダムにうろつく
+      if(e.type==='wander'){
+        wanderStep(e);
+      }
+      return;
     }
-    if(!e.aware)return;
 
     // 混乱中：ランダムな方向へよろめき、攻撃できない（移動した向きへ体も向ける）
     if(e.confused>0){
