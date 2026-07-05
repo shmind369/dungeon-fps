@@ -361,7 +361,7 @@ body { background:#0a0a0f; overflow:hidden; font-family:'Courier New',monospace;
 <div id="fade-overlay"></div>
 <div id="floor-announce"></div>
 <div id="title-screen">
-  <div id="title-logo">Wanderer's Dungeon<span class="title-ver">ver 9.3</span></div>
+  <div id="title-logo">Wanderer's Dungeon<span class="title-ver">ver 9.4</span></div>
   <div id="title-buttons">
     <button id="title-continue" class="title-btn slot-btn">
       <div class="slot-head">
@@ -557,7 +557,6 @@ const ITEM_DB={
   sc_teleport:{name:'ワープの巻物',type:'scroll', icon:'📜', color:'#c0c0c0', effect:{scroll:'teleport'}},
   sc_return:  {name:'帰還の巻物',    type:'scroll', icon:'📜', color:'#c0c0c0', effect:{scroll:'return'}},
   sc_pitfall: {name:'落とし穴の巻物',type:'scroll', icon:'📜', color:'#c0c0c0', effect:{scroll:'pitfall'}},
-  sc_barrier: {name:'結界の巻物',    type:'scroll', icon:'📜', color:'#c0c0c0', effect:{scroll:'barrier'}},
   sc_confuse: {name:'混乱の巻物',    type:'scroll', icon:'📜', color:'#c0c0c0', effect:{scroll:'confuseAll'}},
   sc_sleep:   {name:'睡眠の巻物',    type:'scroll', icon:'📜', color:'#c0c0c0', effect:{scroll:'sleepAll'}},
   sc_luck:    {name:'幸運の巻物',    type:'scroll', icon:'📜', color:'#c0c0c0', effect:{scroll:'luck'}},
@@ -584,7 +583,7 @@ const FLOOR_ITEM_KEYS=['herb','herb','hiherb','bread','bread','bigbread','badbre
   'powerp','lifep','speedp','chargep','invisp','poisonp','confusep','sleepp','curep','revivep',
   'iron','copper','club','woodsh','bronzesh','ironsh','flame','ice','poison','steel','flamesh','poisonsh','steelsh',
   'st_atk','st_fire','st_sleep','st_confuse','st_swap','st_knock','st_weak','st_seal','st_pull',
-  'sc_enchant','sc_enchant_shield','sc_fire','sc_teleport','sc_return','sc_pitfall','sc_barrier','sc_confuse','sc_sleep','sc_luck','sc_nuke','sc_map','sc_seal'];
+  'sc_enchant','sc_enchant_shield','sc_fire','sc_teleport','sc_return','sc_pitfall','sc_confuse','sc_sleep','sc_luck','sc_nuke','sc_map','sc_seal'];
 
 // インベントリ（最大20）
 const MAX_INV=20;
@@ -1192,11 +1191,6 @@ function useScroll(it){
       if(state.floor>=10){ showAction('これ以上は落ちられない…',1200); break; }
       state.floor++; showAction('床が抜けて落下した！',1500); setLog(`${state.floor}F`); initFloor(state.floor);
       break;
-    case 'barrier':
-      state.confuse=state.confuse; // no-op placeholder
-      state.barrier=10;
-      showAction('体が光の結界に包まれた！',1500);
-      break;
     case 'confuseAll':
       if(visEnemies.length===0){ showAction('何も起きなかった…',1000); break; }
       visEnemies.forEach(e=>{ e.confused=(e.confused||0)+8; });
@@ -1304,6 +1298,8 @@ function updateWandBolts(dt){
 
 // 杖の効果を敵に適用（投げた薬と同じ必中ロジック）
 function applyWandEffect(eff,e,wdx,wdz){
+  // 命中すれば眠っていても目を覚まし、自機に気づく
+  e.aware=true;
   switch(eff.wand){
     case 'damage':
       e.hp-=eff.power;
@@ -2428,7 +2424,17 @@ function calcDamage(atk, def){
 // 薬の効果をプレイヤーに適用
 function applyPotionToPlayer(eff, name){
   const n=name||'薬';
-  if(eff.heal){ state.hp=Math.min(state.maxHp,state.hp+eff.heal); showAction(`${n}を飲んだ。HPが${eff.heal}回復した！`); spawnDamageNum(state.x*CELL,1.5,state.y*CELL,`${eff.heal}`,'#40e060',true); }
+  if(eff.heal){
+    if(state.hp>=state.maxHp){
+      state.maxHp+=2; state.hp=state.maxHp;
+      showAction(`${n}を飲んだ。HPが満タンだったので最大HPが2増えた！`);
+      spawnDamageNum(state.x*CELL,1.5,state.y*CELL,`+2`,'#40e060',true);
+    } else {
+      state.hp=Math.min(state.maxHp,state.hp+eff.heal);
+      showAction(`${n}を飲んだ。HPが${eff.heal}回復した！`);
+      spawnDamageNum(state.x*CELL,1.5,state.y*CELL,`${eff.heal}`,'#40e060',true);
+    }
+  }
   else if(eff.damage){ state.hp=Math.max(0,state.hp-eff.damage); showAction(`${n}を飲んだ。毒だ！HPが${eff.damage}減った`); spawnDamageNum(state.x*CELL,1.5,state.y*CELL,`${eff.damage}`,'#ffffff'); checkPlayerDeath(); }
   else if(eff.buff==='atk'){ state.str=(state.str||0)+1; showAction(`${n}を飲んだ。ちからが上がった！`); }
   else if(eff.buff==='maxhp'){ state.maxHp+=10; state.hp+=10; showAction(`${n}を飲んだ。最大HPが増えた！`); }
@@ -3671,6 +3677,8 @@ function throwItem(it){
     removeFromInv(it);
     renderInventory();updateUI();
     spawnThrowTrail(state.x*CELL,state.y*CELL,hitEnemy.x*CELL,hitEnemy.y*CELL,db,()=>{
+      // 命中すれば眠っていても目を覚まし、自機に気づく
+      hitEnemy.aware=true;
       if(db.type==='potion'){
         applyPotionToEnemy(db.effect, hitEnemy);
       } else if(db.type==='staff'){
