@@ -372,7 +372,7 @@ body { background:#0a0a0f; overflow:hidden; font-family:'Courier New',monospace;
 <div id="fade-overlay"></div>
 <div id="floor-announce"></div>
 <div id="title-screen">
-  <div id="title-logo">Wanderer's Dungeon<span class="title-ver">ver 0.9.8</span></div>
+  <div id="title-logo">Wanderer's Dungeon<span class="title-ver">ver 0.9.9</span></div>
   <div id="title-buttons">
     <button id="title-continue" class="title-btn slot-btn">
       <div class="slot-head">
@@ -1998,8 +1998,8 @@ function getRockFloorTexture(){
     const offset=(ry%2===0)?0:rw/2; // 石畳特有の互い違い
     for(let rx=-1; rx<=cols; rx++){
       const x=rx*rw+offset, y=ry*rh;
-      const g=70+Math.floor(Math.random()*24)-12;
-      c.fillStyle=`rgb(${g},${Math.round(g*0.92)},${Math.round(g*0.86)})`; // 灰色の石畳
+      const g=48+Math.floor(Math.random()*18)-9;
+      c.fillStyle=`rgb(${Math.round(g*0.82)},${Math.round(g*0.88)},${Math.round(g*1.05)})`; // 壁(暖色の岩)より暗く青みがかった石畳
       c.fillRect(x+gap/2, y+gap/2, rw-gap, rh-gap);
     }
   }
@@ -2027,8 +2027,8 @@ function getBrickFloorTexture(){
     const offset=(ry%2===0)?0:rw/2;
     for(let rx=-1; rx<=cols; rx++){
       const x=rx*rw+offset, y=ry*rh;
-      const g=76+Math.floor(Math.random()*26)-13;
-      c.fillStyle=`rgb(${g},${Math.round(g*0.62)},${Math.round(g*0.44)})`; // 使い込まれた赤茶の敷石
+      const g=52+Math.floor(Math.random()*20)-10;
+      c.fillStyle=`rgb(${Math.round(g*0.92)},${Math.round(g*0.82)},${Math.round(g*0.68)})`; // 壁(鮮やかな赤茶)より暗く灰色がかった土敷石
       c.fillRect(x+gap/2, y+gap/2, rw-gap, rh-gap);
     }
   }
@@ -2062,8 +2062,8 @@ function getMossFloorTexture(){
     const offset=(ry%2===0)?0:rw/2;
     for(let rx=-1; rx<=cols; rx++){
       const x=rx*rw+offset, y=ry*rh;
-      const g=58+Math.floor(Math.random()*22)-11;
-      c.fillStyle=`rgb(${Math.round(g*0.6)},${g},${Math.round(g*0.5)})`; // 湿った緑がかった石
+      const g=42+Math.floor(Math.random()*16)-8;
+      c.fillStyle=`rgb(${Math.round(g*0.95)},${Math.round(g*0.78)},${Math.round(g*0.6)})`; // 壁(緑の石)とは対照的な暗い土の地面
       c.fillRect(x+gap/2, y+gap/2, rw-gap, rh-gap);
     }
   }
@@ -2088,14 +2088,14 @@ function getCaveFloorTexture(){
   const cv=document.createElement('canvas');
   cv.width=S; cv.height=S;
   const c=cv.getContext('2d');
-  c.fillStyle='#100c08';
+  c.fillStyle='#0a0806';
   c.fillRect(0,0,S,S);
-  // 大小不揃いな土と岩の塊
+  // 大小不揃いな土と岩の塊（壁の茶系の岩肌より暗く無彩色寄りにして区別する）
   for(let i=0;i<20;i++){
     const x=Math.random()*S, y=Math.random()*S;
     const w=6+Math.random()*14, h=6+Math.random()*14;
-    const g=40+Math.floor(Math.random()*26);
-    c.fillStyle=`rgb(${g},${Math.round(g*0.8)},${Math.round(g*0.64)})`;
+    const g=22+Math.floor(Math.random()*18);
+    c.fillStyle=`rgb(${Math.round(g*0.92)},${Math.round(g*0.9)},${Math.round(g*0.88)})`;
     c.fillRect(x,y,w,h);
   }
   // 小石
@@ -2128,15 +2128,15 @@ function getObsidianFloorTexture(){
     const offset=(ry%2===0)?0:rw/2;
     for(let rx=-1; rx<=cols; rx++){
       const x=rx*rw+offset, y=ry*rh;
-      const g=20+Math.floor(Math.random()*16);
-      c.fillStyle=`rgb(${g},${Math.round(g*0.55)},${Math.round(g*0.65)})`;
+      const g=14+Math.floor(Math.random()*10);
+      c.fillStyle=`rgb(${Math.round(g*0.85)},${Math.round(g*0.85)},${Math.round(g*0.95)})`; // 壁(紫がかった岩)より暗く無彩色寄りの黒曜石
       c.fillRect(x+gap/2, y+gap/2, rw-gap, rh-gap);
     }
   }
-  // 足元に走るマグマの亀裂（壁より密に）
-  c.strokeStyle='rgba(255,100,20,0.85)';
-  c.lineWidth=1.5;
-  for(let i=0;i<7;i++){
+  // 足元に走るマグマの亀裂（壁より密に・明るく）
+  c.strokeStyle='rgba(255,120,20,0.95)';
+  c.lineWidth=1.8;
+  for(let i=0;i<10;i++){
     let x=Math.random()*S, y=Math.random()*S;
     c.beginPath(); c.moveTo(x,y);
     for(let s=0;s<4;s++){
