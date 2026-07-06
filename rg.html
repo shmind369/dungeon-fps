@@ -54,7 +54,7 @@ body { background:#0a0a0f; overflow:hidden; font-family:'Courier New',monospace;
 #action-label {
   position:absolute; bottom:14px; left:50%; transform:translateX(-50%);
   min-width:240px; max-width:94%; box-sizing:border-box;
-  background:transparent;
+  background:#000;
   border:2px solid #f8f8f8;
   box-shadow:0 0 0 1px #000818, 0 4px 10px rgba(0,0,0,0.5);
   border-radius:2px;
@@ -372,7 +372,7 @@ body { background:#0a0a0f; overflow:hidden; font-family:'Courier New',monospace;
 <div id="fade-overlay"></div>
 <div id="floor-announce"></div>
 <div id="title-screen">
-  <div id="title-logo">Wanderer's Dungeon<span class="title-ver">ver 0.9.9</span></div>
+  <div id="title-logo">Wanderer's Dungeon<span class="title-ver">ver 0.9.10</span></div>
   <div id="title-buttons">
     <button id="title-continue" class="title-btn slot-btn">
       <div class="slot-head">
@@ -897,7 +897,7 @@ const swordGuardMesh=pvoxIn(rightArmPivot,0.22,0.07,0.07, 0xa08040, 0,0.42-armPi
 const shieldMesh=pvoxIn(leftArmPivot,0.06,0.4,0.34, 0x7a4020, -0.10,0.6-armPivotY,0);
 const shieldEmblemMesh=pvoxIn(leftArmPivot,0.05,0.12,0.12, 0xd0a020, -0.13,0.6-armPivotY,0); // 盾の紋章
 
-playerGroup.scale.set(1.4,1.4,1.4); // マスいっぱいに
+playerGroup.scale.set(1.68,1.68,1.68); // マスいっぱいに（三人称視点でさらに1.2倍）
 
 // 向き変更ガイドのレーザー（細長いBox・確実に描画）
 const guideLine=new THREE.Mesh(
@@ -1175,10 +1175,10 @@ function buildDungeon(){
     texturedWallMat=new THREE.MeshLambertMaterial({map:tex});
   }
   const wMat=()=>useWallTexture?texturedWallMat:new THREE.MeshLambertMaterial({color:0x3a2410});
-  // フロアの深度帯ごとにダンジョンらしい床テクスチャを貼る（エントランスは従来通り単色）
+  // 床は全フロア共通の石畳テクスチャを貼る（エントランスは従来通り単色）
   let fMat;
   if(useWallTexture){
-    const floorTex=getFloorTextureForFloor(state.floor);
+    const floorTex=getFloorTexture();
     floorTex.repeat.set(2,2);
     fMat=new THREE.MeshLambertMaterial({map:floorTex});
   } else {
@@ -1246,8 +1246,12 @@ function useScroll(it){
       showAction('炎が周囲を包んだ！',1500);
       break;
     case 'teleport': {
-      const room=rooms[Math.floor(Math.random()*rooms.length)];
-      const p=rndInRoom(room);
+      let room,p,tries=0;
+      do {
+        room=rooms[Math.floor(Math.random()*rooms.length)];
+        p=rndInRoom(room);
+        tries++;
+      } while(tries<30 && enemies.some(e=>e.hp>0&&e.x===p.x&&e.y===p.y));
       state.x=p.x; state.y=p.y;
       playerGroup.position.set(state.x*CELL,0,state.y*CELL);
       camX=state.x*CELL;camZ=state.y*CELL;
@@ -1981,15 +1985,15 @@ function getWallTextureForFloor(floor){
   return getObsidianWallTexture(); // 9〜10F
 }
 
-// 石畳の床テクスチャ（1〜2Fの床に使用）
-let _rockFloorTexture=null;
-function getRockFloorTexture(){
-  if(_rockFloorTexture)return _rockFloorTexture;
+// 石畳の床テクスチャ（1〜10F共通）
+let _floorTexture=null;
+function getFloorTexture(){
+  if(_floorTexture)return _floorTexture;
   const S=64;
   const cv=document.createElement('canvas');
   cv.width=S; cv.height=S;
   const c=cv.getContext('2d');
-  c.fillStyle='#141010'; // 目地
+  c.fillStyle='#141412'; // 目地
   c.fillRect(0,0,S,S);
   const rows=3, cols=3;
   const rh=S/rows, rw=S/cols;
@@ -1998,167 +2002,16 @@ function getRockFloorTexture(){
     const offset=(ry%2===0)?0:rw/2; // 石畳特有の互い違い
     for(let rx=-1; rx<=cols; rx++){
       const x=rx*rw+offset, y=ry*rh;
-      const g=48+Math.floor(Math.random()*18)-9;
-      c.fillStyle=`rgb(${Math.round(g*0.82)},${Math.round(g*0.88)},${Math.round(g*1.05)})`; // 壁(暖色の岩)より暗く青みがかった石畳
+      const g=70+Math.floor(Math.random()*24)-12;
+      c.fillStyle=`rgb(${g},${Math.round(g*0.92)},${Math.round(g*0.86)})`; // 灰色の石畳
       c.fillRect(x+gap/2, y+gap/2, rw-gap, rh-gap);
     }
   }
   const tex=new THREE.CanvasTexture(cv);
   tex.magFilter=THREE.NearestFilter;
   tex.wrapS=tex.wrapT=THREE.RepeatWrapping;
-  _rockFloorTexture=tex;
+  _floorTexture=tex;
   return tex;
-}
-
-// 土混じりの敷石床テクスチャ（3〜4Fの床に使用）
-let _brickFloorTexture=null;
-function getBrickFloorTexture(){
-  if(_brickFloorTexture)return _brickFloorTexture;
-  const S=64;
-  const cv=document.createElement('canvas');
-  cv.width=S; cv.height=S;
-  const c=cv.getContext('2d');
-  c.fillStyle='#241a10'; // 目地（土色）
-  c.fillRect(0,0,S,S);
-  const rows=4, cols=4;
-  const rh=S/rows, rw=S/cols;
-  const gap=2;
-  for(let ry=0; ry<rows; ry++){
-    const offset=(ry%2===0)?0:rw/2;
-    for(let rx=-1; rx<=cols; rx++){
-      const x=rx*rw+offset, y=ry*rh;
-      const g=52+Math.floor(Math.random()*20)-10;
-      c.fillStyle=`rgb(${Math.round(g*0.92)},${Math.round(g*0.82)},${Math.round(g*0.68)})`; // 壁(鮮やかな赤茶)より暗く灰色がかった土敷石
-      c.fillRect(x+gap/2, y+gap/2, rw-gap, rh-gap);
-    }
-  }
-  // 土汚れ
-  for(let i=0;i<8;i++){
-    const mx=Math.random()*S, my=Math.random()*S, mr=2+Math.random()*4;
-    c.fillStyle='rgba(40,26,14,0.4)';
-    c.beginPath(); c.arc(mx,my,mr,0,Math.PI*2); c.fill();
-  }
-  const tex=new THREE.CanvasTexture(cv);
-  tex.magFilter=THREE.NearestFilter;
-  tex.wrapS=tex.wrapT=THREE.RepeatWrapping;
-  _brickFloorTexture=tex;
-  return tex;
-}
-
-// 苔むした石床テクスチャ（5〜6Fの床に使用）
-let _mossFloorTexture=null;
-function getMossFloorTexture(){
-  if(_mossFloorTexture)return _mossFloorTexture;
-  const S=64;
-  const cv=document.createElement('canvas');
-  cv.width=S; cv.height=S;
-  const c=cv.getContext('2d');
-  c.fillStyle='#0e120c';
-  c.fillRect(0,0,S,S);
-  const rows=3, cols=3;
-  const rh=S/rows, rw=S/cols;
-  const gap=2;
-  for(let ry=0; ry<rows; ry++){
-    const offset=(ry%2===0)?0:rw/2;
-    for(let rx=-1; rx<=cols; rx++){
-      const x=rx*rw+offset, y=ry*rh;
-      const g=42+Math.floor(Math.random()*16)-8;
-      c.fillStyle=`rgb(${Math.round(g*0.95)},${Math.round(g*0.78)},${Math.round(g*0.6)})`; // 壁(緑の石)とは対照的な暗い土の地面
-      c.fillRect(x+gap/2, y+gap/2, rw-gap, rh-gap);
-    }
-  }
-  // 足元に広がる苔（壁より大きく密に）
-  for(let i=0;i<20;i++){
-    const mx=Math.random()*S, my=Math.random()*S, mr=3+Math.random()*6;
-    c.fillStyle='rgba(50,100,45,0.45)';
-    c.beginPath(); c.arc(mx,my,mr,0,Math.PI*2); c.fill();
-  }
-  const tex=new THREE.CanvasTexture(cv);
-  tex.magFilter=THREE.NearestFilter;
-  tex.wrapS=tex.wrapT=THREE.RepeatWrapping;
-  _mossFloorTexture=tex;
-  return tex;
-}
-
-// 洞窟の岩床テクスチャ（7〜8Fの床に使用。不揃いな土と石）
-let _caveFloorTexture=null;
-function getCaveFloorTexture(){
-  if(_caveFloorTexture)return _caveFloorTexture;
-  const S=64;
-  const cv=document.createElement('canvas');
-  cv.width=S; cv.height=S;
-  const c=cv.getContext('2d');
-  c.fillStyle='#0a0806';
-  c.fillRect(0,0,S,S);
-  // 大小不揃いな土と岩の塊（壁の茶系の岩肌より暗く無彩色寄りにして区別する）
-  for(let i=0;i<20;i++){
-    const x=Math.random()*S, y=Math.random()*S;
-    const w=6+Math.random()*14, h=6+Math.random()*14;
-    const g=22+Math.floor(Math.random()*18);
-    c.fillStyle=`rgb(${Math.round(g*0.92)},${Math.round(g*0.9)},${Math.round(g*0.88)})`;
-    c.fillRect(x,y,w,h);
-  }
-  // 小石
-  for(let i=0;i<14;i++){
-    const mx=Math.random()*S, my=Math.random()*S, mr=1+Math.random()*2;
-    c.fillStyle='rgba(20,16,12,0.6)';
-    c.beginPath(); c.arc(mx,my,mr,0,Math.PI*2); c.fill();
-  }
-  const tex=new THREE.CanvasTexture(cv);
-  tex.magFilter=THREE.NearestFilter;
-  tex.wrapS=tex.wrapT=THREE.RepeatWrapping;
-  _caveFloorTexture=tex;
-  return tex;
-}
-
-// 黒曜石・溶岩床テクスチャ（9〜10Fの床に使用）
-let _obsidianFloorTexture=null;
-function getObsidianFloorTexture(){
-  if(_obsidianFloorTexture)return _obsidianFloorTexture;
-  const S=64;
-  const cv=document.createElement('canvas');
-  cv.width=S; cv.height=S;
-  const c=cv.getContext('2d');
-  c.fillStyle='#060404';
-  c.fillRect(0,0,S,S);
-  const rows=3, cols=3;
-  const rh=S/rows, rw=S/cols;
-  const gap=2;
-  for(let ry=0; ry<rows; ry++){
-    const offset=(ry%2===0)?0:rw/2;
-    for(let rx=-1; rx<=cols; rx++){
-      const x=rx*rw+offset, y=ry*rh;
-      const g=14+Math.floor(Math.random()*10);
-      c.fillStyle=`rgb(${Math.round(g*0.85)},${Math.round(g*0.85)},${Math.round(g*0.95)})`; // 壁(紫がかった岩)より暗く無彩色寄りの黒曜石
-      c.fillRect(x+gap/2, y+gap/2, rw-gap, rh-gap);
-    }
-  }
-  // 足元に走るマグマの亀裂（壁より密に・明るく）
-  c.strokeStyle='rgba(255,120,20,0.95)';
-  c.lineWidth=1.8;
-  for(let i=0;i<10;i++){
-    let x=Math.random()*S, y=Math.random()*S;
-    c.beginPath(); c.moveTo(x,y);
-    for(let s=0;s<4;s++){
-      x+=(Math.random()-0.5)*16; y+=(Math.random()-0.5)*16;
-      c.lineTo(x,y);
-    }
-    c.stroke();
-  }
-  const tex=new THREE.CanvasTexture(cv);
-  tex.magFilter=THREE.NearestFilter;
-  tex.wrapS=tex.wrapT=THREE.RepeatWrapping;
-  _obsidianFloorTexture=tex;
-  return tex;
-}
-
-// フロアの深度帯に応じた床テクスチャを返す
-function getFloorTextureForFloor(floor){
-  if(floor<=2) return getRockFloorTexture();
-  if(floor<=4) return getBrickFloorTexture();
-  if(floor<=6) return getMossFloorTexture();
-  if(floor<=8) return getCaveFloorTexture();
-  return getObsidianFloorTexture(); // 9〜10F
 }
 
 function spawnObject(type,gx,gy,arg){
@@ -3603,7 +3456,8 @@ function dirIdxFromPlayer(e){
 // 未訪問フロアはシミュレートしていないため、実際の出現はそのフロアへ次に入った時（initFloor）に行う
 function dispatchRandomFloorMonster(){
   const candidates=[];
-  for(let f=1; f<=10; f++){ if(state.inEntrance||f!==state.floor) candidates.push(f); }
+  // 10Fはドラゴン1体のみのボスフロアなので配送対象から除外する
+  for(let f=1; f<=9; f++){ if(state.inEntrance||f!==state.floor) candidates.push(f); }
   if(candidates.length===0)return;
   const targetFloor=candidates[Math.floor(Math.random()*candidates.length)];
   pendingFloorSpawns[targetFloor]=(pendingFloorSpawns[targetFloor]||0)+1;
@@ -4322,11 +4176,16 @@ function stepHeal(){
 }
 
 // 視点切り替え（試験的な一人称モード）
+const dpUpLeftBtn=document.querySelector('.dp[data-dir="7"]');
+const dpUpRightBtn=document.querySelector('.dp[data-dir="1"]');
 document.getElementById('camera-toggle').onclick=()=>{
   firstPersonMode=!firstPersonMode;
   const btn=document.getElementById('camera-toggle');
   btn.textContent=firstPersonMode?'👁 三人称に戻す':'👁 一人称(試験)';
   btn.classList.toggle('active',firstPersonMode);
+  // 一人称モード中は↖↗を「その場旋回」を表す曲がった矢印に差し替える
+  dpUpRightBtn.textContent=firstPersonMode?'⤵':'↗';
+  dpUpLeftBtn.textContent=firstPersonMode?'⤶':'↖';
   updateCamera();
 };
 
@@ -4461,13 +4320,14 @@ function dpadPress(dir){
     enemyTurn();
     return;
   }
-  // 一人称モード中、↓と斜め4方向は移動せずその場で向きだけを変える
-  // （ターンを消費しない自由な振り向き。↓=180度反転、↖↙=左45度旋回、↗↘=右45度旋回）
+  // 一人称モード中、↓と↖↗は移動せずその場で向きだけを変える
+  // （ターンを消費しない自由な振り向き。↓=180度反転、↖=左45度旋回、↗=右45度旋回。↙↘は廃止（何もしない））
   if(firstPersonMode){
+    if(dir===5||dir===3) return; // ↙↘は廃止
     let turnOffset=null;
     if(dir===4) turnOffset=4;
-    else if(dir===7||dir===5) turnOffset=-1;
-    else if(dir===1||dir===3) turnOffset=1;
+    else if(dir===7) turnOffset=-1;
+    else if(dir===1) turnOffset=1;
     if(turnOffset!==null){
       state.dir=(state.dir+turnOffset+8)%8;
       state.targetAngle=ANGLE_OF[state.dir]; // state.angleはここでは変えず、毎フレームの補間で追従させる
@@ -4750,8 +4610,23 @@ function drawMinimap(){
   floorItems.forEach(i=>{if(explored[i.y][i.x]){octx.fillStyle='#c08030';octx.fillRect(ox+i.x*S,oy+i.y*S,S-1,S-1);}});
   // 敵（探索済み、かつ自機と同じ部屋または隣接1マスなど実際に見えている場合のみ）
   enemies.forEach(e=>{if(e.hp>0&&explored[e.y][e.x]&&e.mesh.visible){octx.fillStyle='#e04040';octx.fillRect(ox+e.x*S,oy+e.y*S,S,S);}});
-  // 自分
-  octx.fillStyle='#f0d080';octx.fillRect(ox+state.x*S,oy+state.y*S,S,S);
+  // 自分（主観モード中のみ、現在向いている方向がわかる▲マーカーにする）
+  if(firstPersonMode){
+    const cx=ox+state.x*S+S/2, cy=oy+state.y*S+S/2, r=S*1.6;
+    octx.save();
+    octx.translate(cx,cy);
+    octx.rotate(state.angle);
+    octx.fillStyle='#f0d080';
+    octx.beginPath();
+    octx.moveTo(r,0);
+    octx.lineTo(-r*0.65,r*0.65);
+    octx.lineTo(-r*0.65,-r*0.65);
+    octx.closePath();
+    octx.fill();
+    octx.restore();
+  } else {
+    octx.fillStyle='#f0d080';octx.fillRect(ox+state.x*S,oy+state.y*S,S,S);
+  }
   octx.restore();
 }
 
