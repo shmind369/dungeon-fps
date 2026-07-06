@@ -385,7 +385,7 @@ body { background:#0a0a0f; overflow:hidden; font-family:'Courier New',monospace;
 <div id="fade-overlay"></div>
 <div id="floor-announce"></div>
 <div id="title-screen">
-  <div id="title-logo">Wanderer's Dungeon<span class="title-ver">ver 0.9.11</span></div>
+  <div id="title-logo">Wanderer's Dungeon<span class="title-ver">ver 0.9.12</span></div>
   <div id="title-buttons">
     <button id="title-continue" class="title-btn slot-btn">
       <div class="slot-head">
@@ -2016,7 +2016,7 @@ function getFloorTexture(){
     for(let rx=-1; rx<=cols; rx++){
       const x=rx*rw+offset, y=ry*rh;
       const g=120+Math.floor(Math.random()*24)-12;
-      c.fillStyle=`rgb(${g},${Math.round(g*0.908)},${Math.round(g*0.908)})`; // #786d6d系の灰色の石畳
+      c.fillStyle=`rgb(${g},${Math.round(g*0.97)},${Math.round(g*0.97)})`; // よりグレーに近い石畳
       c.fillRect(x+gap/2, y+gap/2, rw-gap, rh-gap);
     }
   }
