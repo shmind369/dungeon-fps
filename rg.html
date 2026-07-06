@@ -361,7 +361,7 @@ body { background:#0a0a0f; overflow:hidden; font-family:'Courier New',monospace;
 <div id="fade-overlay"></div>
 <div id="floor-announce"></div>
 <div id="title-screen">
-  <div id="title-logo">Wanderer's Dungeon<span class="title-ver">ver 0.9.7</span></div>
+  <div id="title-logo">Wanderer's Dungeon<span class="title-ver">ver 0.9.7.1</span></div>
   <div id="title-buttons">
     <button id="title-continue" class="title-btn slot-btn">
       <div class="slot-head">
@@ -493,6 +493,14 @@ if(typeof THREE==='undefined'){
 const MAP_W=30,MAP_H=30,CELL=2,WALL_H=2.6;
 const ENEMY_SCALE=1.3*1.2; // 敵オブジェクトの基本スケール（従来の1.2倍）
 const RETURN_FLOORS=[]; // 帰還スポットは一旦廃止
+// 階層別モンスター出現プール
+const FLOOR_MONSTER_POOL={
+  1:['slime','bat'],2:['slime','bat'],
+  3:['zombie','mage','goblin'],4:['zombie','mage','goblin'],
+  5:['knight','chimera'],6:['knight','chimera'],
+  7:['golem','wizard','devilape'],8:['golem','wizard','devilape'],
+  9:['golem','wizard','devilape'],10:['dragon']
+};
 // レベル別「基本攻撃力」（index=レベル。0は未使用）
 const LEVEL_BASE=[0,5,7,9,11,13,15,17,19,21,23,26,29,32,35,38,41,44,47,50,53,56,59,62,65,68,71,74,77,80,82,84,86,88,90,91,92,93,94,95,96,97,98,99,100,101,102,103,104,105,106,107,108,109,110,111,112,113,115,116,117];
 // レベル別「そのレベルに到達するまでの累計必要経験値」（index=レベル。0は未使用）
@@ -504,8 +512,11 @@ const DIR_DY=[-1,-1,0,1,1,1,0,-1];
 const state={x:0,y:0,dir:0,angle:-Math.PI/2,targetAngle:-Math.PI/2,actionTimer:0,floor:1,
   hp:15,maxHp:15,str:0,lv:1,exp:0,nextExp:10,stepCount:0,
   food:100,maxFood:100,foodStep:0,gold:0,
-  haste:0,charge:false,invis:0,confuse:0,inEntrance:false,playTimeMs:0};
+  haste:0,charge:false,invis:0,confuse:0,inEntrance:false,playTimeMs:0,globalTurnCount:0};
 let MAP=[],rooms=[],stairsPos=null,returnPos=null,floorItems=[],explored=[];
+// 自機がいない間に配送予約されたモンスター（floor番号 -> 未出現数）。
+// 未訪問フロアはシミュレートされないため、実際の生成はそのフロアへ次に入った時に行う
+let pendingFloorSpawns={};
 // 倉庫（永続データ）：25マス分のスロット、初期は9マスのみ解放
 let warehouseUnlocked=9; // 解放済みスロット数（3x3=9が初期）
 let warehouseData={}; // key: "sx,sy" -> {itemKey, plus, charges}
@@ -2242,14 +2253,7 @@ function initFloor(floor){
   });
 
   // 階層別モンスタースポーン
-  const floorMonsters={
-    1:['slime','bat'],2:['slime','bat'],
-    3:['zombie','mage','goblin'],4:['zombie','mage','goblin'],
-    5:['knight','chimera'],6:['knight','chimera'],
-    7:['golem','wizard','devilape'],8:['golem','wizard','devilape'],
-    9:['golem','wizard','devilape'],10:['dragon']
-  };
-  const monTypes=floorMonsters[floor]||['slime'];
+  const monTypes=FLOOR_MONSTER_POOL[floor]||['slime'];
 
   if(floor===10){
     // 10F：ドラゴン1体のみ、部屋中央に配置
@@ -2281,6 +2285,29 @@ function initFloor(floor){
     }
   }
 
+  // 自機が他フロアにいた間に配送予約されたモンスターを、このフロアに出現させる
+  if(pendingFloorSpawns[floor]){
+    const pendingCount=pendingFloorSpawns[floor];
+    delete pendingFloorSpawns[floor];
+    for(let i=0;i<pendingCount;i++){
+      const room=rooms[Math.floor(Math.random()*rooms.length)];
+      let p=null, tries=0;
+      while(tries<10){
+        const cand=rndInRoom(room);
+        const bl=(cand.x===state.x&&cand.y===state.y)||
+                 (stairsPos&&cand.x===stairsPos.x&&cand.y===stairsPos.y)||
+                 (returnPos&&cand.x===returnPos.x&&cand.y===returnPos.y)||
+                 enemies.some(e=>e.x===cand.x&&e.y===cand.y);
+        if(!bl){ p=cand; break; }
+        tries++;
+      }
+      if(p){
+        const monType=monTypes[Math.floor(Math.random()*monTypes.length)];
+        spawnObject('enemy',p.x,p.y,monType);
+      }
+    }
+  }
+
   updatePlayerPos();updateCamera();updateUI();
   saveGame();
 }
@@ -2299,6 +2326,7 @@ function serializeSave(){
     nextItemId,
     warehouseUnlocked,
     warehouseData,
+    pendingFloorSpawns,
     inventory:inventory.map(it=>{
       const o={id:it.id,key:it.key,plus:it.plus||0,equipped:!!it.equipped};
       if(it.charges!==undefined)o.charges=it.charges;
@@ -2361,6 +2389,7 @@ function applySave(data){
   nextItemId=data.nextItemId||nextItemId;
   warehouseUnlocked=data.warehouseUnlocked!==undefined?data.warehouseUnlocked:warehouseUnlocked;
   warehouseData=data.warehouseData||{};
+  pendingFloorSpawns=data.pendingFloorSpawns||{};
 
   inventory.length=0;
   equippedWeapon=null; equippedArmor=null;
@@ -2396,7 +2425,7 @@ function resetFullGameState(){
     x:0,y:0,dir:0,angle:-Math.PI/2,targetAngle:-Math.PI/2,actionTimer:0,floor:1,
     hp:15,maxHp:15,str:0,lv:1,exp:0,nextExp:10,stepCount:0,
     food:100,maxFood:100,foodStep:0,gold:0,
-    haste:0,charge:false,invis:0,confuse:0,inEntrance:false,playTimeMs:0
+    haste:0,charge:false,invis:0,confuse:0,inEntrance:false,playTimeMs:0,globalTurnCount:0
   });
   inventory.length=0;
   equippedWeapon=null; equippedArmor=null;
@@ -2404,6 +2433,7 @@ function resetFullGameState(){
   playerSleepTurns=0;
   warehouseUnlocked=9;
   warehouseData={};
+  pendingFloorSpawns={};
 }
 
 // WebGLコンテキスト復元時などに、セーブデータを介さず「今の状態」をそのまま
@@ -3338,9 +3368,21 @@ function dirIdxFromPlayer(e){
 }
 
 // 攻撃行動を即座には実行せず一旦キューに積み、後でstaggerAttacks()が優先順位順に間を置いて実行する
+// 50ターンごとに、自機が今いない別フロアへモンスターを1体配送予約する。
+// 未訪問フロアはシミュレートしていないため、実際の出現はそのフロアへ次に入った時（initFloor）に行う
+function dispatchRandomFloorMonster(){
+  const candidates=[];
+  for(let f=1; f<=10; f++){ if(state.inEntrance||f!==state.floor) candidates.push(f); }
+  if(candidates.length===0)return;
+  const targetFloor=candidates[Math.floor(Math.random()*candidates.length)];
+  pendingFloorSpawns[targetFloor]=(pendingFloorSpawns[targetFloor]||0)+1;
+}
+
 function enemyTurn(){
   floorTurnCount++;
   updateTurnCounterDisplay();
+  state.globalTurnCount++;
+  if(state.globalTurnCount%50===0) dispatchRandomFloorMonster();
   const playerRoomIdx=getPlayerRoomIdx();
   const attackQueue=[];
   enemies.forEach(e=>{
