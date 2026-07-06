@@ -372,7 +372,7 @@ body { background:#0a0a0f; overflow:hidden; font-family:'Courier New',monospace;
 <div id="fade-overlay"></div>
 <div id="floor-announce"></div>
 <div id="title-screen">
-  <div id="title-logo">Wanderer's Dungeon<span class="title-ver">ver 0.9.7.4</span></div>
+  <div id="title-logo">Wanderer's Dungeon<span class="title-ver">ver 0.9.8</span></div>
   <div id="title-buttons">
     <button id="title-continue" class="title-btn slot-btn">
       <div class="slot-head">
@@ -1175,7 +1175,15 @@ function buildDungeon(){
     texturedWallMat=new THREE.MeshLambertMaterial({map:tex});
   }
   const wMat=()=>useWallTexture?texturedWallMat:new THREE.MeshLambertMaterial({color:0x3a2410});
-  const fMat=new THREE.MeshLambertMaterial({color:0x181008});
+  // フロアの深度帯ごとにダンジョンらしい床テクスチャを貼る（エントランスは従来通り単色）
+  let fMat;
+  if(useWallTexture){
+    const floorTex=getFloorTextureForFloor(state.floor);
+    floorTex.repeat.set(2,2);
+    fMat=new THREE.MeshLambertMaterial({map:floorTex});
+  } else {
+    fMat=new THREE.MeshLambertMaterial({color:0x181008});
+  }
   const cMat=new THREE.MeshLambertMaterial({color:0x0c0804});
   for(let y=0;y<MAP_H;y++){
     for(let x=0;x<MAP_W;x++){
@@ -1642,7 +1650,7 @@ const MONSTER_DB={
     }
   },
   golem:{
-    name:'ゴーレム',hp:45,atk:25,def:25,exp:60,aiType:'dull',
+    name:'ゴーレム',hp:35,atk:25,def:15,exp:60,aiType:'dull',
     buildMesh(g){
       vox(0.3,0.4,0.28, 0x707060, -0.18,0.2,0, g);
       vox(0.3,0.4,0.28, 0x707060,  0.18,0.2,0, g);
@@ -1679,7 +1687,7 @@ const MONSTER_DB={
     }
   },
   devilape:{
-    name:'デビルエイプ',hp:35,atk:20,def:15,exp:30,aiType:'normal',
+    name:'デビルエイプ',hp:27,atk:20,def:7,exp:30,aiType:'normal',
     buildMesh(g){
       // 足
       vox(0.22,0.35,0.22, 0x301820, -0.14,0.175,0, g);
@@ -1971,6 +1979,186 @@ function getWallTextureForFloor(floor){
   if(floor<=6) return getMossWallTexture();
   if(floor<=8) return getCaveWallTexture();
   return getObsidianWallTexture(); // 9〜10F
+}
+
+// 石畳の床テクスチャ（1〜2Fの床に使用）
+let _rockFloorTexture=null;
+function getRockFloorTexture(){
+  if(_rockFloorTexture)return _rockFloorTexture;
+  const S=64;
+  const cv=document.createElement('canvas');
+  cv.width=S; cv.height=S;
+  const c=cv.getContext('2d');
+  c.fillStyle='#141010'; // 目地
+  c.fillRect(0,0,S,S);
+  const rows=3, cols=3;
+  const rh=S/rows, rw=S/cols;
+  const gap=2;
+  for(let ry=0; ry<rows; ry++){
+    const offset=(ry%2===0)?0:rw/2; // 石畳特有の互い違い
+    for(let rx=-1; rx<=cols; rx++){
+      const x=rx*rw+offset, y=ry*rh;
+      const g=70+Math.floor(Math.random()*24)-12;
+      c.fillStyle=`rgb(${g},${Math.round(g*0.92)},${Math.round(g*0.86)})`; // 灰色の石畳
+      c.fillRect(x+gap/2, y+gap/2, rw-gap, rh-gap);
+    }
+  }
+  const tex=new THREE.CanvasTexture(cv);
+  tex.magFilter=THREE.NearestFilter;
+  tex.wrapS=tex.wrapT=THREE.RepeatWrapping;
+  _rockFloorTexture=tex;
+  return tex;
+}
+
+// 土混じりの敷石床テクスチャ（3〜4Fの床に使用）
+let _brickFloorTexture=null;
+function getBrickFloorTexture(){
+  if(_brickFloorTexture)return _brickFloorTexture;
+  const S=64;
+  const cv=document.createElement('canvas');
+  cv.width=S; cv.height=S;
+  const c=cv.getContext('2d');
+  c.fillStyle='#241a10'; // 目地（土色）
+  c.fillRect(0,0,S,S);
+  const rows=4, cols=4;
+  const rh=S/rows, rw=S/cols;
+  const gap=2;
+  for(let ry=0; ry<rows; ry++){
+    const offset=(ry%2===0)?0:rw/2;
+    for(let rx=-1; rx<=cols; rx++){
+      const x=rx*rw+offset, y=ry*rh;
+      const g=76+Math.floor(Math.random()*26)-13;
+      c.fillStyle=`rgb(${g},${Math.round(g*0.62)},${Math.round(g*0.44)})`; // 使い込まれた赤茶の敷石
+      c.fillRect(x+gap/2, y+gap/2, rw-gap, rh-gap);
+    }
+  }
+  // 土汚れ
+  for(let i=0;i<8;i++){
+    const mx=Math.random()*S, my=Math.random()*S, mr=2+Math.random()*4;
+    c.fillStyle='rgba(40,26,14,0.4)';
+    c.beginPath(); c.arc(mx,my,mr,0,Math.PI*2); c.fill();
+  }
+  const tex=new THREE.CanvasTexture(cv);
+  tex.magFilter=THREE.NearestFilter;
+  tex.wrapS=tex.wrapT=THREE.RepeatWrapping;
+  _brickFloorTexture=tex;
+  return tex;
+}
+
+// 苔むした石床テクスチャ（5〜6Fの床に使用）
+let _mossFloorTexture=null;
+function getMossFloorTexture(){
+  if(_mossFloorTexture)return _mossFloorTexture;
+  const S=64;
+  const cv=document.createElement('canvas');
+  cv.width=S; cv.height=S;
+  const c=cv.getContext('2d');
+  c.fillStyle='#0e120c';
+  c.fillRect(0,0,S,S);
+  const rows=3, cols=3;
+  const rh=S/rows, rw=S/cols;
+  const gap=2;
+  for(let ry=0; ry<rows; ry++){
+    const offset=(ry%2===0)?0:rw/2;
+    for(let rx=-1; rx<=cols; rx++){
+      const x=rx*rw+offset, y=ry*rh;
+      const g=58+Math.floor(Math.random()*22)-11;
+      c.fillStyle=`rgb(${Math.round(g*0.6)},${g},${Math.round(g*0.5)})`; // 湿った緑がかった石
+      c.fillRect(x+gap/2, y+gap/2, rw-gap, rh-gap);
+    }
+  }
+  // 足元に広がる苔（壁より大きく密に）
+  for(let i=0;i<20;i++){
+    const mx=Math.random()*S, my=Math.random()*S, mr=3+Math.random()*6;
+    c.fillStyle='rgba(50,100,45,0.45)';
+    c.beginPath(); c.arc(mx,my,mr,0,Math.PI*2); c.fill();
+  }
+  const tex=new THREE.CanvasTexture(cv);
+  tex.magFilter=THREE.NearestFilter;
+  tex.wrapS=tex.wrapT=THREE.RepeatWrapping;
+  _mossFloorTexture=tex;
+  return tex;
+}
+
+// 洞窟の岩床テクスチャ（7〜8Fの床に使用。不揃いな土と石）
+let _caveFloorTexture=null;
+function getCaveFloorTexture(){
+  if(_caveFloorTexture)return _caveFloorTexture;
+  const S=64;
+  const cv=document.createElement('canvas');
+  cv.width=S; cv.height=S;
+  const c=cv.getContext('2d');
+  c.fillStyle='#100c08';
+  c.fillRect(0,0,S,S);
+  // 大小不揃いな土と岩の塊
+  for(let i=0;i<20;i++){
+    const x=Math.random()*S, y=Math.random()*S;
+    const w=6+Math.random()*14, h=6+Math.random()*14;
+    const g=40+Math.floor(Math.random()*26);
+    c.fillStyle=`rgb(${g},${Math.round(g*0.8)},${Math.round(g*0.64)})`;
+    c.fillRect(x,y,w,h);
+  }
+  // 小石
+  for(let i=0;i<14;i++){
+    const mx=Math.random()*S, my=Math.random()*S, mr=1+Math.random()*2;
+    c.fillStyle='rgba(20,16,12,0.6)';
+    c.beginPath(); c.arc(mx,my,mr,0,Math.PI*2); c.fill();
+  }
+  const tex=new THREE.CanvasTexture(cv);
+  tex.magFilter=THREE.NearestFilter;
+  tex.wrapS=tex.wrapT=THREE.RepeatWrapping;
+  _caveFloorTexture=tex;
+  return tex;
+}
+
+// 黒曜石・溶岩床テクスチャ（9〜10Fの床に使用）
+let _obsidianFloorTexture=null;
+function getObsidianFloorTexture(){
+  if(_obsidianFloorTexture)return _obsidianFloorTexture;
+  const S=64;
+  const cv=document.createElement('canvas');
+  cv.width=S; cv.height=S;
+  const c=cv.getContext('2d');
+  c.fillStyle='#060404';
+  c.fillRect(0,0,S,S);
+  const rows=3, cols=3;
+  const rh=S/rows, rw=S/cols;
+  const gap=2;
+  for(let ry=0; ry<rows; ry++){
+    const offset=(ry%2===0)?0:rw/2;
+    for(let rx=-1; rx<=cols; rx++){
+      const x=rx*rw+offset, y=ry*rh;
+      const g=20+Math.floor(Math.random()*16);
+      c.fillStyle=`rgb(${g},${Math.round(g*0.55)},${Math.round(g*0.65)})`;
+      c.fillRect(x+gap/2, y+gap/2, rw-gap, rh-gap);
+    }
+  }
+  // 足元に走るマグマの亀裂（壁より密に）
+  c.strokeStyle='rgba(255,100,20,0.85)';
+  c.lineWidth=1.5;
+  for(let i=0;i<7;i++){
+    let x=Math.random()*S, y=Math.random()*S;
+    c.beginPath(); c.moveTo(x,y);
+    for(let s=0;s<4;s++){
+      x+=(Math.random()-0.5)*16; y+=(Math.random()-0.5)*16;
+      c.lineTo(x,y);
+    }
+    c.stroke();
+  }
+  const tex=new THREE.CanvasTexture(cv);
+  tex.magFilter=THREE.NearestFilter;
+  tex.wrapS=tex.wrapT=THREE.RepeatWrapping;
+  _obsidianFloorTexture=tex;
+  return tex;
+}
+
+// フロアの深度帯に応じた床テクスチャを返す
+function getFloorTextureForFloor(floor){
+  if(floor<=2) return getRockFloorTexture();
+  if(floor<=4) return getBrickFloorTexture();
+  if(floor<=6) return getMossFloorTexture();
+  if(floor<=8) return getCaveFloorTexture();
+  return getObsidianFloorTexture(); // 9〜10F
 }
 
 function spawnObject(type,gx,gy,arg){
