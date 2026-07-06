@@ -361,7 +361,7 @@ body { background:#0a0a0f; overflow:hidden; font-family:'Courier New',monospace;
 <div id="fade-overlay"></div>
 <div id="floor-announce"></div>
 <div id="title-screen">
-  <div id="title-logo">Wanderer's Dungeon<span class="title-ver">ver 0.9.6</span></div>
+  <div id="title-logo">Wanderer's Dungeon<span class="title-ver">ver 0.9.7</span></div>
   <div id="title-buttons">
     <button id="title-continue" class="title-btn slot-btn">
       <div class="slot-head">
@@ -1125,15 +1125,15 @@ function buildDungeon(){
   const cGeo=new THREE.PlaneGeometry(CELL,CELL);
   const wGeo=new THREE.BoxGeometry(CELL,WALL_H,0.12);
   const bGeo=new THREE.BoxGeometry(CELL,WALL_H,CELL);
-  // 1〜2Fの壁は試験的に岩の千鳥模様テクスチャを貼る（それ以外は従来通り単色）
-  const useRockWall=!state.inEntrance&&state.floor<=2;
-  let rockWallMat=null;
-  if(useRockWall){
-    const tex=getRockWallTexture();
+  // フロアの深度帯ごとにダンジョンらしい壁テクスチャを貼る（エントランスは従来通り単色）
+  const useWallTexture=!state.inEntrance;
+  let texturedWallMat=null;
+  if(useWallTexture){
+    const tex=getWallTextureForFloor(state.floor);
     tex.repeat.set(3,4);
-    rockWallMat=new THREE.MeshLambertMaterial({map:tex});
+    texturedWallMat=new THREE.MeshLambertMaterial({map:tex});
   }
-  const wMat=()=>useRockWall?rockWallMat:new THREE.MeshLambertMaterial({color:0x3a2410});
+  const wMat=()=>useWallTexture?texturedWallMat:new THREE.MeshLambertMaterial({color:0x3a2410});
   const fMat=new THREE.MeshLambertMaterial({color:0x181008});
   const cMat=new THREE.MeshLambertMaterial({color:0x0c0804});
   for(let y=0;y<MAP_H;y++){
@@ -1762,7 +1762,7 @@ function getStairsTexture(){
   return tex;
 }
 
-// 岩壁テクスチャ（千鳥模様に並ぶ石積み風。1〜2Fの壁に試験導入）
+// 岩壁テクスチャ（千鳥模様に並ぶ石積み風。1Fの壁に使用）
 let _rockWallTexture=null;
 function getRockWallTexture(){
   if(_rockWallTexture)return _rockWallTexture;
@@ -1791,6 +1791,145 @@ function getRockWallTexture(){
   tex.wrapS=tex.wrapT=THREE.RepeatWrapping;
   _rockWallTexture=tex;
   return tex;
+}
+
+// レンガ壁テクスチャ（2〜4Fの壁に使用）
+let _brickWallTexture=null;
+function getBrickWallTexture(){
+  if(_brickWallTexture)return _brickWallTexture;
+  const S=64;
+  const cv=document.createElement('canvas');
+  cv.width=S; cv.height=S;
+  const c=cv.getContext('2d');
+  c.fillStyle='#241a14'; // 目地
+  c.fillRect(0,0,S,S);
+  const rows=4, cols=3;
+  const rh=S/rows, rw=S/cols;
+  const gap=2;
+  for(let ry=0; ry<rows; ry++){
+    const offset=(ry%2===0)?0:rw/2; // レンガ積み特有の互い違い
+    for(let rx=-1; rx<=cols; rx++){
+      const x=rx*rw+offset, y=ry*rh;
+      const g=120+Math.floor(Math.random()*24)-12;
+      c.fillStyle=`rgb(${g},${Math.round(g*0.5)},${Math.round(g*0.38)})`; // 赤茶色のレンガ
+      c.fillRect(x+gap/2, y+gap/2, rw-gap, rh-gap);
+    }
+  }
+  const tex=new THREE.CanvasTexture(cv);
+  tex.magFilter=THREE.NearestFilter;
+  tex.wrapS=tex.wrapT=THREE.RepeatWrapping;
+  _brickWallTexture=tex;
+  return tex;
+}
+
+// 苔むした石壁テクスチャ（5〜6Fの壁に使用）
+let _mossWallTexture=null;
+function getMossWallTexture(){
+  if(_mossWallTexture)return _mossWallTexture;
+  const S=64;
+  const cv=document.createElement('canvas');
+  cv.width=S; cv.height=S;
+  const c=cv.getContext('2d');
+  c.fillStyle='#141410';
+  c.fillRect(0,0,S,S);
+  const rows=4, cols=4;
+  const rh=S/rows, rw=S/cols;
+  const gap=2;
+  for(let ry=0; ry<rows; ry++){
+    const offset=(ry%2===0)?0:rw/2;
+    for(let rx=-1; rx<=cols; rx++){
+      const x=rx*rw+offset, y=ry*rh;
+      const g=90+Math.floor(Math.random()*30)-15;
+      c.fillStyle=`rgb(${Math.round(g*0.55)},${g},${Math.round(g*0.45)})`; // やや緑がかった石
+      c.fillRect(x+gap/2, y+gap/2, rw-gap, rh-gap);
+    }
+  }
+  // 苔の斑点
+  for(let i=0;i<12;i++){
+    const mx=Math.random()*S, my=Math.random()*S, mr=2+Math.random()*4;
+    c.fillStyle='rgba(60,110,50,0.5)';
+    c.beginPath(); c.arc(mx,my,mr,0,Math.PI*2); c.fill();
+  }
+  const tex=new THREE.CanvasTexture(cv);
+  tex.magFilter=THREE.NearestFilter;
+  tex.wrapS=tex.wrapT=THREE.RepeatWrapping;
+  _mossWallTexture=tex;
+  return tex;
+}
+
+// 洞窟壁テクスチャ（7〜8Fの壁に使用。不揃いな岩肌）
+let _caveWallTexture=null;
+function getCaveWallTexture(){
+  if(_caveWallTexture)return _caveWallTexture;
+  const S=64;
+  const cv=document.createElement('canvas');
+  cv.width=S; cv.height=S;
+  const c=cv.getContext('2d');
+  c.fillStyle='#120e0a';
+  c.fillRect(0,0,S,S);
+  // 大小不揃いな岩の塊を無秩序に重ねて、積み石ではない自然な岩肌にする
+  for(let i=0;i<16;i++){
+    const x=Math.random()*S, y=Math.random()*S;
+    const w=6+Math.random()*12, h=6+Math.random()*12;
+    const g=55+Math.floor(Math.random()*28);
+    c.fillStyle=`rgb(${g},${Math.round(g*0.84)},${Math.round(g*0.72)})`;
+    c.fillRect(x,y,w,h);
+  }
+  const tex=new THREE.CanvasTexture(cv);
+  tex.magFilter=THREE.NearestFilter;
+  tex.wrapS=tex.wrapT=THREE.RepeatWrapping;
+  _caveWallTexture=tex;
+  return tex;
+}
+
+// 黒曜石・溶岩壁テクスチャ（9〜10Fの壁に使用）
+let _obsidianWallTexture=null;
+function getObsidianWallTexture(){
+  if(_obsidianWallTexture)return _obsidianWallTexture;
+  const S=64;
+  const cv=document.createElement('canvas');
+  cv.width=S; cv.height=S;
+  const c=cv.getContext('2d');
+  c.fillStyle='#0a0608';
+  c.fillRect(0,0,S,S);
+  const rows=4, cols=4;
+  const rh=S/rows, rw=S/cols;
+  const gap=2;
+  for(let ry=0; ry<rows; ry++){
+    const offset=(ry%2===0)?0:rw/2;
+    for(let rx=-1; rx<=cols; rx++){
+      const x=rx*rw+offset, y=ry*rh;
+      const g=28+Math.floor(Math.random()*18);
+      c.fillStyle=`rgb(${g},${Math.round(g*0.6)},${Math.round(g*0.7)})`; // 黒っぽい岩石
+      c.fillRect(x+gap/2, y+gap/2, rw-gap, rh-gap);
+    }
+  }
+  // マグマの亀裂
+  c.strokeStyle='rgba(255,90,20,0.8)';
+  c.lineWidth=1.5;
+  for(let i=0;i<5;i++){
+    let x=Math.random()*S, y=Math.random()*S;
+    c.beginPath(); c.moveTo(x,y);
+    for(let s=0;s<4;s++){
+      x+=(Math.random()-0.5)*16; y+=(Math.random()-0.5)*16;
+      c.lineTo(x,y);
+    }
+    c.stroke();
+  }
+  const tex=new THREE.CanvasTexture(cv);
+  tex.magFilter=THREE.NearestFilter;
+  tex.wrapS=tex.wrapT=THREE.RepeatWrapping;
+  _obsidianWallTexture=tex;
+  return tex;
+}
+
+// フロアの深度帯に応じた壁テクスチャを返す
+function getWallTextureForFloor(floor){
+  if(floor<=1) return getRockWallTexture();
+  if(floor<=4) return getBrickWallTexture();
+  if(floor<=6) return getMossWallTexture();
+  if(floor<=8) return getCaveWallTexture();
+  return getObsidianWallTexture(); // 9〜10F
 }
 
 function spawnObject(type,gx,gy,arg){
