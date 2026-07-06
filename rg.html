@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-<title>ダンジョン 3D プロトタイプ</title>
+<title>Wanderer's Dungeon</title>
 <style>
 * { margin:0; padding:0; box-sizing:border-box; }
 body { background:#0a0a0f; overflow:hidden; font-family:'Courier New',monospace; color:#c8b89a; user-select:none; -webkit-user-select:none; display:flex; flex-direction:column; height:100dvh; }
@@ -361,7 +361,7 @@ body { background:#0a0a0f; overflow:hidden; font-family:'Courier New',monospace;
 <div id="fade-overlay"></div>
 <div id="floor-announce"></div>
 <div id="title-screen">
-  <div id="title-logo">Wanderer's Dungeon<span class="title-ver">ver 0.9.4</span></div>
+  <div id="title-logo">Wanderer's Dungeon<span class="title-ver">ver 0.9.6</span></div>
   <div id="title-buttons">
     <button id="title-continue" class="title-btn slot-btn">
       <div class="slot-head">
@@ -492,7 +492,7 @@ if(typeof THREE==='undefined'){
 
 const MAP_W=30,MAP_H=30,CELL=2,WALL_H=2.6;
 const ENEMY_SCALE=1.3*1.2; // 敵オブジェクトの基本スケール（従来の1.2倍）
-const RETURN_FLOORS=[3,6,9];
+const RETURN_FLOORS=[]; // 帰還スポットは一旦廃止
 // レベル別「基本攻撃力」（index=レベル。0は未使用）
 const LEVEL_BASE=[0,5,7,9,11,13,15,17,19,21,23,26,29,32,35,38,41,44,47,50,53,56,59,62,65,68,71,74,77,80,82,84,86,88,90,91,92,93,94,95,96,97,98,99,100,101,102,103,104,105,106,107,108,109,110,111,112,113,115,116,117];
 // レベル別「そのレベルに到達するまでの累計必要経験値」（index=レベル。0は未使用）
@@ -1125,7 +1125,15 @@ function buildDungeon(){
   const cGeo=new THREE.PlaneGeometry(CELL,CELL);
   const wGeo=new THREE.BoxGeometry(CELL,WALL_H,0.12);
   const bGeo=new THREE.BoxGeometry(CELL,WALL_H,CELL);
-  const wMat=()=>new THREE.MeshLambertMaterial({color:0x3a2410});
+  // 1〜2Fの壁は試験的に岩の千鳥模様テクスチャを貼る（それ以外は従来通り単色）
+  const useRockWall=!state.inEntrance&&state.floor<=2;
+  let rockWallMat=null;
+  if(useRockWall){
+    const tex=getRockWallTexture();
+    tex.repeat.set(3,4);
+    rockWallMat=new THREE.MeshLambertMaterial({map:tex});
+  }
+  const wMat=()=>useRockWall?rockWallMat:new THREE.MeshLambertMaterial({color:0x3a2410});
   const fMat=new THREE.MeshLambertMaterial({color:0x181008});
   const cMat=new THREE.MeshLambertMaterial({color:0x0c0804});
   for(let y=0;y<MAP_H;y++){
@@ -1751,6 +1759,37 @@ function getStairsTexture(){
   tex.magFilter=THREE.NearestFilter; // ドット感を残す
   tex.minFilter=THREE.LinearMipmapLinearFilter;
   _stairsTexture=tex;
+  return tex;
+}
+
+// 岩壁テクスチャ（千鳥模様に並ぶ石積み風。1〜2Fの壁に試験導入）
+let _rockWallTexture=null;
+function getRockWallTexture(){
+  if(_rockWallTexture)return _rockWallTexture;
+  const S=64;
+  const cv=document.createElement('canvas');
+  cv.width=S; cv.height=S;
+  const c=cv.getContext('2d');
+  // 目地（背景）
+  c.fillStyle='#1c140c';
+  c.fillRect(0,0,S,S);
+  const rows=4, cols=4;
+  const rh=S/rows, rw=S/cols;
+  const gap=2;
+  for(let ry=0; ry<rows; ry++){
+    const offset=(ry%2===0)?0:rw/2; // 1段おきに半マスずらして千鳥模様に
+    for(let rx=-1; rx<=cols; rx++){
+      const x=rx*rw+offset;
+      const y=ry*rh;
+      const g=110+Math.floor(Math.random()*40)-20; // 石ごとにランダムな濃淡
+      c.fillStyle=`rgb(${g},${Math.round(g*0.82)},${Math.round(g*0.66)})`;
+      c.fillRect(x+gap/2, y+gap/2, rw-gap, rh-gap);
+    }
+  }
+  const tex=new THREE.CanvasTexture(cv);
+  tex.magFilter=THREE.NearestFilter;
+  tex.wrapS=tex.wrapT=THREE.RepeatWrapping;
+  _rockWallTexture=tex;
   return tex;
 }
 
@@ -2465,6 +2504,8 @@ function applyPotionToPlayer(eff, name){
   else if(eff.cure){ state.confuse=0; showAction(`${n}を飲んだ。状態異常が治った！`); }
   else if(eff.revive){ showAction(`${n}は持っていると死んだ時に発動する`); }
   else { showAction(`${n}を飲んだが特に変化はない`); }
+  // 薬は種類を問わず、効果に加えて満腹度を+5%する
+  state.food=Math.min(state.maxFood,state.food+5);
   updateUI();
 }
 
@@ -3859,7 +3900,7 @@ function stepHeal(){
     // 空腹：歩くごとにHP減少
     state.hp=Math.max(0,state.hp-1);
     showAction('お腹が空いた！',800);
-    if(state.hp<=0) showAction('力尽きた...💀',3000);
+    checkPlayerDeath();
   }
   // 状態異常・バフのターン経過
   if(state.haste>0)state.haste--;
@@ -4259,12 +4300,12 @@ function drawMinimap(){
     octx.fillRect(ox+x*S,oy+y*S,S-1,S-1);
   }
   // 階段・帰還（探索済みのみ）
-  if(stairsPos&&explored[stairsPos.y][stairsPos.x]){octx.fillStyle='#d4a820';octx.fillRect(ox+stairsPos.x*S,oy+stairsPos.y*S,S,S);}
+  if(stairsPos&&explored[stairsPos.y][stairsPos.x]){octx.fillStyle='#70d8f0';octx.fillRect(ox+stairsPos.x*S,oy+stairsPos.y*S,S,S);}
   if(returnPos&&explored[returnPos.y][returnPos.x]){octx.fillStyle='#4080ff';octx.fillRect(ox+returnPos.x*S,oy+returnPos.y*S,S,S);}
   // アイテム（探索済みのみ）
   floorItems.forEach(i=>{if(explored[i.y][i.x]){octx.fillStyle='#c08030';octx.fillRect(ox+i.x*S,oy+i.y*S,S-1,S-1);}});
-  // 敵（探索済みのみ）
-  enemies.forEach(e=>{if(e.hp>0&&explored[e.y][e.x]){octx.fillStyle='#e04040';octx.fillRect(ox+e.x*S,oy+e.y*S,S,S);}});
+  // 敵（探索済み、かつ自機と同じ部屋または隣接1マスなど実際に見えている場合のみ）
+  enemies.forEach(e=>{if(e.hp>0&&explored[e.y][e.x]&&e.mesh.visible){octx.fillStyle='#e04040';octx.fillRect(ox+e.x*S,oy+e.y*S,S,S);}});
   // 自分
   octx.fillStyle='#f0d080';octx.fillRect(ox+state.x*S,oy+state.y*S,S,S);
   octx.restore();
