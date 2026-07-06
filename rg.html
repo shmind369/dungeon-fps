@@ -122,6 +122,19 @@ body { background:#0a0a0f; overflow:hidden; font-family:'Courier New',monospace;
   user-select:none; -webkit-user-select:none;
 }
 .dp:active { background:#5a3c1c; border-color:#f0d080; }
+/* 各ボタンをグリッド上の固定位置に配置（一人称モードで↙↘を非表示にしても
+   他のボタンが詰めて再配置されないようにするため） */
+.dp[data-dir="7"] { grid-column:1; grid-row:1; }
+.dp[data-dir="0"] { grid-column:2; grid-row:1; }
+.dp[data-dir="1"] { grid-column:3; grid-row:1; }
+.dp[data-dir="6"] { grid-column:1; grid-row:2; }
+.dp[data-dir="-1"] { grid-column:2; grid-row:2; }
+.dp[data-dir="2"] { grid-column:3; grid-row:2; }
+.dp[data-dir="5"] { grid-column:1; grid-row:3; }
+.dp[data-dir="4"] { grid-column:2; grid-row:3; }
+.dp[data-dir="3"] { grid-column:3; grid-row:3; }
+.dp-turn-icon { width:26px; height:26px; }
+.dp-turn-icon.mirror { transform:scaleX(-1); }
 .dp-neutral { font-size:14px; color:#a09060; }
 .dp-neutral.turn-on { background:#5a3c1c; border-color:#f0d080; color:#f0d080; }
 .dp-neutral.dash-on { background:#1c4a2c; border-color:#40e080; color:#40e080; }
@@ -372,7 +385,7 @@ body { background:#0a0a0f; overflow:hidden; font-family:'Courier New',monospace;
 <div id="fade-overlay"></div>
 <div id="floor-announce"></div>
 <div id="title-screen">
-  <div id="title-logo">Wanderer's Dungeon<span class="title-ver">ver 0.9.10</span></div>
+  <div id="title-logo">Wanderer's Dungeon<span class="title-ver">ver 0.9.11</span></div>
   <div id="title-buttons">
     <button id="title-continue" class="title-btn slot-btn">
       <div class="slot-head">
@@ -1993,7 +2006,7 @@ function getFloorTexture(){
   const cv=document.createElement('canvas');
   cv.width=S; cv.height=S;
   const c=cv.getContext('2d');
-  c.fillStyle='#141412'; // 目地
+  c.fillStyle='#1c1818'; // 目地
   c.fillRect(0,0,S,S);
   const rows=3, cols=3;
   const rh=S/rows, rw=S/cols;
@@ -2002,8 +2015,8 @@ function getFloorTexture(){
     const offset=(ry%2===0)?0:rw/2; // 石畳特有の互い違い
     for(let rx=-1; rx<=cols; rx++){
       const x=rx*rw+offset, y=ry*rh;
-      const g=70+Math.floor(Math.random()*24)-12;
-      c.fillStyle=`rgb(${g},${Math.round(g*0.92)},${Math.round(g*0.86)})`; // 灰色の石畳
+      const g=120+Math.floor(Math.random()*24)-12;
+      c.fillStyle=`rgb(${g},${Math.round(g*0.908)},${Math.round(g*0.908)})`; // #786d6d系の灰色の石畳
       c.fillRect(x+gap/2, y+gap/2, rw-gap, rh-gap);
     }
   }
@@ -4178,14 +4191,26 @@ function stepHeal(){
 // 視点切り替え（試験的な一人称モード）
 const dpUpLeftBtn=document.querySelector('.dp[data-dir="7"]');
 const dpUpRightBtn=document.querySelector('.dp[data-dir="1"]');
+const dpDownLeftBtn=document.querySelector('.dp[data-dir="5"]');
+const dpDownRightBtn=document.querySelector('.dp[data-dir="3"]');
+const TURN_ICON_SVG='<svg class="dp-turn-icon" viewBox="0 0 30 30" fill="none"><path d="M8 7 A11 11 0 0 1 19 22" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/><path d="M13 24 L19 22 L18 16" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>';
 document.getElementById('camera-toggle').onclick=()=>{
   firstPersonMode=!firstPersonMode;
   const btn=document.getElementById('camera-toggle');
   btn.textContent=firstPersonMode?'👁 三人称に戻す':'👁 一人称(試験)';
   btn.classList.toggle('active',firstPersonMode);
-  // 一人称モード中は↖↗を「その場旋回」を表す曲がった矢印に差し替える
-  dpUpRightBtn.textContent=firstPersonMode?'⤵':'↗';
-  dpUpLeftBtn.textContent=firstPersonMode?'⤶':'↖';
+  if(firstPersonMode){
+    // 一人称モード中は↖↗を「その場旋回」を表す曲がった矢印に差し替え、↙↘は廃止して非表示にする
+    dpUpRightBtn.innerHTML=TURN_ICON_SVG;
+    dpUpLeftBtn.innerHTML=TURN_ICON_SVG.replace('class="dp-turn-icon"','class="dp-turn-icon mirror"');
+    dpDownLeftBtn.style.display='none';
+    dpDownRightBtn.style.display='none';
+  } else {
+    dpUpRightBtn.textContent='↗';
+    dpUpLeftBtn.textContent='↖';
+    dpDownLeftBtn.style.display='';
+    dpDownRightBtn.style.display='';
+  }
   updateCamera();
 };
 
