@@ -2015,8 +2015,8 @@ function getFloorTexture(){
     const offset=(ry%2===0)?0:rw/2; // 石畳特有の互い違い
     for(let rx=-1; rx<=cols; rx++){
       const x=rx*rw+offset, y=ry*rh;
-      const g=120+Math.floor(Math.random()*24)-12;
-      c.fillStyle=`rgb(${g},${Math.round(g*0.97)},${Math.round(g*0.97)})`; // よりグレーに近い石畳
+      const g=80+Math.floor(Math.random()*24)-12;
+      c.fillStyle=`rgb(${g},${Math.round(g*0.97)},${Math.round(g*0.97)})`; // より濃いグレーの石畳
       c.fillRect(x+gap/2, y+gap/2, rw-gap, rh-gap);
     }
   }
