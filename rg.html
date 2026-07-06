@@ -372,7 +372,7 @@ body { background:#0a0a0f; overflow:hidden; font-family:'Courier New',monospace;
 <div id="fade-overlay"></div>
 <div id="floor-announce"></div>
 <div id="title-screen">
-  <div id="title-logo">Wanderer's Dungeon<span class="title-ver">ver 0.9.7.1</span></div>
+  <div id="title-logo">Wanderer's Dungeon<span class="title-ver">ver 0.9.7.2</span></div>
   <div id="title-buttons">
     <button id="title-continue" class="title-btn slot-btn">
       <div class="slot-head">
@@ -4255,6 +4255,21 @@ function dpadPress(dir){
     enemyTurn();
     return;
   }
+  // 一人称モード中、↓と斜め4方向は移動せずその場で向きだけを変える
+  // （ターンを消費しない自由な振り向き。↓=後ろを向く、↖↙=左旋回、↗↘=右旋回）
+  if(firstPersonMode){
+    let turnOffset=null;
+    if(dir===4) turnOffset=4;
+    else if(dir===7||dir===5) turnOffset=-2;
+    else if(dir===1||dir===3) turnOffset=2;
+    if(turnOffset!==null){
+      state.dir=(state.dir+turnOffset+8)%8;
+      state.angle=ANGLE_OF[state.dir];
+      state.targetAngle=state.angle;
+      updatePlayerPos();
+      return;
+    }
+  }
   // 混乱中：50%の確率で狙った方向とは別のランダムな方向に行動してしまう
   let actualDir=dir;
   if(state.confuse>0 && Math.random()<0.5){
@@ -4262,7 +4277,7 @@ function dpadPress(dir){
     showAction('足がもつれた…',700);
   }
   // 一人称モード中は方向パッドを自機の向き基準の相対操作にする
-  // （↑=前進 ↓=後退 ←=左 →=右…）。向きそのものは変えず、移動先の方向だけを
+  // （↑=前進 ←=左 →=右）。向きそのものは変えず、移動先の方向だけを
   // 現在の向きに合わせて回転させる（三人称モードの操作方法は変更しない）
   if(firstPersonMode){
     const savedDir=state.dir;
