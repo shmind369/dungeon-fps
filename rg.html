@@ -133,8 +133,8 @@ body { background:#0a0a0f; overflow:hidden; font-family:'Courier New',monospace;
 .dp[data-dir="5"] { grid-column:1; grid-row:3; }
 .dp[data-dir="4"] { grid-column:2; grid-row:3; }
 .dp[data-dir="3"] { grid-column:3; grid-row:3; }
-.dp-turn-icon { width:26px; height:26px; }
-.dp-turn-icon.mirror { transform:scaleX(-1); }
+.dp-turn-icon { width:26px; height:26px; transform:scaleY(-1); }
+.dp-turn-icon.mirror { transform:scaleY(-1) scaleX(-1); }
 .dp-neutral { font-size:14px; color:#a09060; }
 .dp-neutral.turn-on { background:#5a3c1c; border-color:#f0d080; color:#f0d080; }
 .dp-neutral.dash-on { background:#1c4a2c; border-color:#40e080; color:#40e080; }
