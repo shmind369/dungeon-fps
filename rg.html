@@ -4188,12 +4188,23 @@ function stepHeal(){
   updateUI();
 }
 
+// 方向パッドのアイコン（白抜きの矢印。中身が空洞の線画スタイル）
+function arrowIconSVG(deg){
+  return `<svg class="dp-arrow-icon" style="transform:rotate(${deg}deg)" viewBox="0 0 24 24" fill="none"><path d="M12 2 L19 10 L14.5 10 L14.5 22 L9.5 22 L9.5 10 L5 10 Z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></svg>`;
+}
+const DP_DIR_TO_DEG={7:315,0:0,1:45,6:270,2:90,5:225,4:180,3:135};
+document.querySelectorAll('.dp[data-dir]').forEach(btn=>{
+  const dir=parseInt(btn.dataset.dir,10);
+  if(dir===-1)return; // 中央の待機ボタンは黒丸のまま
+  btn.innerHTML=arrowIconSVG(DP_DIR_TO_DEG[dir]);
+});
+
 // 視点切り替え（試験的な一人称モード）
 const dpUpLeftBtn=document.querySelector('.dp[data-dir="7"]');
 const dpUpRightBtn=document.querySelector('.dp[data-dir="1"]');
 const dpDownLeftBtn=document.querySelector('.dp[data-dir="5"]');
 const dpDownRightBtn=document.querySelector('.dp[data-dir="3"]');
-const TURN_ICON_SVG='<svg class="dp-turn-icon" viewBox="0 0 30 30" fill="none"><path d="M8 7 A11 11 0 0 1 19 22" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/><path d="M13 24 L19 22 L18 16" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>';
+const TURN_ICON_SVG='<svg class="dp-turn-icon" viewBox="0 0 24 24" fill="none"><path d="M16.25 4.64 A8.5 8.5 0 1 1 3.5 12" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/><path d="M7 8.5 L3.5 12 L7.5 14.5" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>';
 document.getElementById('camera-toggle').onclick=()=>{
   firstPersonMode=!firstPersonMode;
   const btn=document.getElementById('camera-toggle');
@@ -4201,13 +4212,13 @@ document.getElementById('camera-toggle').onclick=()=>{
   btn.classList.toggle('active',firstPersonMode);
   if(firstPersonMode){
     // 一人称モード中は↖↗を「その場旋回」を表す曲がった矢印に差し替え、↙↘は廃止して非表示にする
-    dpUpRightBtn.innerHTML=TURN_ICON_SVG;
-    dpUpLeftBtn.innerHTML=TURN_ICON_SVG.replace('class="dp-turn-icon"','class="dp-turn-icon mirror"');
+    dpUpRightBtn.innerHTML=TURN_ICON_SVG.replace('class="dp-turn-icon"','class="dp-turn-icon mirror"');
+    dpUpLeftBtn.innerHTML=TURN_ICON_SVG;
     dpDownLeftBtn.style.display='none';
     dpDownRightBtn.style.display='none';
   } else {
-    dpUpRightBtn.textContent='↗';
-    dpUpLeftBtn.textContent='↖';
+    dpUpRightBtn.innerHTML=arrowIconSVG(45);
+    dpUpLeftBtn.innerHTML=arrowIconSVG(315);
     dpDownLeftBtn.style.display='';
     dpDownRightBtn.style.display='';
   }
