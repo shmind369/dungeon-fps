@@ -372,7 +372,7 @@ body { background:#0a0a0f; overflow:hidden; font-family:'Courier New',monospace;
 <div id="fade-overlay"></div>
 <div id="floor-announce"></div>
 <div id="title-screen">
-  <div id="title-logo">Wanderer's Dungeon<span class="title-ver">ver 0.9.7.3</span></div>
+  <div id="title-logo">Wanderer's Dungeon<span class="title-ver">ver 0.9.7.4</span></div>
   <div id="title-buttons">
     <button id="title-continue" class="title-btn slot-btn">
       <div class="slot-head">
@@ -976,6 +976,24 @@ function updateObjectVisibility(){
 
 function updatePlayerPos(){
   // 向きは即時、位置は補間ターゲットだけ設定（実際の移動はupdatePlayerSmoothで）
+  playerGroup.rotation.y=-state.angle+Math.PI/2;
+}
+// 最短経路での角度差（-PI〜PIに正規化）
+function angleDiff(a,b){
+  let d=(b-a)%(Math.PI*2);
+  if(d>Math.PI)d-=Math.PI*2;
+  if(d<-Math.PI)d+=Math.PI*2;
+  return d;
+}
+// 表示上の向き(state.angle)を目標(state.targetAngle)へ滑らかに近づける（一人称その場旋回用の中割り）
+function updatePlayerAngleSmooth(dt){
+  const diff=angleDiff(state.angle,state.targetAngle);
+  if(Math.abs(diff)<0.001){
+    state.angle=state.targetAngle;
+  }else{
+    const k=Math.min(dt*7,1);
+    state.angle+=diff*k;
+  }
   playerGroup.rotation.y=-state.angle+Math.PI/2;
 }
 // 表示座標を論理座標へ滑らかに近づける
@@ -4264,9 +4282,7 @@ function dpadPress(dir){
     else if(dir===1||dir===3) turnOffset=1;
     if(turnOffset!==null){
       state.dir=(state.dir+turnOffset+8)%8;
-      state.angle=ANGLE_OF[state.dir];
-      state.targetAngle=state.angle;
-      updatePlayerPos();
+      state.targetAngle=ANGLE_OF[state.dir]; // state.angleはここでは変えず、毎フレームの補間で追従させる
       return;
     }
   }
@@ -4559,7 +4575,7 @@ function animate(){
   if(!document.hidden && dt<1){ state.playTimeMs+=dt*1000; }
   updateDeathAnim();
   updateDashBob();
-  updatePlayerSmooth(dt);updateWalkCycle(dt);updateEnemiesSmooth(dt);if(window._turnDragging)updateHighlight(true);updateCamera();updateAnims(dt);updateMagicBolts(dt);updateWandBolts(dt);updateThrowBolts(dt);updateDragonFlames(dt);updatePlayerVisibility();renderer.render(scene,camera);drawOverlay();drawFlash();drawFloatingNums();drawSleepMarks();drawConfuseMarks();drawHasteMark();drawMinimap();
+  updatePlayerSmooth(dt);updatePlayerAngleSmooth(dt);updateWalkCycle(dt);updateEnemiesSmooth(dt);if(window._turnDragging)updateHighlight(true);updateCamera();updateAnims(dt);updateMagicBolts(dt);updateWandBolts(dt);updateThrowBolts(dt);updateDragonFlames(dt);updatePlayerVisibility();renderer.render(scene,camera);drawOverlay();drawFlash();drawFloatingNums();drawSleepMarks();drawConfuseMarks();drawHasteMark();drawMinimap();
 }
 
 // 死亡演出：自機がその場でバタッと倒れる（X軸回転）
