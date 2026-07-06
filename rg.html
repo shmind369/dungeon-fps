@@ -4212,8 +4212,8 @@ document.getElementById('camera-toggle').onclick=()=>{
   btn.classList.toggle('active',firstPersonMode);
   if(firstPersonMode){
     // 一人称モード中は↖↗を「その場旋回」を表す曲がった矢印に差し替え、↙↘は廃止して非表示にする
-    dpUpRightBtn.innerHTML=TURN_ICON_SVG.replace('class="dp-turn-icon"','class="dp-turn-icon mirror"');
-    dpUpLeftBtn.innerHTML=TURN_ICON_SVG;
+    dpUpRightBtn.innerHTML=TURN_ICON_SVG;
+    dpUpLeftBtn.innerHTML=TURN_ICON_SVG.replace('class="dp-turn-icon"','class="dp-turn-icon mirror"');
     dpDownLeftBtn.style.display='none';
     dpDownRightBtn.style.display='none';
   } else {
