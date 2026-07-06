@@ -4261,6 +4261,16 @@ function dpadPress(dir){
     actualDir=Math.floor(Math.random()*8);
     showAction('足がもつれた…',700);
   }
+  // 一人称モード中は方向パッドを自機の向き基準の相対操作にする
+  // （↑=前進 ↓=後退 ←=左 →=右…）。向きそのものは変えず、移動先の方向だけを
+  // 現在の向きに合わせて回転させる（三人称モードの操作方法は変更しない）
+  if(firstPersonMode){
+    const savedDir=state.dir;
+    state.dir=(state.dir+actualDir)%8;
+    moveForward(false);
+    state.dir=savedDir;
+    return;
+  }
   // 通常移動・攻撃
   state.dir=actualDir;
   state.angle=ANGLE_OF[actualDir];
