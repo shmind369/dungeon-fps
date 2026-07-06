@@ -372,7 +372,7 @@ body { background:#0a0a0f; overflow:hidden; font-family:'Courier New',monospace;
 <div id="fade-overlay"></div>
 <div id="floor-announce"></div>
 <div id="title-screen">
-  <div id="title-logo">Wanderer's Dungeon<span class="title-ver">ver 0.9.7.2</span></div>
+  <div id="title-logo">Wanderer's Dungeon<span class="title-ver">ver 0.9.7.3</span></div>
   <div id="title-buttons">
     <button id="title-continue" class="title-btn slot-btn">
       <div class="slot-head">
@@ -4256,12 +4256,12 @@ function dpadPress(dir){
     return;
   }
   // 一人称モード中、↓と斜め4方向は移動せずその場で向きだけを変える
-  // （ターンを消費しない自由な振り向き。↓=後ろを向く、↖↙=左旋回、↗↘=右旋回）
+  // （ターンを消費しない自由な振り向き。↓=180度反転、↖↙=左45度旋回、↗↘=右45度旋回）
   if(firstPersonMode){
     let turnOffset=null;
     if(dir===4) turnOffset=4;
-    else if(dir===7||dir===5) turnOffset=-2;
-    else if(dir===1||dir===3) turnOffset=2;
+    else if(dir===7||dir===5) turnOffset=-1;
+    else if(dir===1||dir===3) turnOffset=1;
     if(turnOffset!==null){
       state.dir=(state.dir+turnOffset+8)%8;
       state.angle=ANGLE_OF[state.dir];
