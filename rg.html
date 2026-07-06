@@ -1762,7 +1762,7 @@ function getStairsTexture(){
   return tex;
 }
 
-// 岩壁テクスチャ（千鳥模様に並ぶ石積み風。1Fの壁に使用）
+// 岩壁テクスチャ（千鳥模様に並ぶ石積み風。1〜2Fの壁に使用）
 let _rockWallTexture=null;
 function getRockWallTexture(){
   if(_rockWallTexture)return _rockWallTexture;
@@ -1793,7 +1793,7 @@ function getRockWallTexture(){
   return tex;
 }
 
-// レンガ壁テクスチャ（2〜4Fの壁に使用）
+// レンガ壁テクスチャ（3〜4Fの壁に使用）
 let _brickWallTexture=null;
 function getBrickWallTexture(){
   if(_brickWallTexture)return _brickWallTexture;
@@ -1925,7 +1925,7 @@ function getObsidianWallTexture(){
 
 // フロアの深度帯に応じた壁テクスチャを返す
 function getWallTextureForFloor(floor){
-  if(floor<=1) return getRockWallTexture();
+  if(floor<=2) return getRockWallTexture();
   if(floor<=4) return getBrickWallTexture();
   if(floor<=6) return getMossWallTexture();
   if(floor<=8) return getCaveWallTexture();
