@@ -94,6 +94,17 @@ body { background:#0a0a0f; overflow:hidden; font-family:'Courier New',monospace;
   padding:3px 8px; z-index:11; pointer-events:none;
 }
 
+/* 視点切り替えボタン（試験的な一人称モード。ステータスバー直下・中央） */
+#camera-toggle {
+  position:absolute; left:50%; transform:translateX(-50%);
+  background:rgba(20,20,24,0.75); border:1px solid #4a3a20; border-radius:4px;
+  color:#e8d4a0; font-size:11px; letter-spacing:1px;
+  padding:4px 10px; z-index:11; pointer-events:auto; cursor:pointer;
+}
+#camera-toggle.active {
+  background:rgba(20,60,80,0.85); border-color:#40b0e0; color:#80e0ff;
+}
+
 /* 8方向パッド */
 #dpad {
   display:grid;
@@ -397,6 +408,7 @@ body { background:#0a0a0f; overflow:hidden; font-family:'Courier New',monospace;
     </div>
   </div>
   <div id="floor-indicator">1F</div>
+  <button id="camera-toggle">👁 一人称(試験)</button>
   <div id="action-label"></div>
   <div id="dash-indicator">▶ ダッシュモード中</div>
   <div id="turn-counter">Turn 0</div>
@@ -2515,11 +2527,22 @@ function restoreFloor(floorData){
 
 // カメラ
 const _v=new THREE.Vector3();
+let firstPersonMode=false; // 試験的な一人称視点モード（ステータスバー下のボタンで切り替え）
+const FP_EYE_HEIGHT=1.3;
 function updateCamera(){
   // 自機の論理座標（補間後）にカメラを追従させる（攻撃突進などの演出では動かさない）
   const px=camX, pz=camZ;
-  camera.position.set(px, 11, pz+5.5);
-  camera.lookAt(px, 0.5, pz-0.5);
+  if(firstPersonMode){
+    // 一人称：自機の位置・向きに合わせてカメラ自体を配置する
+    const fx=Math.cos(state.angle), fz=Math.sin(state.angle);
+    camera.position.set(px, FP_EYE_HEIGHT, pz);
+    camera.lookAt(px+fx, FP_EYE_HEIGHT, pz+fz);
+  } else {
+    camera.position.set(px, 11, pz+5.5);
+    camera.lookAt(px, 0.5, pz-0.5);
+  }
+  // 一人称視点中は自機の姿がカメラと重なって邪魔になるため非表示にする
+  playerGroup.visible=!firstPersonMode;
 
   wallMeshes.forEach(m=>{
     if(m.material.transparent){
@@ -2590,6 +2613,8 @@ function updateUI(){
     const topbarEl=document.getElementById('topbar');
     const topbarH=topbarEl?topbarEl.getBoundingClientRect().height:40;
     floorEl.style.top=(topbarH+2)+'px';
+    const camToggleEl=document.getElementById('camera-toggle');
+    if(camToggleEl)camToggleEl.style.top=(topbarH+2)+'px';
   }
   const hpEl=document.getElementById('hp-disp');
   if(hpEl){
@@ -4089,6 +4114,15 @@ function stepHeal(){
   if(state.confuse>0){state.confuse--;if(state.confuse===0)showAction('混乱が治った');}
   updateUI();
 }
+
+// 視点切り替え（試験的な一人称モード）
+document.getElementById('camera-toggle').onclick=()=>{
+  firstPersonMode=!firstPersonMode;
+  const btn=document.getElementById('camera-toggle');
+  btn.textContent=firstPersonMode?'👁 三人称に戻す':'👁 一人称(試験)';
+  btn.classList.toggle('active',firstPersonMode);
+  updateCamera();
+};
 
 // ボタンイベント
 document.getElementById('inv-btn').onclick=openInventory;
