@@ -394,7 +394,7 @@ body { background:#0a0a0f; overflow:hidden; font-family:'Courier New',monospace;
 <div id="fade-overlay"></div>
 <div id="floor-announce"></div>
 <div id="title-screen">
-  <div id="title-logo">Wanderer's Dungeon<span class="title-ver">ver 0.9.21</span></div>
+  <div id="title-logo">Wanderer's Dungeon<span class="title-ver">ver 0.9.22</span></div>
   <div id="title-buttons">
     <button id="title-continue" class="title-btn slot-btn">
       <div class="slot-head">
@@ -856,6 +856,7 @@ const fillLight=new THREE.PointLight(0xa08860,7,40);scene.add(fillLight);
 
 const wallMeshes=[];
 const fadedWalls=new Set();
+const ceilingMeshes=[];
 
 // プレイヤー (Three.js初期化後に作成)
 const playerGroup=new THREE.Group();scene.add(playerGroup);
@@ -1207,13 +1208,21 @@ function buildDungeon(){
   const floorTex=getFloorTexture();
   floorTex.repeat.set(1,1);
   const fMat=new THREE.MeshLambertMaterial({map:floorTex});
-  const cMat=new THREE.MeshLambertMaterial({color:0x0c0804});
+  // 天井は壁と同じテクスチャを貼る（一人称モードの時だけ表示する）
+  let cMat;
+  if(useWallTexture){
+    const ceilTex=getWallTextureForFloor(state.floor);
+    ceilTex.repeat.set(1,1);
+    cMat=new THREE.MeshLambertMaterial({map:ceilTex});
+  } else {
+    cMat=new THREE.MeshLambertMaterial({color:0x0c0804});
+  }
   for(let y=0;y<MAP_H;y++){
     for(let x=0;x<MAP_W;x++){
       const wx=x*CELL,wz=y*CELL;
       if(MAP[y][x]===0){
         const fl=new THREE.Mesh(fGeo,fMat);fl.rotation.x=-Math.PI/2;fl.position.set(wx,0,wz);fl.receiveShadow=true;scene.add(fl);
-        const cl=new THREE.Mesh(cGeo,cMat);cl.rotation.x=Math.PI/2;cl.position.set(wx,WALL_H,wz);scene.add(cl);
+        const cl=new THREE.Mesh(cGeo,cMat);cl.rotation.x=Math.PI/2;cl.position.set(wx,WALL_H,wz);cl.visible=firstPersonMode;scene.add(cl);ceilingMeshes.push(cl);
         [{dx:0,dz:-1,ry:0,ox:0,oz:-CELL/2},{dx:0,dz:1,ry:Math.PI,ox:0,oz:CELL/2},{dx:-1,dz:0,ry:Math.PI/2,ox:-CELL/2,oz:0},{dx:1,dz:0,ry:-Math.PI/2,ox:CELL/2,oz:0}].forEach(s=>{
           const nx=x+s.dx,ny=y+s.dz;
           if(nx<0||nx>=MAP_W||ny<0||ny>=MAP_H||MAP[ny][nx]===1){
@@ -2169,7 +2178,7 @@ function initEntrance(){
   const keep=new Set([playerGroup,playerLight,fillLight,guideLine]);
   const rem=[];scene.children.forEach(c=>{if(!keep.has(c)&&!(c instanceof THREE.AmbientLight))rem.push(c);});
   rem.forEach(c=>scene.remove(c));
-  wallMeshes.length=0;fadedWalls.clear();objectMeshes.length=0;floorItems=[];enemies=[];
+  wallMeshes.length=0;fadedWalls.clear();ceilingMeshes.length=0;objectMeshes.length=0;floorItems=[];enemies=[];
   npcList=[]; // NPCリストをリセット
 
   const res=generateEntranceMap();
@@ -2290,7 +2299,7 @@ function initFloor(floor){
   const keep=new Set([playerGroup,playerLight,fillLight,guideLine]);
   const rem=[];scene.children.forEach(c=>{if(!keep.has(c)&&!(c instanceof THREE.AmbientLight))rem.push(c);});
   rem.forEach(c=>scene.remove(c));
-  wallMeshes.length=0;fadedWalls.clear();objectMeshes.length=0;floorItems=[];enemies=[];
+  wallMeshes.length=0;fadedWalls.clear();ceilingMeshes.length=0;objectMeshes.length=0;floorItems=[];enemies=[];
 
   const res=generateMap(floor);MAP=res.cells;rooms=res.rooms;
   // 探索フラグ初期化（全て未探索）
@@ -2568,7 +2577,7 @@ function restoreFloor(floorData){
   const keep=new Set([playerGroup,playerLight,fillLight,guideLine]);
   const rem=[];scene.children.forEach(c=>{if(!keep.has(c)&&!(c instanceof THREE.AmbientLight))rem.push(c);});
   rem.forEach(c=>scene.remove(c));
-  wallMeshes.length=0;fadedWalls.clear();objectMeshes.length=0;floorItems=[];enemies=[];
+  wallMeshes.length=0;fadedWalls.clear();ceilingMeshes.length=0;objectMeshes.length=0;floorItems=[];enemies=[];
 
   MAP=floorData.MAP;
   rooms=floorData.rooms;
@@ -2630,6 +2639,8 @@ function updateCamera(){
   }
   // 一人称視点中は自機の姿がカメラと重なって邪魔になるため非表示にする
   playerGroup.visible=!firstPersonMode;
+  // 天井は一人称視点の時だけ表示する（三人称は見下ろすアングルのため不要）
+  ceilingMeshes.forEach(c=>{c.visible=firstPersonMode;});
 
   wallMeshes.forEach(m=>{
     if(m.material.transparent){
