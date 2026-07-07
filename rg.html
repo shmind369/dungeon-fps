@@ -394,7 +394,7 @@ body { background:#0a0a0f; overflow:hidden; font-family:'Courier New',monospace;
 <div id="fade-overlay"></div>
 <div id="floor-announce"></div>
 <div id="title-screen">
-  <div id="title-logo">Wanderer's Dungeon<span class="title-ver">ver 0.9.24</span></div>
+  <div id="title-logo">Wanderer's Dungeon<span class="title-ver">ver 0.9.25</span></div>
   <div id="title-buttons">
     <button id="title-continue" class="title-btn slot-btn">
       <div class="slot-head">
@@ -1809,37 +1809,35 @@ function getStairsTexture(){
   const cv=document.createElement('canvas');
   cv.width=S; cv.height=S;
   const c=cv.getContext('2d');
-  // 階段の向きを上下反転させるため、描画自体をY軸反転しておく
-  c.translate(0,S);
-  c.scale(1,-1);
-  // 背景（黒い外枠）
-  c.fillStyle='#0a0a0e'; c.fillRect(0,0,S,S);
-  // 内側の穴
+  // 背景（黒い穴）
+  c.fillStyle='#050508'; c.fillRect(0,0,S,S);
   const pad=5;
-  c.fillStyle='#050508'; c.fillRect(pad,pad,S-pad*2,S-pad*2);
-  // 段（上＝奥が明るく、下＝手前が暗い。階段状に幅を変える）
-  // 各段は横帯。上から下に向かって手前に張り出す＝台形状に描く
   const inner=S-pad*2;
-  const rows=[
-    {col:'#9098a0', x0:0.10, x1:0.90, y:0.12, h:0.16}, // 奥（明るい）
-    {col:'#7c848c', x0:0.16, x1:0.84, y:0.30, h:0.16},
-    {col:'#666e76', x0:0.24, x1:0.76, y:0.48, h:0.16},
-    {col:'#525a62', x0:0.34, x1:0.66, y:0.66, h:0.18}, // 手前（暗い）
+  // 手前（左）が高く明るく、奥（右）に向かって低く暗くなる、階段の側面シルエット風の縦棒
+  const bars=[
+    {col:'#e8e8ec', h:0.90},
+    {col:'#a8b0b8', h:0.64},
+    {col:'#707880', h:0.42},
+    {col:'#383c42', h:0.22},
   ];
-  rows.forEach(r=>{
-    const x=pad+inner*r.x0;
-    const w=inner*(r.x1-r.x0);
-    const y=pad+inner*r.y;
-    const h=inner*r.h;
-    // 段の面
-    c.fillStyle=r.col;
-    c.fillRect(x,y,w,h);
-    // 段の下側に影のエッジ（立体感）
-    c.fillStyle='rgba(0,0,0,0.35)';
-    c.fillRect(x,y+h-Math.max(2,h*0.18),w,Math.max(2,h*0.18));
-    // 段の上側にハイライト
-    c.fillStyle='rgba(255,255,255,0.12)';
-    c.fillRect(x,y,w,Math.max(1,h*0.12));
+  const gap=2;
+  const barW=(inner-gap*(bars.length-1))/bars.length;
+  bars.forEach((b,i)=>{
+    const x=pad+i*(barW+gap);
+    const h=inner*b.h;
+    const y=S-pad-h;
+    c.fillStyle=b.col;
+    c.fillRect(x,y,barW,h);
+    // 段の上端にハイライト
+    c.fillStyle='rgba(255,255,255,0.3)';
+    c.fillRect(x,y,barW,Math.max(1,h*0.08));
+    // ドット状のノイズで質感を出す
+    for(let n=0;n<16;n++){
+      const nx=x+Math.random()*barW;
+      const ny=y+Math.random()*h;
+      c.fillStyle=Math.random()<0.5?'rgba(0,0,0,0.18)':'rgba(255,255,255,0.15)';
+      c.fillRect(nx,ny,1,1);
+    }
   });
   const tex=new THREE.CanvasTexture(cv);
   tex.magFilter=THREE.NearestFilter; // ドット感を残す
