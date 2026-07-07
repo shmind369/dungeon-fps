@@ -137,8 +137,6 @@ body { background:#0a0a0f; overflow:hidden; font-family:'Courier New',monospace;
 .dp-turn-icon.mirror { transform:scaleX(-1); }
 .dp-neutral { font-size:14px; color:#a09060; }
 .dp-neutral.turn-on { background:#5a3c1c; border-color:#f0d080; color:#f0d080; }
-.dp-neutral.dash-on { background:#1c4a2c; border-color:#40e080; color:#40e080; }
-.dp-neutral.dash-on.turn-on { background:#1c4a2c; border-color:#40e080; color:#40e080; }
 
 /* 右側の攻撃・待機ボタン */
 #right-btns {
@@ -160,6 +158,13 @@ body { background:#0a0a0f; overflow:hidden; font-family:'Courier New',monospace;
 }
 #wait-btn:active { background:#5a3c1c; border-color:#f0d080; }
 
+/* 左側のボタン列（インベントリ・ダッシュ）。ダッシュボタンをキーパッドの
+   左側下に配置するため、縦に並べてdpadの高さいっぱいに引き伸ばす */
+#left-btns {
+  display:flex; flex-direction:column; justify-content:space-between;
+  align-self:stretch; flex-shrink:0;
+}
+
 /* インベントリボタン（操作パネル内） */
 #inv-btn {
   width:70px; height:70px; border-radius:50%;
@@ -170,6 +175,18 @@ body { background:#0a0a0f; overflow:hidden; font-family:'Courier New',monospace;
 }
 #inv-btn:active { background:#5a3c1c; }
 #inv-count { font-size:11px; color:#c0a860; }
+
+/* ダッシュモード切替ボタン（左下） */
+#dash-btn {
+  width:70px; height:70px; border-radius:50%;
+  background:#2a1c0c; border:2px solid #6a5430;
+  color:#a09060; font-size:13px; letter-spacing:1px; font-family:'Courier New',monospace;
+  cursor:pointer; flex-shrink:0;
+  display:flex; align-items:center; justify-content:center;
+  -webkit-tap-highlight-color:transparent; user-select:none; -webkit-user-select:none;
+}
+#dash-btn:active { background:#5a3c1c; }
+#dash-btn.dash-on { background:#1c4a2c; border-color:#40e080; color:#40e080; }
 
 #overlay { position:absolute; top:0; left:0; right:0; bottom:0; pointer-events:none; z-index:20; }
 
@@ -385,7 +402,7 @@ body { background:#0a0a0f; overflow:hidden; font-family:'Courier New',monospace;
 <div id="fade-overlay"></div>
 <div id="floor-announce"></div>
 <div id="title-screen">
-  <div id="title-logo">Wanderer's Dungeon<span class="title-ver">ver 0.9.12</span></div>
+  <div id="title-logo">Wanderer's Dungeon<span class="title-ver">ver 0.9.13</span></div>
   <div id="title-buttons">
     <button id="title-continue" class="title-btn slot-btn">
       <div class="slot-head">
@@ -436,8 +453,11 @@ body { background:#0a0a0f; overflow:hidden; font-family:'Courier New',monospace;
 
 <!-- 操作パネル -->
 <div id="ctrl-area">
-  <!-- インベントリボタン -->
-  <button id="inv-btn">袋<br><span id="inv-count">0</span>/20</button>
+  <!-- インベントリボタン・ダッシュ切替ボタン -->
+  <div id="left-btns">
+    <button id="inv-btn">袋<br><span id="inv-count">0</span>/20</button>
+    <button id="dash-btn">ダッシュ</button>
+  </div>
   <!-- 8方向パッド -->
   <div id="dpad">
     <button class="dp" data-dir="7">↖</button>
@@ -2859,8 +2879,8 @@ function gameOverToEntrance(){
   // ダッシュ中に倒れた場合も、復帰時はダッシュモードを解除しておく
   if(dashMode){
     dashMode=false;
-    const nb=document.querySelector('.dp-neutral');
-    if(nb)nb.classList.remove('dash-on');
+    const db=document.getElementById('dash-btn');
+    if(db)db.classList.remove('dash-on');
     updateDashIndicator();
   }
   showAction('装備も所持金も全て失った…',2200);
@@ -4396,14 +4416,15 @@ function dpadPress(dir){
 // ダッシュモードのオン/オフ切り替え
 function toggleDashMode(){
   dashMode=!dashMode;
-  const nb=document.querySelector('.dp-neutral');
+  const db=document.getElementById('dash-btn');
   if(dashMode){
-    nb.classList.add('dash-on');
+    db.classList.add('dash-on');
   } else {
-    nb.classList.remove('dash-on');
+    db.classList.remove('dash-on');
   }
   updateDashIndicator();
 }
+document.getElementById('dash-btn').addEventListener('click',toggleDashMode);
 
 // ダッシュモード表示（ステータスバーの下に配置し、ON中のみ表示）
 function updateDashIndicator(){
@@ -4468,9 +4489,9 @@ function doAttackButton(){
 document.querySelectorAll('.dp').forEach(btn=>{
   const dir=parseInt(btn.dataset.dir);
   if(dir===-1){
-    // 中央ボタン：ドラッグで向き変更／ドラッグせず押して離すとダッシュON/OFF
+    // 中央ボタン：ドラッグで向き変更
     const nb=btn;
-    let originX=0, originY=0, moved=false;
+    let originX=0, originY=0;
 
     function angleToDir(dx,dy){
       let ang=Math.atan2(dx,-dy); // 北を0、時計回り
@@ -4479,13 +4500,12 @@ document.querySelectorAll('.dp').forEach(btn=>{
       return idx;
     }
 
-    const start=(x,y)=>{window._turnDragging=true;moved=false;originX=x;originY=y;nb.classList.add('turn-on');};
+    const start=(x,y)=>{window._turnDragging=true;originX=x;originY=y;nb.classList.add('turn-on');};
     const move=(x,y)=>{
       if(!window._turnDragging)return;
       const dx=x-originX, dy=y-originY;
       const dist=Math.hypot(dx,dy);
       if(dist>14){
-        moved=true;
         const d=angleToDir(dx,dy);
         state.dir=d;
         state.angle=ANGLE_OF[d];
@@ -4497,8 +4517,6 @@ document.querySelectorAll('.dp').forEach(btn=>{
       if(!window._turnDragging)return;
       window._turnDragging=false;nb.classList.remove('turn-on');
       updateHighlight(false);
-      // ドラッグしていなければ（＝その場で押して離しただけ）ダッシュ切替
-      if(!moved){ toggleDashMode(); }
     };
 
     nb.addEventListener('touchstart',e=>{e.preventDefault();const t=e.touches[0];start(t.clientX,t.clientY);},{passive:false});
@@ -4723,8 +4741,8 @@ function beginAnimation(){
   gameStarted=true;
   // ダッシュモードは毎回オフから開始
   dashMode=false;
-  const nb=document.querySelector('.dp-neutral');
-  if(nb)nb.classList.remove('dash-on');
+  const db=document.getElementById('dash-btn');
+  if(db)db.classList.remove('dash-on');
   updateDashIndicator();
   animate();
   updateUI();
