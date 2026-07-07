@@ -394,7 +394,7 @@ body { background:#0a0a0f; overflow:hidden; font-family:'Courier New',monospace;
 <div id="fade-overlay"></div>
 <div id="floor-announce"></div>
 <div id="title-screen">
-  <div id="title-logo">Wanderer's Dungeon<span class="title-ver">ver 0.9.17</span></div>
+  <div id="title-logo">Wanderer's Dungeon<span class="title-ver">ver 0.9.18</span></div>
   <div id="title-buttons">
     <button id="title-continue" class="title-btn slot-btn">
       <div class="slot-head">
@@ -1203,15 +1203,10 @@ function buildDungeon(){
     texturedWallMat=new THREE.MeshLambertMaterial({map:tex});
   }
   const wMat=()=>useWallTexture?texturedWallMat:new THREE.MeshLambertMaterial({color:0x3a2410});
-  // 床は全フロア共通の石畳テクスチャを貼る（エントランスは従来通り単色）
-  let fMat;
-  if(useWallTexture){
-    const floorTex=getFloorTexture();
-    floorTex.repeat.set(1,1);
-    fMat=new THREE.MeshLambertMaterial({map:floorTex});
-  } else {
-    fMat=new THREE.MeshLambertMaterial({color:0x181008});
-  }
+  // 床は全フロア共通の石畳テクスチャを貼る（エントランスも含む）
+  const floorTex=getFloorTexture();
+  floorTex.repeat.set(1,1);
+  const fMat=new THREE.MeshLambertMaterial({map:floorTex});
   const cMat=new THREE.MeshLambertMaterial({color:0x0c0804});
   for(let y=0;y<MAP_H;y++){
     for(let x=0;x<MAP_W;x++){
