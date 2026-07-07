@@ -394,7 +394,7 @@ body { background:#0a0a0f; overflow:hidden; font-family:'Courier New',monospace;
 <div id="fade-overlay"></div>
 <div id="floor-announce"></div>
 <div id="title-screen">
-  <div id="title-logo">Wanderer's Dungeon<span class="title-ver">ver 0.9.18</span></div>
+  <div id="title-logo">Wanderer's Dungeon<span class="title-ver">ver 0.9.19</span></div>
   <div id="title-buttons">
     <button id="title-continue" class="title-btn slot-btn">
       <div class="slot-head">
@@ -4670,7 +4670,7 @@ function drawMinimap(){
   enemies.forEach(e=>{if(e.hp>0&&explored[e.y][e.x]&&e.mesh.visible){octx.fillStyle='#e04040';octx.fillRect(ox+e.x*S,oy+e.y*S,S,S);}});
   // 自分（主観モード中のみ、現在向いている方向がわかる▲マーカーにする）
   if(firstPersonMode){
-    const cx=ox+state.x*S+S/2, cy=oy+state.y*S+S/2, r=S*1.6;
+    const cx=ox+state.x*S+S/2, cy=oy+state.y*S+S/2, r=S*0.8;
     octx.save();
     octx.translate(cx,cy);
     octx.rotate(state.angle);
