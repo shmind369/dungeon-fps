@@ -394,7 +394,7 @@ body { background:#0a0a0f; overflow:hidden; font-family:'Courier New',monospace;
 <div id="fade-overlay"></div>
 <div id="floor-announce"></div>
 <div id="title-screen">
-  <div id="title-logo">Wanderer's Dungeon<span class="title-ver">ver 0.9.20</span></div>
+  <div id="title-logo">Wanderer's Dungeon<span class="title-ver">ver 0.9.21</span></div>
   <div id="title-buttons">
     <button id="title-continue" class="title-btn slot-btn">
       <div class="slot-head">
@@ -430,7 +430,7 @@ body { background:#0a0a0f; overflow:hidden; font-family:'Courier New',monospace;
     </div>
   </div>
   <div id="floor-indicator">1F</div>
-  <button id="camera-toggle">👁 一人称(試験)</button>
+  <button id="camera-toggle">👁 視点切替</button>
   <div id="action-label"></div>
   <div id="dash-indicator">▶ ダッシュモード中</div>
   <div id="turn-counter">Turn 0</div>
@@ -1345,7 +1345,6 @@ function useStaff(it){
     showAction('振っても効果がなかった…',1200);
     return;
   }
-  it.charges--;
   // 向いている方向の直線上の最初の敵を探す
   const dx=DIR_DX[state.dir], dz=DIR_DY[state.dir];
   let target=null;
@@ -1355,6 +1354,11 @@ function useStaff(it){
     const e=enemies.find(en=>en.hp>0&&en.x===cx&&en.y===cz);
     if(e){target=e;break;}
   }
+  if(!target){
+    showAction(`${db.name}を振ったが、その先には誰もいなかった…`,1200);
+    return;
+  }
+  it.charges--;
   showAction(`${db.name}を振った！`,900);
   fireWandBolt(dx,dz,db.effect,target);
   updateUI();
@@ -1449,9 +1453,12 @@ function applyWandEffect(eff,e,wdx,wdz){
       e.atkDown=(e.atkDown||0)+Math.ceil((MONSTER_DB[e.monType]?.atk||e.atk)*0.3);
       showAction('敵の攻撃力が下がった！',1000);
       break;
-    case 'seal':
-      e.sealed=10; showAction('敵の能力を封じた！',1000);
+    case 'seal': {
+      e.sealed=10;
+      const sealName=MONSTER_DB[e.monType]?MONSTER_DB[e.monType].name:'敵';
+      showAction(`${sealName}の特殊攻撃を封じた！`,1200);
       break;
+    }
     case 'pull': {
       // 自機の目の前のマスまで引き寄せる（対象は直線上にいるので、自機との距離-1マス分進める）
       const dxp=Math.sign(state.x-e.x), dzp=Math.sign(state.y-e.y);
@@ -4226,7 +4233,6 @@ const TURN_ICON_SVG='<svg class="dp-turn-icon" viewBox="0 0 24 24"><path d="M7 3
 document.getElementById('camera-toggle').onclick=()=>{
   firstPersonMode=!firstPersonMode;
   const btn=document.getElementById('camera-toggle');
-  btn.textContent=firstPersonMode?'👁 三人称に戻す':'👁 一人称(試験)';
   btn.classList.toggle('active',firstPersonMode);
   if(firstPersonMode){
     // 一人称モード中は↖↗を「その場旋回」を表す曲がった矢印に差し替え、↙↘は廃止して非表示にする
