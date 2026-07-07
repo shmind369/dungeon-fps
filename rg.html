@@ -394,7 +394,7 @@ body { background:#0a0a0f; overflow:hidden; font-family:'Courier New',monospace;
 <div id="fade-overlay"></div>
 <div id="floor-announce"></div>
 <div id="title-screen">
-  <div id="title-logo">Wanderer's Dungeon<span class="title-ver">ver 0.9.23</span></div>
+  <div id="title-logo">Wanderer's Dungeon<span class="title-ver">ver 0.9.24</span></div>
   <div id="title-buttons">
     <button id="title-continue" class="title-btn slot-btn">
       <div class="slot-head">
@@ -3245,10 +3245,24 @@ function updateAnims(dt){
       hasActive=true;
     } else if(a.type==='delay'){
       hasActive=true; // 位置は動かさず時間だけ経過（攻防の間）
+    } else if(a.type==='punch'){
+      // 素手のパンチ：肩を支点に腕を素早く前へ突き出して戻す
+      a.mesh.rotation.x=-1.1*Math.sin(t*Math.PI);
+      hasActive=true;
+    } else if(a.type==='slash'){
+      // 剣の斬撃：振りかぶり（後方）から前方へ振り下ろす軌道＋斜めの捻りを加える
+      a.mesh.rotation.x=1.3*Math.cos(t*Math.PI);
+      a.mesh.rotation.z=0.5*Math.sin(t*Math.PI);
+      hasActive=true;
     }
     if(t>=1){
-      a.mesh.position.x=a.baseX;
-      a.mesh.position.z=a.baseZ;
+      if(a.type==='punch'||a.type==='slash'){
+        a.mesh.rotation.x=0;
+        a.mesh.rotation.z=0;
+      } else {
+        a.mesh.position.x=a.baseX;
+        a.mesh.position.z=a.baseZ;
+      }
       if(a.onEnd)a.onEnd();
       anims.splice(i,1);
     }
@@ -3309,6 +3323,15 @@ function updateAnims(dt){
       e.mesh.scale.set(ENEMY_SCALE,ENEMY_SCALE,ENEMY_SCALE);
     }
   });
+}
+
+// 自機の腕の攻撃モーション：武器の有無で素手のパンチと剣の斬撃を切り替える
+function playerAttackSwing(){
+  if(equippedWeapon){
+    addAnim({type:'slash',mesh:rightArmPivot,duration:300});
+  } else {
+    addAnim({type:'punch',mesh:rightArmPivot,duration:300});
+  }
 }
 
 // プレイヤー攻撃突進（見た目のみ、ロジックは呼び出し元で即時処理済み）
@@ -3776,6 +3799,7 @@ function moveForward(dash=false){
           showAction('攻撃を外した！',800);
           sfxAttack();
           playerLunge(tdx,tdz);
+          playerAttackSwing();
           updatePlayerPos();updateUI();
           return;
         }
@@ -3810,6 +3834,7 @@ function moveForward(dash=false){
         showAction(`${dmg}ダメージ！`,800);
         setLog('攻撃');
         playerLunge(tdx,tdz);
+        playerAttackSwing();
         enemyShake(target);
         // 反動（ムラマサ）
         if(wpEff&&wpEff.recoil&&Math.random()<wpEff.recoil){
@@ -4536,6 +4561,7 @@ function doAttackButton(){
     // 空振り（攻撃モーション＋音。敵ターンはアニメ終了後に進む。テキストは出さない）
     sfxSwing();
     playerLunge(dx,dy);
+    playerAttackSwing();
   }
 }
 
