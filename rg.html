@@ -394,7 +394,7 @@ body { background:#0a0a0f; overflow:hidden; font-family:'Courier New',monospace;
 <div id="fade-overlay"></div>
 <div id="floor-announce"></div>
 <div id="title-screen">
-  <div id="title-logo">Wanderer's Dungeon<span class="title-ver">ver 0.9.22</span></div>
+  <div id="title-logo">Wanderer's Dungeon<span class="title-ver">ver 0.9.23</span></div>
   <div id="title-buttons">
     <button id="title-continue" class="title-btn slot-btn">
       <div class="slot-head">
@@ -1208,10 +1208,10 @@ function buildDungeon(){
   const floorTex=getFloorTexture();
   floorTex.repeat.set(1,1);
   const fMat=new THREE.MeshLambertMaterial({map:floorTex});
-  // 天井は壁と同じテクスチャを貼る（一人称モードの時だけ表示する）
+  // 天井はコンクリート風テクスチャを貼る（一人称モードの時だけ表示する）
   let cMat;
   if(useWallTexture){
-    const ceilTex=getWallTextureForFloor(state.floor);
+    const ceilTex=getCeilingTexture();
     ceilTex.repeat.set(1,1);
     cMat=new THREE.MeshLambertMaterial({map:ceilTex});
   } else {
@@ -2048,6 +2048,42 @@ function getFloorTexture(){
   tex.magFilter=THREE.NearestFilter;
   tex.wrapS=tex.wrapT=THREE.RepeatWrapping;
   _floorTexture=tex;
+  return tex;
+}
+
+// コンクリート風の天井テクスチャ（1〜10F共通。壁とは別の質感にする）
+let _ceilingTexture=null;
+function getCeilingTexture(){
+  if(_ceilingTexture)return _ceilingTexture;
+  const S=64;
+  const cv=document.createElement('canvas');
+  cv.width=S; cv.height=S;
+  const c=cv.getContext('2d');
+  // 打ちっぱなしコンクリートのようなムラのある灰色
+  c.fillStyle='#5a5a58';
+  c.fillRect(0,0,S,S);
+  for(let i=0;i<90;i++){
+    const x=Math.random()*S, y=Math.random()*S, r=1+Math.random()*3;
+    const g=70+Math.floor(Math.random()*40)-20;
+    c.fillStyle=`rgba(${g},${g},${Math.round(g*0.98)},0.5)`;
+    c.beginPath(); c.arc(x,y,r,0,Math.PI*2); c.fill();
+  }
+  // 型枠の継ぎ目のような薄いひび割れ線
+  c.strokeStyle='rgba(30,30,28,0.5)';
+  c.lineWidth=1;
+  for(let i=0;i<4;i++){
+    let x=Math.random()*S, y=Math.random()*S;
+    c.beginPath(); c.moveTo(x,y);
+    for(let s=0;s<3;s++){
+      x+=(Math.random()-0.5)*20; y+=(Math.random()-0.5)*20;
+      c.lineTo(x,y);
+    }
+    c.stroke();
+  }
+  const tex=new THREE.CanvasTexture(cv);
+  tex.magFilter=THREE.NearestFilter;
+  tex.wrapS=tex.wrapT=THREE.RepeatWrapping;
+  _ceilingTexture=tex;
   return tex;
 }
 
