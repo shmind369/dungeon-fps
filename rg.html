@@ -402,7 +402,7 @@ body { background:#0a0a0f; overflow:hidden; font-family:'Courier New',monospace;
 <div id="fade-overlay"></div>
 <div id="floor-announce"></div>
 <div id="title-screen">
-  <div id="title-logo">Wanderer's Dungeon<span class="title-ver">ver 0.9.13</span></div>
+  <div id="title-logo">Wanderer's Dungeon<span class="title-ver">ver 0.9.14</span></div>
   <div id="title-buttons">
     <button id="title-continue" class="title-btn slot-btn">
       <div class="slot-head">
@@ -1212,7 +1212,7 @@ function buildDungeon(){
   let fMat;
   if(useWallTexture){
     const floorTex=getFloorTexture();
-    floorTex.repeat.set(2,2);
+    floorTex.repeat.set(1,1);
     fMat=new THREE.MeshLambertMaterial({map:floorTex});
   } else {
     fMat=new THREE.MeshLambertMaterial({color:0x181008});
@@ -1239,8 +1239,6 @@ function buildDungeon(){
       }
     }
   }
-  const grid=new THREE.GridHelper(MAP_W*CELL,MAP_W,0x8a7a55,0x6a5a3a);
-  grid.position.set((MAP_W-1)*CELL/2,0.005,(MAP_H-1)*CELL/2);scene.add(grid);
 }
 
 // ボクセルパーツ生成ヘルパー
@@ -2040,6 +2038,10 @@ function getFloorTexture(){
       c.fillRect(x+gap/2, y+gap/2, rw-gap, rh-gap);
     }
   }
+  // マス目がわかるよう、1マス(タイル1枚)ごとの境界線を焼き込む
+  c.strokeStyle='rgba(0,0,0,0.55)';
+  c.lineWidth=2;
+  c.strokeRect(1,1,S-2,S-2);
   const tex=new THREE.CanvasTexture(cv);
   tex.magFilter=THREE.NearestFilter;
   tex.wrapS=tex.wrapT=THREE.RepeatWrapping;
@@ -2131,7 +2133,7 @@ function spawnObject(type,gx,gy,arg){
     // 視認しやすいよう、コイン表面に黒い$マークを重ねて描く
     const markTex=getDollarMarkTexture();
     const mark=new THREE.Mesh(
-      new THREE.PlaneGeometry(0.28,0.28),
+      new THREE.PlaneGeometry(0.364,0.364),
       new THREE.MeshBasicMaterial({map:markTex, transparent:true})
     );
     mark.rotation.x=-Math.PI/2;
@@ -3347,7 +3349,7 @@ function fireMagicBolt(e, dmg){
     blockerEnemy.hp-=dmg;
     spawnDamageNum(blockerEnemy.mesh.position.x,2.0,blockerEnemy.mesh.position.z,`${dmg}`,'#ffffff');
     showAction('魔法が他の敵に当たった！',800);
-    if(blockerEnemy.hp<=0) damageEnemy(blockerEnemy,0);
+    if(blockerEnemy.hp<=0) damageEnemy(blockerEnemy,0,false);
   } else if(shEff&&shEff.reflect&&Math.random()<shEff.reflect){
     showAction('魔法を反射した！',800);
   } else {
@@ -4120,12 +4122,12 @@ function updateThrowBolts(dt){
   }
 }
 
-function damageEnemy(en, dmg){
+// awardExp=falseの場合は自機の功績としてカウントしない（敵の攻撃が別の敵を倒した場合など）
+function damageEnemy(en, dmg, awardExp=true){
   en.hp-=dmg;
   if(en.hp<=0){
     scene.remove(en.mesh);
     enemies.splice(enemies.indexOf(en),1);
-    gainExp(en.exp||5);
     const name=MONSTER_DB[en.monType]?MONSTER_DB[en.monType].name:'敵';
     // ゲームクリア（ドラゴン撃破）
     if(en.monType==='dragon'){
@@ -4144,7 +4146,10 @@ function damageEnemy(en, dmg){
       }, 2600);
       return;
     }
-    showAction(`${name}を倒した！`,1200);
+    if(awardExp){
+      gainExp(en.exp||5);
+      showAction(`${name}を倒した！`,1200);
+    }
   }
 }
 
