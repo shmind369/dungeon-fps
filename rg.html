@@ -138,55 +138,40 @@ body { background:#0a0a0f; overflow:hidden; font-family:'Courier New',monospace;
 .dp-neutral { font-size:14px; color:#a09060; }
 .dp-neutral.turn-on { background:#5a3c1c; border-color:#f0d080; color:#f0d080; }
 
-/* 右側の攻撃・待機ボタン */
+/* 右側の攻撃・袋ボタン。dpadの高さいっぱいに引き伸ばして上下に配置する */
 #right-btns {
-  display:flex; flex-direction:column; gap:8px; flex-shrink:0;
-}
-#attack-btn, #wait-btn {
-  width:70px; border-radius:10px;
-  font-family:'Courier New',monospace; cursor:pointer;
-  -webkit-tap-highlight-color:transparent;
+  display:flex; flex-direction:column; justify-content:space-between;
+  align-self:stretch; flex-shrink:0;
 }
 #attack-btn {
-  height:88px; background:#3a1414; border:2px solid #8a4030;
+  width:70px; height:88px; border-radius:10px;
+  font-family:'Courier New',monospace; cursor:pointer;
+  -webkit-tap-highlight-color:transparent;
+  background:#3a1414; border:2px solid #8a4030;
   color:#ff9070; font-size:17px; letter-spacing:2px;
 }
 #attack-btn:active { background:#6a2418; border-color:#ff9070; }
-#wait-btn {
-  height:56px; background:#2a1c0c; border:2px solid #6a5430;
-  color:#e0c890; font-size:14px; letter-spacing:2px;
-}
-#wait-btn:active { background:#5a3c1c; border-color:#f0d080; }
 
-/* 左側のボタン列（インベントリ・ダッシュ）。ダッシュボタンをキーパッドの
-   左側下に配置するため、縦に並べてdpadの高さいっぱいに引き伸ばす */
+/* 左側のボタン列（弓矢・ダッシュ・待機）。キーパッドの高さいっぱいに
+   引き伸ばして、dpadの3段に合わせて上段・中段・下段に配置する */
 #left-btns {
   display:flex; flex-direction:column; justify-content:space-between;
   align-self:stretch; flex-shrink:0;
 }
 
-/* インベントリボタン（操作パネル内） */
-#inv-btn {
+/* 弓矢・ダッシュ・待機・袋の共通の丸ボタンスタイル */
+#bow-btn, #dash-btn, #wait-btn, #inv-btn {
   width:70px; height:70px; border-radius:50%;
   background:#2a1c0c; border:2px solid #6a5430;
   color:#f0d080; font-size:12px; font-family:'Courier New',monospace;
   cursor:pointer; line-height:1.3; flex-shrink:0;
   display:flex; flex-direction:column; align-items:center; justify-content:center;
-}
-#inv-btn:active { background:#5a3c1c; }
-#inv-count { font-size:11px; color:#c0a860; }
-
-/* ダッシュモード切替ボタン（左下） */
-#dash-btn {
-  width:70px; height:70px; border-radius:50%;
-  background:#2a1c0c; border:2px solid #6a5430;
-  color:#a09060; font-size:13px; letter-spacing:1px; font-family:'Courier New',monospace;
-  cursor:pointer; flex-shrink:0;
-  display:flex; align-items:center; justify-content:center;
   -webkit-tap-highlight-color:transparent; user-select:none; -webkit-user-select:none;
 }
-#dash-btn:active { background:#5a3c1c; }
+#bow-btn:active, #dash-btn:active, #wait-btn:active, #inv-btn:active { background:#5a3c1c; }
+#inv-count { font-size:11px; color:#c0a860; }
 #dash-btn.dash-on { background:#1c4a2c; border-color:#40e080; color:#40e080; }
+#bow-icon { width:30px; height:30px; }
 
 #overlay { position:absolute; top:0; left:0; right:0; bottom:0; pointer-events:none; z-index:20; }
 
@@ -402,7 +387,7 @@ body { background:#0a0a0f; overflow:hidden; font-family:'Courier New',monospace;
 <div id="fade-overlay"></div>
 <div id="floor-announce"></div>
 <div id="title-screen">
-  <div id="title-logo">Wanderer's Dungeon<span class="title-ver">ver 0.9.15</span></div>
+  <div id="title-logo">Wanderer's Dungeon<span class="title-ver">ver 0.9.16</span></div>
   <div id="title-buttons">
     <button id="title-continue" class="title-btn slot-btn">
       <div class="slot-head">
@@ -453,10 +438,11 @@ body { background:#0a0a0f; overflow:hidden; font-family:'Courier New',monospace;
 
 <!-- 操作パネル -->
 <div id="ctrl-area">
-  <!-- インベントリボタン・ダッシュ切替ボタン -->
+  <!-- 左側：弓矢・ダッシュ・待機ボタン -->
   <div id="left-btns">
-    <button id="inv-btn">袋<br><span id="inv-count">0</span>/20</button>
+    <button id="bow-btn"><svg id="bow-icon" viewBox="0 0 24 24" fill="none"><path d="M9 2 C3 2 3 22 9 22" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M9 2 L9 22" stroke="currentColor" stroke-width="1.4"/><path d="M9 12 L20 12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M16 8 L22 12 L16 16 Z" fill="currentColor"/></svg></button>
     <button id="dash-btn">ダッシュ</button>
+    <button id="wait-btn">待機</button>
   </div>
   <!-- 8方向パッド -->
   <div id="dpad">
@@ -470,10 +456,10 @@ body { background:#0a0a0f; overflow:hidden; font-family:'Courier New',monospace;
     <button class="dp" data-dir="4">↓</button>
     <button class="dp" data-dir="3">↘</button>
   </div>
-  <!-- 右側：攻撃・待機ボタン -->
+  <!-- 右側：攻撃・袋ボタン -->
   <div id="right-btns">
     <button id="attack-btn">攻撃</button>
-    <button id="wait-btn">待機</button>
+    <button id="inv-btn">袋<br><span id="inv-count">0</span>/20</button>
   </div>
 </div>
 
@@ -4257,6 +4243,12 @@ document.getElementById('camera-toggle').onclick=()=>{
 document.getElementById('inv-btn').onclick=openInventory;
 document.getElementById('inv-close').onclick=closeInventory;
 document.getElementById('inv-sort').onclick=sortInventory;
+
+// 弓矢ボタン（未実装。矢を装備していない旨を表示するのみでターンは消費しない）
+document.getElementById('bow-btn').onclick=()=>{
+  if(animLocked||isPlayerDown)return;
+  showAction('矢を装備していない',1000);
+};
 
 // 「足元」ボタン：足元のアイテム/階段などに応じてメニューを出す
 const underfootModal=document.getElementById('underfoot-modal');
