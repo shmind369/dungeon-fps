@@ -402,7 +402,7 @@ body { background:#0a0a0f; overflow:hidden; font-family:'Courier New',monospace;
 <div id="fade-overlay"></div>
 <div id="floor-announce"></div>
 <div id="title-screen">
-  <div id="title-logo">Wanderer's Dungeon<span class="title-ver">ver 0.9.14</span></div>
+  <div id="title-logo">Wanderer's Dungeon<span class="title-ver">ver 0.9.15</span></div>
   <div id="title-buttons">
     <button id="title-continue" class="title-btn slot-btn">
       <div class="slot-head">
@@ -2784,7 +2784,7 @@ function applyPotionToPlayer(eff, name){
   else if(eff.damage){ state.hp=Math.max(0,state.hp-eff.damage); showAction(`${n}を飲んだ。毒だ！HPが${eff.damage}減った`); spawnDamageNum(state.x*CELL,1.5,state.y*CELL,`${eff.damage}`,'#ffffff'); checkPlayerDeath(); }
   else if(eff.buff==='atk'){ state.str=(state.str||0)+1; showAction(`${n}を飲んだ。ちからが上がった！`); }
   else if(eff.buff==='maxhp'){ state.maxHp+=10; state.hp+=10; showAction(`${n}を飲んだ。最大HPが増えた！`); }
-  else if(eff.status==='haste'){ state.haste=15; showAction(`${n}を飲んだ。素早くなった！`); }
+  else if(eff.status==='haste'){ state.haste=15; state._hasteToggle=false; showAction(`${n}を飲んだ。素早くなった！`); }
   else if(eff.status==='charge'){ state.charge=true; showAction(`${n}を飲んだ。力をためた！次の一撃が2倍`); }
   else if(eff.status==='invis'){ state.invis=15; showAction(`${n}を飲んだ。透明になった！`); }
   else if(eff.status==='confuse'){ state.confuse=8; showAction(`${n}を飲んだ。混乱した！`); }
@@ -3529,6 +3529,9 @@ function enemyTurn(){
       return;
     }
 
+    // 封印中：ターン経過でカウントダウン（特殊攻撃を封じる効果は下記の各判定で参照）
+    if(e.sealed>0) e.sealed--;
+
     // 混乱中：ランダムな方向へよろめき、攻撃できない（移動した向きへ体も向ける）
     if(e.confused>0){
       e.confused--;
@@ -3547,8 +3550,8 @@ function enemyTurn(){
     const db=MONSTER_DB[e.monType]||{atk:3};
     const atk=db.atk;
 
-    // 魔法使い系：部屋内で同一直線なら魔法、そうでなければ通常
-    if(e.type==='mage'){
+    // 魔法使い系：部屋内で同一直線なら魔法、そうでなければ通常（封印中は魔法を使えない）
+    if(e.type==='mage'&&!(e.sealed>0)){
       const inSameRoom=playerRoomIdx>=0&&e.roomIdx===playerRoomIdx;
       const dx=Math.sign(state.x-e.x), dz=Math.sign(state.y-e.y);
       const inLine=(state.x===e.x||state.y===e.y); // 直線上
@@ -3559,8 +3562,8 @@ function enemyTurn(){
       }
     }
 
-    // ドラゴン：正面（同じ行または列の直線上）にプレイヤーがいたら炎を吐く（射程無限）
-    if(e.monType==='dragon'){
+    // ドラゴン：正面（同じ行または列の直線上）にプレイヤーがいたら炎を吐く（射程無限。封印中は吐けない）
+    if(e.monType==='dragon'&&!(e.sealed>0)){
       const dxg=Math.sign(state.x-e.x), dzg=Math.sign(state.y-e.y);
       const inLine=(state.x===e.x||state.y===e.y);
       if(inLine&&distToPlayer(e)>1){
@@ -3962,7 +3965,7 @@ function doAction(act){
       applyPotionToPlayer(db.effect, db.name);
       removeFromInv(it);
       updateUI();
-      enemyTurn();
+      endPlayerAction();
     } else if(db.type==='enhance'){
       const target=equippedWeapon||equippedArmor;
       if(target){ closeActionMenu(); closeInventory(); target.plus++; showAction(`${ITEM_DB[target.key].name}が+${target.plus}に！`); removeFromInv(it); updateUI(); enemyTurn(); }
