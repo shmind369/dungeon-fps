@@ -1345,6 +1345,7 @@ function useStaff(it){
     showAction('振っても効果がなかった…',1200);
     return;
   }
+  it.charges--;
   // 向いている方向の直線上の最初の敵を探す
   const dx=DIR_DX[state.dir], dz=DIR_DY[state.dir];
   let target=null;
@@ -1354,12 +1355,7 @@ function useStaff(it){
     const e=enemies.find(en=>en.hp>0&&en.x===cx&&en.y===cz);
     if(e){target=e;break;}
   }
-  if(!target){
-    showAction(`${db.name}を振ったが、その先には誰もいなかった…`,1200);
-    return;
-  }
-  it.charges--;
-  showAction(`${db.name}を振った！`,900);
+  showAction(target?`${db.name}を振った！`:`${db.name}を振ったが、その先には誰もいなかった…`,target?900:1200);
   fireWandBolt(dx,dz,db.effect,target);
   updateUI();
 }
