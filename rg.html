@@ -42,7 +42,7 @@ body { font-family:'Courier New',monospace; color:#c8b89a; user-select:none; -we
   justify-content:space-between;
   padding:12px 12px;
   gap:8px;
-  height:270px;
+  height:300px;
 }
 
 #ui { position:absolute; top:0; left:0; right:0; pointer-events:none; z-index:10; }
@@ -124,14 +124,14 @@ body { font-family:'Courier New',monospace; color:#c8b89a; user-select:none; -we
 #dpad {
   display:grid;
   grid-template-columns:repeat(3,62px);
-  grid-template-rows:repeat(3,76px);
-  gap:5px 3px;
+  grid-template-rows:repeat(3,84px);
+  gap:6px 3px;
   flex-shrink:0;
 }
 .dp {
-  width:62px; height:76px; border-radius:10px;
+  width:62px; height:84px; border-radius:10px;
   background:#2a1c0c; border:2px solid #6a5430;
-  color:#f0d080; font-size:24px;
+  color:#f0d080; font-size:26px;
   cursor:pointer; display:flex; align-items:center; justify-content:center;
   -webkit-tap-highlight-color:transparent;
   user-select:none; -webkit-user-select:none;
@@ -148,9 +148,9 @@ body { font-family:'Courier New',monospace; color:#c8b89a; user-select:none; -we
 .dp[data-dir="5"] { grid-column:1; grid-row:3; }
 .dp[data-dir="4"] { grid-column:2; grid-row:3; }
 .dp[data-dir="3"] { grid-column:3; grid-row:3; }
-.dp-turn-icon { width:28px; height:28px; }
+.dp-turn-icon { width:30px; height:30px; }
 .dp-turn-icon.mirror { transform:scaleX(-1); }
-.dp-neutral { font-size:15px; color:#a09060; }
+.dp-neutral { font-size:16px; color:#a09060; }
 .dp-neutral.turn-on { background:#5a3c1c; border-color:#f0d080; color:#f0d080; }
 
 /* 右側の攻撃・袋ボタン。dpadの高さいっぱいに引き伸ばして上下に配置する */
@@ -159,11 +159,11 @@ body { font-family:'Courier New',monospace; color:#c8b89a; user-select:none; -we
   align-self:stretch; flex-shrink:0;
 }
 #attack-btn {
-  width:70px; height:104px; border-radius:10px;
+  width:70px; height:120px; border-radius:10px;
   font-family:'Courier New',monospace; cursor:pointer;
   -webkit-tap-highlight-color:transparent;
   background:#3a1414; border:2px solid #8a4030;
-  color:#ff9070; font-size:19px; letter-spacing:2px;
+  color:#ff9070; font-size:21px; letter-spacing:2px;
 }
 #attack-btn:active { background:#6a2418; border-color:#ff9070; }
 
@@ -176,18 +176,18 @@ body { font-family:'Courier New',monospace; color:#c8b89a; user-select:none; -we
 
 /* 弓矢・ダッシュ・待機・袋の共通の角丸長方形ボタンスタイル */
 #bow-btn, #dash-btn, #wait-btn, #inv-btn {
-  width:70px; height:70px; border-radius:12px;
+  width:70px; height:80px; border-radius:12px;
   background:#2a1c0c; border:2px solid #6a5430;
-  color:#f0d080; font-size:13px; font-family:'Courier New',monospace;
+  color:#f0d080; font-size:14px; font-family:'Courier New',monospace;
   cursor:pointer; line-height:1.3; flex-shrink:0;
   display:flex; flex-direction:column; align-items:center; justify-content:center;
   -webkit-tap-highlight-color:transparent; user-select:none; -webkit-user-select:none;
 }
 #bow-btn:active, #dash-btn:active, #wait-btn:active, #inv-btn:active { background:#5a3c1c; }
-#inv-btn { height:104px; } /* 攻撃ボタンと同じ大きさに揃える */
-#inv-count { font-size:12px; color:#c0a860; }
+#inv-btn { height:120px; } /* 攻撃ボタンと同じ大きさに揃える */
+#inv-count { font-size:13px; color:#c0a860; }
 #dash-btn.dash-on { background:#1c4a2c; border-color:#40e080; color:#40e080; }
-#bow-icon { width:32px; height:32px; }
+#bow-icon { width:36px; height:36px; }
 
 #overlay { position:absolute; top:0; left:0; right:0; bottom:0; pointer-events:none; z-index:20; }
 
@@ -410,7 +410,7 @@ body { font-family:'Courier New',monospace; color:#c8b89a; user-select:none; -we
 <div id="fade-overlay"></div>
 <div id="floor-announce"></div>
 <div id="title-screen">
-  <div id="title-logo">Wanderer's Dungeon<span class="title-ver">ver 0.9.27</span></div>
+  <div id="title-logo">Wanderer's Dungeon<span class="title-ver">ver 0.9.28</span></div>
   <div id="title-buttons">
     <button id="title-continue" class="title-btn slot-btn">
       <div class="slot-head">
@@ -542,10 +542,19 @@ body { font-family:'Courier New',monospace; color:#c8b89a; user-select:none; -we
 // レターボックス（左右の黒帯）が出ないよう、#viewport-root全体を一様スケールで画面いっぱいに引き伸ばす。
 // HUDやボタンは全てこの論理座標系上の絶対px値で配置されているため、機種が変わっても見た目の比率は変わらない。
 const LOGICAL_HEIGHT=844; // 基準論理解像度（6.1インチ相当）
+// スマートフォンのブラウザはアドレスバーの表示/収縮でwindow.innerHeightが
+// 実際の表示領域と一瞬ズレることがあり、それを引きずると下部に黒い余白が残ってしまう。
+// visualViewportが使える環境ではそちらの値を優先し、実際に見えている領域に正確に合わせる。
+function getRealViewportSize(){
+  if(window.visualViewport){
+    return { w:window.visualViewport.width, h:window.visualViewport.height };
+  }
+  return { w:window.innerWidth, h:window.innerHeight };
+}
 function applyFixedViewport(){
   const root=document.getElementById('viewport-root');
   if(!root)return;
-  const realW=window.innerWidth, realH=window.innerHeight;
+  const {w:realW,h:realH}=getRealViewportSize();
   const scale=realH/LOGICAL_HEIGHT;
   const logicalW=realW/scale;
   root.style.width=logicalW+'px';
@@ -553,6 +562,15 @@ function applyFixedViewport(){
   root.style.transform=`scale(${scale})`;
 }
 applyFixedViewport();
+// アドレスバーの収縮などブラウザUIの変化はwindow.resizeを取りこぼすことがあるため、
+// 対応環境ではvisualViewportのresize/scrollでも再計算する
+if(window.visualViewport){
+  window.visualViewport.addEventListener('resize', applyFixedViewport);
+  window.visualViewport.addEventListener('scroll', applyFixedViewport);
+}
+// 読み込み直後はブラウザUIの状態がまだ確定していないことがあるため、少し遅れて再計算しておく
+setTimeout(applyFixedViewport,300);
+setTimeout(applyFixedViewport,1000);
 
 const P={TAP_MAX:150,ROT_START:150,SWIPE_DIST:50,ROT_SPEED:3,CHARGE_TIME:1500,CAM_DIST:4,CAM_H:4};
 if(typeof THREE==='undefined'){
