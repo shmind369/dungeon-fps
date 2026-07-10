@@ -6,13 +6,28 @@
 <title>Wanderer's Dungeon</title>
 <style>
 * { margin:0; padding:0; box-sizing:border-box; }
-body { background:#0a0a0f; overflow:hidden; font-family:'Courier New',monospace; color:#c8b89a; user-select:none; -webkit-user-select:none; display:flex; flex-direction:column; height:100dvh; }
+html, body { background:#0a0a0f; overflow:hidden; width:100%; height:100%; }
+body { font-family:'Courier New',monospace; color:#c8b89a; user-select:none; -webkit-user-select:none; }
+
+/* 画面表示は「固定仕様」：縦(高さ)を論理解像度で固定し、横幅はその時の実機アスペクト比から
+   逆算する（widthScale.jsが起動時・リサイズ時にwidth/height/transform:scaleを計算して設定する）。
+   これにより%やvw/vhに頼らず、常に同じ論理ピクセル座標系でレイアウトできる。
+   position:fixedな子要素はtransformを持つ祖先を基準にするCSSの仕様を利用し、
+   このラッパー自体を最上位の基準にしている。 */
+#viewport-root {
+  position:fixed; top:0; left:0;
+  transform-origin:top left;
+  display:flex; flex-direction:column;
+  overflow:hidden;
+  background:#0a0a0f;
+}
 
 /* 上エリア：プレイ画面 */
 #game-area {
   position:relative;
   width:100%;
-  height:calc(100dvh - 230px);
+  flex:1 1 auto;
+  min-height:0;
   overflow:hidden;
   background:#080810;
 }
@@ -192,7 +207,7 @@ body { background:#0a0a0f; overflow:hidden; font-family:'Courier New',monospace;
 #underfoot-modal.show { display:flex; }
 
 #inv-panel {
-  width:88%; max-width:440px; max-height:70vh;
+  width:340px; max-width:440px; max-height:560px;
   background:#15110a; border:1px solid #4a3a20; border-radius:8px;
   display:flex; flex-direction:column; overflow:hidden;
 }
@@ -255,7 +270,7 @@ body { background:#0a0a0f; overflow:hidden; font-family:'Courier New',monospace;
 
 /* アクションメニュー */
 #action-panel, .action-panel-box {
-  width:80%; max-width:320px;
+  width:280px; max-width:320px;
   background:#15110a; border:1px solid #4a3a20; border-radius:8px;
   padding:16px; display:flex; flex-direction:column; gap:8px;
 }
@@ -280,7 +295,7 @@ body { background:#0a0a0f; overflow:hidden; font-family:'Courier New',monospace;
 }
 #confirm-modal.show { display:flex; }
 #confirm-panel {
-  width:76%; max-width:300px;
+  width:240px; max-width:300px;
   background:#15110a; border:1px solid #4a3a20; border-radius:8px;
   padding:18px; display:flex; flex-direction:column; gap:10px;
 }
@@ -339,7 +354,7 @@ body { background:#0a0a0f; overflow:hidden; font-family:'Courier New',monospace;
 #title-logo .title-ver {
   display:block; font-size:11px; color:#7a6a48; letter-spacing:2px; margin-top:8px;
 }
-#title-buttons { display:flex; flex-direction:column; gap:14px; width:72%; max-width:280px; }
+#title-buttons { display:flex; flex-direction:column; gap:14px; width:260px; max-width:280px; }
 .title-btn {
   background:#1c1610; border:2px solid #6a5430; color:#e8d4a0;
   font-size:15px; letter-spacing:4px; padding:14px; border-radius:8px;
@@ -391,10 +406,11 @@ body { background:#0a0a0f; overflow:hidden; font-family:'Courier New',monospace;
 </style>
 </head>
 <body>
+<div id="viewport-root">
 <div id="fade-overlay"></div>
 <div id="floor-announce"></div>
 <div id="title-screen">
-  <div id="title-logo">Wanderer's Dungeon<span class="title-ver">ver 0.9.25</span></div>
+  <div id="title-logo">Wanderer's Dungeon<span class="title-ver">ver 0.9.26</span></div>
   <div id="title-buttons">
     <button id="title-continue" class="title-btn slot-btn">
       <div class="slot-head">
@@ -519,8 +535,25 @@ body { background:#0a0a0f; overflow:hidden; font-family:'Courier New',monospace;
     <button class="confirm-btn" id="confirm-no">NO</button>
   </div>
 </div>
+</div><!-- /#viewport-root -->
 <script src="https://cdn.jsdelivr.net/npm/three@0.158.0/build/three.min.js"></script>
 <script>
+// 画面表示の「固定仕様」：縦(高さ)を論理解像度で固定し、横幅はその時の実機アスペクト比から逆算する。
+// レターボックス（左右の黒帯）が出ないよう、#viewport-root全体を一様スケールで画面いっぱいに引き伸ばす。
+// HUDやボタンは全てこの論理座標系上の絶対px値で配置されているため、機種が変わっても見た目の比率は変わらない。
+const LOGICAL_HEIGHT=844; // 基準論理解像度（6.1インチ相当）
+function applyFixedViewport(){
+  const root=document.getElementById('viewport-root');
+  if(!root)return;
+  const realW=window.innerWidth, realH=window.innerHeight;
+  const scale=realH/LOGICAL_HEIGHT;
+  const logicalW=realW/scale;
+  root.style.width=logicalW+'px';
+  root.style.height=LOGICAL_HEIGHT+'px';
+  root.style.transform=`scale(${scale})`;
+}
+applyFixedViewport();
+
 const P={TAP_MAX:150,ROT_START:150,SWIPE_DIST:50,ROT_SPEED:3,CHARGE_TIME:1500,CAM_DIST:4,CAM_H:4};
 if(typeof THREE==='undefined'){
   const d=document.createElement('div');
@@ -836,6 +869,7 @@ document.addEventListener('visibilitychange',()=>{
 const camera=new THREE.PerspectiveCamera(55, window.innerWidth/Math.max(window.innerHeight-230,1), 0.1, 80);
 
 function resizeRenderer(){
+  applyFixedViewport(); // 実機の画面サイズ変化に合わせ、固定解像度ラッパーのスケールを先に再計算する
   const w=gameArea.clientWidth||window.innerWidth;
   const h=gameArea.clientHeight||(window.innerHeight-230);
   if(w>0&&h>0){
