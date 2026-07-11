@@ -410,7 +410,7 @@ body { font-family:'Courier New',monospace; color:#c8b89a; user-select:none; -we
 <div id="fade-overlay"></div>
 <div id="floor-announce"></div>
 <div id="title-screen">
-  <div id="title-logo">Wanderer's Dungeon<span class="title-ver">ver 0.9.28</span></div>
+  <div id="title-logo">Wanderer's Dungeon<span class="title-ver">ver 0.9.29</span></div>
   <div id="title-buttons">
     <button id="title-continue" class="title-btn slot-btn">
       <div class="slot-head">
@@ -614,6 +614,7 @@ let warehouseData={}; // key: "sx,sy" -> {itemKey, plus, charges}
 let entranceInfo=null; // generateEntranceMapの戻り値を保持
 let npcList=[]; // エントランスのNPC群 [{x,y,mesh,name,text}]
 let enemies=[];
+let prevAdjacentEnemies=[]; // 直前に自機と隣接していたモンスター（新規隣接の判定用）
 
 // アイテムマスタ定義
 const ITEM_DB={
@@ -951,22 +952,32 @@ pvoxIn(leftArmPivot,0.12,0.12,0.14,0xc09050, 0,0.36-armPivotY,0); // 左手
 const rightArmPivot=makeLimbPivot(0.32,armPivotY,0);
 pvoxIn(rightArmPivot,0.14,0.4,0.16,0x4a5ab0, 0,0.6-armPivotY,0);   // 右腕
 pvoxIn(rightArmPivot,0.12,0.12,0.14,0xc09050, 0,0.36-armPivotY,0); // 右手
-// 頭
-const headMesh=pvox(0.38,0.36,0.36, 0xe0b080, 0,1.04,0);
+// 頭（首の付け根を支点に15%小さく縮小するため、専用グループに入れる）
+const headPivotY=0.86;
+const headGroup=new THREE.Group();
+headGroup.position.set(0,headPivotY,0);
+headGroup.scale.set(0.85,0.85,0.85);
+playerGroup.add(headGroup);
+function pvoxHead(w,h,d,col,localX,localY,localZ){
+  const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),new THREE.MeshLambertMaterial({color:col}));
+  m.position.set(localX,localY-headPivotY,localZ);m.castShadow=true;headGroup.add(m);playerParts.push(m);
+  return m;
+}
+const headMesh=pvoxHead(0.38,0.36,0.36, 0xe0b080, 0,1.04,0);
 // 髪（黒髪）
-pvox(0.42,0.14,0.4, 0x1a1a22, 0,1.24,0);
-pvox(0.42,0.1,0.18, 0x1a1a22, 0,1.12,-0.14); // 後ろ髪
+pvoxHead(0.42,0.14,0.4, 0x1a1a22, 0,1.24,0);
+pvoxHead(0.42,0.1,0.18, 0x1a1a22, 0,1.12,-0.14); // 後ろ髪
 // 目（前面〜側面の角に配置、横からも見える）
 // 左目：前面
-pvox(0.06,0.09,0.04, 0x305080, -0.1,1.06,0.185);
+pvoxHead(0.06,0.09,0.04, 0x305080, -0.1,1.06,0.185);
 // 左目：側面
-pvox(0.04,0.09,0.08, 0x305080, -0.195,1.06,0.12);
+pvoxHead(0.04,0.09,0.08, 0x305080, -0.195,1.06,0.12);
 // 右目：前面
-pvox(0.06,0.09,0.04, 0x305080,  0.1,1.06,0.185);
+pvoxHead(0.06,0.09,0.04, 0x305080,  0.1,1.06,0.185);
 // 右目：側面
-pvox(0.04,0.09,0.08, 0x305080,  0.195,1.06,0.12);
+pvoxHead(0.04,0.09,0.08, 0x305080,  0.195,1.06,0.12);
 // 鼻（前面中央に突起、顔の向きを明確化）
-pvox(0.07,0.07,0.06, 0xd0a070, 0,0.99,0.2);
+pvoxHead(0.07,0.07,0.06, 0xd0a070, 0,0.99,0.2);
 // 剣（右手に持つ。肩・腕のパーツと重ならないよう、地面に対し垂直ではなく水平（前方向）に構える。
 // 右腕の支点にぶら下げ、歩行時に腕と一緒に振れるようにする。
 // 武器未装備の間は手ぶらにするため後でvisibleを切り替える）
@@ -2839,6 +2850,28 @@ function updateUI(){
       expBar.style.backgroundColor='#4090ff';
     }
   }
+  checkAutoFaceNewAdjacent();
+}
+
+// 自機と隣接（8方向1マス以内）しているモンスターの配列を返す
+function getAdjacentEnemies(){
+  return enemies.filter(e=>e.hp>0&&e!==undefined&&Math.abs(e.x-state.x)<=1&&Math.abs(e.y-state.y)<=1&&!(e.x===state.x&&e.y===state.y));
+}
+// 自機とモンスターが新たに隣接した時だけ、そのモンスターの方向へ自機の向きを変える
+// （既に他のモンスターと隣接していた場合は向きを変えない）
+function checkAutoFaceNewAdjacent(){
+  const current=getAdjacentEnemies();
+  if(prevAdjacentEnemies.length===0&&current.length>0){
+    const target=current[0];
+    const dx=Math.sign(target.x-state.x), dy=Math.sign(target.y-state.y);
+    const dirIdx=DIR_DX.findIndex((v,i)=>v===dx&&DIR_DY[i]===dy);
+    if(dirIdx>=0){
+      state.dir=dirIdx;
+      state.angle=state.targetAngle=ANGLE_OF[dirIdx];
+      updatePlayerPos();
+    }
+  }
+  prevAdjacentEnemies=current;
 }
 
 // 攻撃力＝基本攻撃力+基本攻撃力×(剣の強さ+ちから-8)/16の小数点以下を四捨五入した値（上限255）
