@@ -410,7 +410,7 @@ body { font-family:'Courier New',monospace; color:#c8b89a; user-select:none; -we
 <div id="fade-overlay"></div>
 <div id="floor-announce"></div>
 <div id="title-screen">
-  <div id="title-logo">Wanderer's Dungeon<span class="title-ver">ver 0.9.29</span></div>
+  <div id="title-logo">Wanderer's Dungeon<span class="title-ver">ver 0.9.30</span></div>
   <div id="title-buttons">
     <button id="title-continue" class="title-btn slot-btn">
       <div class="slot-head">
@@ -2853,6 +2853,16 @@ function updateUI(){
   checkAutoFaceNewAdjacent();
 }
 
+// 自機の向きを指定マス(tx,ty)の方向へ変える（8方向のいずれかにスナップ）
+function facePlayerToward(tx,ty){
+  const dx=Math.sign(tx-state.x), dy=Math.sign(ty-state.y);
+  const dirIdx=DIR_DX.findIndex((v,i)=>v===dx&&DIR_DY[i]===dy);
+  if(dirIdx>=0){
+    state.dir=dirIdx;
+    state.angle=state.targetAngle=ANGLE_OF[dirIdx];
+    updatePlayerPos();
+  }
+}
 // 自機と隣接（8方向1マス以内）しているモンスターの配列を返す
 function getAdjacentEnemies(){
   return enemies.filter(e=>e.hp>0&&e!==undefined&&Math.abs(e.x-state.x)<=1&&Math.abs(e.y-state.y)<=1&&!(e.x===state.x&&e.y===state.y));
@@ -2862,14 +2872,7 @@ function getAdjacentEnemies(){
 function checkAutoFaceNewAdjacent(){
   const current=getAdjacentEnemies();
   if(prevAdjacentEnemies.length===0&&current.length>0){
-    const target=current[0];
-    const dx=Math.sign(target.x-state.x), dy=Math.sign(target.y-state.y);
-    const dirIdx=DIR_DX.findIndex((v,i)=>v===dx&&DIR_DY[i]===dy);
-    if(dirIdx>=0){
-      state.dir=dirIdx;
-      state.angle=state.targetAngle=ANGLE_OF[dirIdx];
-      updatePlayerPos();
-    }
+    facePlayerToward(current[0].x,current[0].y);
   }
   prevAdjacentEnemies=current;
 }
@@ -3733,6 +3736,8 @@ function enemyTurn(){
 
     // 自機と隣接（1マス以内）していれば移動せず攻撃
     const doAttack=(e)=>{
+      // 物理攻撃（近接）を仕掛けてきた敵の方向へ自機の向きを変える（魔法弾・ブレスなど遠隔攻撃は対象外）
+      facePlayerToward(e.x,e.y);
       // 命中率7/8（約87.5%）
       if(Math.random()>=7/8){
         enemyLunge(e);
