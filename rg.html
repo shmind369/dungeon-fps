@@ -120,18 +120,19 @@ body { font-family:'Courier New',monospace; color:#c8b89a; user-select:none; -we
   background:rgba(20,60,80,0.85); border-color:#40b0e0; color:#80e0ff;
 }
 
-/* 8方向パッド */
+/* 8方向パッド（ボタンサイズはJS側で画面幅に応じて--dp-sizeを計算し、正方形を保ったまま
+   できるだけ大きく表示する。狭い機種でも操作パネルからはみ出さないよう自動で縮む） */
 #dpad {
   display:grid;
-  grid-template-columns:repeat(3,68px);
-  grid-template-rows:repeat(3,68px);
-  gap:4px;
+  grid-template-columns:repeat(3,var(--dp-size,68px));
+  grid-template-rows:repeat(3,var(--dp-size,68px));
+  gap:var(--dp-gap,4px);
   flex-shrink:0;
 }
 .dp {
-  width:68px; height:68px; border-radius:11px;
+  width:var(--dp-size,68px); height:var(--dp-size,68px); border-radius:11px;
   background:#2a1c0c; border:2px solid #6a5430;
-  color:#f0d080; font-size:24px;
+  color:#f0d080; font-size:var(--dp-font,24px);
   cursor:pointer; display:flex; align-items:center; justify-content:center;
   -webkit-tap-highlight-color:transparent;
   user-select:none; -webkit-user-select:none;
@@ -148,9 +149,9 @@ body { font-family:'Courier New',monospace; color:#c8b89a; user-select:none; -we
 .dp[data-dir="5"] { grid-column:1; grid-row:3; }
 .dp[data-dir="4"] { grid-column:2; grid-row:3; }
 .dp[data-dir="3"] { grid-column:3; grid-row:3; }
-.dp-turn-icon { width:28px; height:28px; }
+.dp-turn-icon { width:var(--dp-icon,28px); height:var(--dp-icon,28px); }
 .dp-turn-icon.mirror { transform:scaleX(-1); }
-.dp-neutral { font-size:15px; color:#a09060; }
+.dp-neutral { font-size:var(--dp-neutral-font,15px); color:#a09060; }
 .dp-neutral.turn-on { background:#5a3c1c; border-color:#f0d080; color:#f0d080; }
 
 /* 右側の攻撃・袋ボタン。dpadの高さいっぱいに引き伸ばして上下に配置する */
@@ -410,7 +411,7 @@ body { font-family:'Courier New',monospace; color:#c8b89a; user-select:none; -we
 <div id="fade-overlay"></div>
 <div id="floor-announce"></div>
 <div id="title-screen">
-  <div id="title-logo">Wanderer's Dungeon<span class="title-ver">ver 0.9.33</span></div>
+  <div id="title-logo">Wanderer's Dungeon<span class="title-ver">ver 0.9.34</span></div>
   <div id="title-buttons">
     <button id="title-continue" class="title-btn slot-btn">
       <div class="slot-head">
@@ -566,6 +567,27 @@ function applyFixedViewport(){
   // 横幅を頭打ちにした分だけ余白ができる場合は、左右中央に寄せる（余白は黒帯として見える）
   const renderedW=logicalW*scale;
   root.style.left=((realW-renderedW)/2)+'px';
+  updateDpadSize(logicalW);
+}
+// 方向パッドのボタンサイズを画面幅に応じて計算する。
+// 比率0.1987は実機スクリーンショット(926x1699、セル幅約184px)から算出した目標比率で、
+// 余裕がある機種ではこの比率に近いサイズまで大きく表示する。
+// ただし操作パネルからはみ出さないよう、実際に使える横幅から逆算した上限も必ず守る。
+const DPAD_RATIO=0.1987;
+const DPAD_MIN=62, DPAD_MAX=100;
+function updateDpadSize(logicalW){
+  const ctrlPaddingH=16, ctrlGapH=12, sideBtnW=64*2, dpGap=4; // #ctrl-areaの現在のCSS値と合わせる
+  const available=logicalW-ctrlPaddingH-ctrlGapH-sideBtnW;
+  const byRatio=logicalW*DPAD_RATIO;
+  const byAvailable=(available-dpGap*2)/3;
+  let size=Math.min(byRatio,byAvailable);
+  size=Math.max(DPAD_MIN,Math.min(DPAD_MAX,size));
+  const root=document.documentElement.style;
+  root.setProperty('--dp-size',size+'px');
+  root.setProperty('--dp-gap',dpGap+'px');
+  root.setProperty('--dp-font',Math.round(size*0.353)+'px');
+  root.setProperty('--dp-icon',Math.round(size*0.412)+'px');
+  root.setProperty('--dp-neutral-font',Math.round(size*0.221)+'px');
 }
 applyFixedViewport();
 // アドレスバーの収縮などブラウザUIの変化はwindow.resizeを取りこぼすことがあるため、
