@@ -410,7 +410,7 @@ body { font-family:'Courier New',monospace; color:#c8b89a; user-select:none; -we
 <div id="fade-overlay"></div>
 <div id="floor-announce"></div>
 <div id="title-screen">
-  <div id="title-logo">Wanderer's Dungeon<span class="title-ver">ver 0.9.30</span></div>
+  <div id="title-logo">Wanderer's Dungeon<span class="title-ver">ver 0.9.31</span></div>
   <div id="title-buttons">
     <button id="title-continue" class="title-btn slot-btn">
       <div class="slot-head">
@@ -539,9 +539,12 @@ body { font-family:'Courier New',monospace; color:#c8b89a; user-select:none; -we
 <script src="https://cdn.jsdelivr.net/npm/three@0.158.0/build/three.min.js"></script>
 <script>
 // 画面表示の「固定仕様」：縦(高さ)を論理解像度で固定し、横幅はその時の実機アスペクト比から逆算する。
-// レターボックス（左右の黒帯）が出ないよう、#viewport-root全体を一様スケールで画面いっぱいに引き伸ばす。
+// スマホの画面比率を想定した作りなので、横幅がMAX_LOGICAL_WIDTHを超える横長画面
+// （PCのブラウザなど）ではスマホ相当の横幅で頭打ちにし、左右をレターボックス（黒帯）にして
+// 中央に表示する。スマホ本来の縦長画面では従来通り黒帯なしで画面いっぱいに表示される。
 // HUDやボタンは全てこの論理座標系上の絶対px値で配置されているため、機種が変わっても見た目の比率は変わらない。
 const LOGICAL_HEIGHT=844; // 基準論理解像度（6.1インチ相当）
+const MAX_LOGICAL_WIDTH=520; // スマホの横幅として想定する上限
 // スマートフォンのブラウザはアドレスバーの表示/収縮でwindow.innerHeightが
 // 実際の表示領域と一瞬ズレることがあり、それを引きずると下部に黒い余白が残ってしまう。
 // visualViewportが使える環境ではそちらの値を優先し、実際に見えている領域に正確に合わせる。
@@ -556,10 +559,13 @@ function applyFixedViewport(){
   if(!root)return;
   const {w:realW,h:realH}=getRealViewportSize();
   const scale=realH/LOGICAL_HEIGHT;
-  const logicalW=realW/scale;
+  const logicalW=Math.min(realW/scale,MAX_LOGICAL_WIDTH);
   root.style.width=logicalW+'px';
   root.style.height=LOGICAL_HEIGHT+'px';
   root.style.transform=`scale(${scale})`;
+  // 横幅を頭打ちにした分だけ余白ができる場合は、左右中央に寄せる（余白は黒帯として見える）
+  const renderedW=logicalW*scale;
+  root.style.left=((realW-renderedW)/2)+'px';
 }
 applyFixedViewport();
 // アドレスバーの収縮などブラウザUIの変化はwindow.resizeを取りこぼすことがあるため、
