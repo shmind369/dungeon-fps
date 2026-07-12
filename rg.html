@@ -124,14 +124,14 @@ body { font-family:'Courier New',monospace; color:#c8b89a; user-select:none; -we
 #dpad {
   display:grid;
   grid-template-columns:repeat(3,68px);
-  grid-template-rows:repeat(3,94px);
-  gap:7px 3px;
+  grid-template-rows:repeat(3,68px);
+  gap:4px;
   flex-shrink:0;
 }
 .dp {
-  width:68px; height:94px; border-radius:11px;
+  width:68px; height:68px; border-radius:11px;
   background:#2a1c0c; border:2px solid #6a5430;
-  color:#f0d080; font-size:28px;
+  color:#f0d080; font-size:24px;
   cursor:pointer; display:flex; align-items:center; justify-content:center;
   -webkit-tap-highlight-color:transparent;
   user-select:none; -webkit-user-select:none;
@@ -148,9 +148,9 @@ body { font-family:'Courier New',monospace; color:#c8b89a; user-select:none; -we
 .dp[data-dir="5"] { grid-column:1; grid-row:3; }
 .dp[data-dir="4"] { grid-column:2; grid-row:3; }
 .dp[data-dir="3"] { grid-column:3; grid-row:3; }
-.dp-turn-icon { width:32px; height:32px; }
+.dp-turn-icon { width:28px; height:28px; }
 .dp-turn-icon.mirror { transform:scaleX(-1); }
-.dp-neutral { font-size:17px; color:#a09060; }
+.dp-neutral { font-size:15px; color:#a09060; }
 .dp-neutral.turn-on { background:#5a3c1c; border-color:#f0d080; color:#f0d080; }
 
 /* 右側の攻撃・袋ボタン。dpadの高さいっぱいに引き伸ばして上下に配置する */
@@ -410,7 +410,7 @@ body { font-family:'Courier New',monospace; color:#c8b89a; user-select:none; -we
 <div id="fade-overlay"></div>
 <div id="floor-announce"></div>
 <div id="title-screen">
-  <div id="title-logo">Wanderer's Dungeon<span class="title-ver">ver 0.9.32</span></div>
+  <div id="title-logo">Wanderer's Dungeon<span class="title-ver">ver 0.9.33</span></div>
   <div id="title-buttons">
     <button id="title-continue" class="title-btn slot-btn">
       <div class="slot-head">
