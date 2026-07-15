@@ -38,11 +38,29 @@ body { font-family:'Courier New',monospace; color:#c8b89a; user-select:none; -we
   background:#1a1008;
   border-top:2px solid #4a3418;
   display:flex;
-  align-items:center;
-  justify-content:space-between;
+  flex-direction:column;
   padding:12px 8px;
+  gap:10px;
+  height:377px;
+}
+/* サブボタン行（動作は未定、後日割り当て予定） */
+#sub-btns {
+  display:flex; gap:8px; flex-shrink:0;
+}
+.sub-btn {
+  flex:1; height:42px; border-radius:21px;
+  background:linear-gradient(#7ac142,#4a8620);
+  border:2px solid #3a6a18;
+  color:#fff; font-weight:bold; font-size:14px;
+  font-family:'Courier New',monospace; cursor:pointer;
+  text-shadow:1px 1px 1px rgba(0,0,0,0.4);
+  -webkit-tap-highlight-color:transparent; user-select:none; -webkit-user-select:none;
+}
+.sub-btn:active { background:linear-gradient(#5a9c2e,#3a6a18); }
+#ctrl-main {
+  flex:1 1 auto; min-height:0;
+  display:flex; align-items:center; justify-content:space-between;
   gap:6px;
-  height:325px;
 }
 
 #ui { position:absolute; top:0; left:0; right:0; pointer-events:none; z-index:10; }
@@ -409,7 +427,7 @@ body { font-family:'Courier New',monospace; color:#c8b89a; user-select:none; -we
 <div id="fade-overlay"></div>
 <div id="floor-announce"></div>
 <div id="title-screen">
-  <div id="title-logo">Wanderer's Dungeon<span class="title-ver">ver 0.9.51</span></div>
+  <div id="title-logo">Wanderer's Dungeon<span class="title-ver">ver 0.9.52</span></div>
   <div id="title-buttons">
     <button id="title-continue" class="title-btn slot-btn">
       <div class="slot-head">
@@ -460,28 +478,37 @@ body { font-family:'Courier New',monospace; color:#c8b89a; user-select:none; -we
 
 <!-- 操作パネル -->
 <div id="ctrl-area">
-  <!-- 左側：弓矢・ダッシュ・待機ボタン -->
-  <div id="left-btns">
-    <button id="bow-btn"><svg id="bow-icon" viewBox="0 0 24 24" fill="none"><path d="M9 2 C3 2 3 22 9 22" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M9 2 L9 22" stroke="currentColor" stroke-width="1.4"/><path d="M9 12 L20 12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M16 8 L22 12 L16 16 Z" fill="currentColor"/></svg></button>
-    <button id="dash-btn">ダッシュ</button>
-    <button id="wait-btn">待機</button>
+  <!-- サブボタン（動作は未定、後日割り当て予定） -->
+  <div id="sub-btns">
+    <button class="sub-btn" data-sub="menu">メニュー</button>
+    <button class="sub-btn" data-sub="inventory">持ち物</button>
+    <button class="sub-btn" data-sub="underfoot">足元</button>
+    <button class="sub-btn" data-sub="lookaround">見渡す</button>
   </div>
-  <!-- 8方向パッド -->
-  <div id="dpad">
-    <button class="dp" data-dir="7">↖</button>
-    <button class="dp" data-dir="0">↑</button>
-    <button class="dp" data-dir="1">↗</button>
-    <button class="dp" data-dir="6">←</button>
-    <button class="dp dp-neutral" data-dir="-1">●</button>
-    <button class="dp" data-dir="2">→</button>
-    <button class="dp" data-dir="5">↙</button>
-    <button class="dp" data-dir="4">↓</button>
-    <button class="dp" data-dir="3">↘</button>
-  </div>
-  <!-- 右側：攻撃・袋ボタン -->
-  <div id="right-btns">
-    <button id="attack-btn">攻撃</button>
-    <button id="inv-btn">袋<br><span id="inv-count">0</span>/20</button>
+  <div id="ctrl-main">
+    <!-- 左側：弓矢・ダッシュ・待機ボタン -->
+    <div id="left-btns">
+      <button id="bow-btn"><svg id="bow-icon" viewBox="0 0 24 24" fill="none"><path d="M9 2 C3 2 3 22 9 22" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M9 2 L9 22" stroke="currentColor" stroke-width="1.4"/><path d="M9 12 L20 12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M16 8 L22 12 L16 16 Z" fill="currentColor"/></svg></button>
+      <button id="dash-btn">ダッシュ</button>
+      <button id="wait-btn">待機</button>
+    </div>
+    <!-- 8方向パッド -->
+    <div id="dpad">
+      <button class="dp" data-dir="7">↖</button>
+      <button class="dp" data-dir="0">↑</button>
+      <button class="dp" data-dir="1">↗</button>
+      <button class="dp" data-dir="6">←</button>
+      <button class="dp dp-neutral" data-dir="-1">●</button>
+      <button class="dp" data-dir="2">→</button>
+      <button class="dp" data-dir="5">↙</button>
+      <button class="dp" data-dir="4">↓</button>
+      <button class="dp" data-dir="3">↘</button>
+    </div>
+    <!-- 右側：攻撃・袋ボタン -->
+    <div id="right-btns">
+      <button id="attack-btn">攻撃</button>
+      <button id="inv-btn">袋<br><span id="inv-count">0</span>/20</button>
+    </div>
   </div>
 </div>
 
