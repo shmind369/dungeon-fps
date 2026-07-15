@@ -43,7 +43,7 @@ body { font-family:'Courier New',monospace; color:#c8b89a; user-select:none; -we
   gap:10px;
   height:377px;
 }
-/* サブボタン行（動作は未定、後日割り当て予定） */
+/* サブボタン行：視点切替・(未定)・ダッシュ・持ち物 */
 #sub-btns {
   display:flex; gap:8px; flex-shrink:0;
 }
@@ -57,6 +57,10 @@ body { font-family:'Courier New',monospace; color:#c8b89a; user-select:none; -we
   -webkit-tap-highlight-color:transparent; user-select:none; -webkit-user-select:none;
 }
 .sub-btn:active { background:linear-gradient(#5a9c2e,#3a6a18); }
+#camera-toggle.active { background:linear-gradient(#4aa0e0,#1a6aa0); border-color:#0e3a5a; }
+#dash-btn.dash-on { background:linear-gradient(#9be05a,#5aa02a); border-color:#eaffb0; }
+/* 未割り当てのサブボタン（機能は後日決定） */
+#sub-tbd { opacity:0.5; cursor:default; }
 #ctrl-main {
   flex:1 1 auto; min-height:0;
   display:flex; align-items:center; justify-content:space-between;
@@ -123,17 +127,6 @@ body { font-family:'Courier New',monospace; color:#c8b89a; user-select:none; -we
   padding:3px 8px; z-index:11; pointer-events:none;
 }
 
-/* 視点切り替えボタン（試験的な一人称モード。ステータスバー直下・中央） */
-#camera-toggle {
-  position:absolute; left:50%; transform:translateX(-50%);
-  background:rgba(20,20,24,0.75); border:1px solid #4a3a20; border-radius:4px;
-  color:#e8d4a0; font-size:11px; letter-spacing:1px;
-  padding:4px 10px; z-index:11; pointer-events:auto; cursor:pointer;
-}
-#camera-toggle.active {
-  background:rgba(20,60,80,0.85); border-color:#40b0e0; color:#80e0ff;
-}
-
 /* 8方向パッド（ボタンサイズはJS側で画面幅に応じて--dp-sizeを計算し、正方形を保ったまま
    できるだけ大きく表示する。狭い機種でも操作パネルからはみ出さないよう自動で縮む） */
 #dpad {
@@ -168,7 +161,7 @@ body { font-family:'Courier New',monospace; color:#c8b89a; user-select:none; -we
 .dp-neutral { font-size:var(--dp-neutral-font,15px); color:#a09060; }
 .dp-neutral.turn-on { background:#5a3c1c; border-color:#f0d080; color:#f0d080; }
 
-/* 右側の攻撃・袋ボタン。dpadの高さいっぱいに引き伸ばして上下に配置する */
+/* 右側の攻撃・待機ボタン。dpadの高さいっぱいに引き伸ばして上下に配置する */
 #right-btns {
   display:flex; flex-direction:column; justify-content:space-between;
   align-self:stretch; flex-shrink:0;
@@ -182,15 +175,15 @@ body { font-family:'Courier New',monospace; color:#c8b89a; user-select:none; -we
 }
 #attack-btn:active { background:#6a2418; border-color:#ff9070; }
 
-/* 左側のボタン列（弓矢・ダッシュ・待機）。キーパッドの高さいっぱいに
-   引き伸ばして、dpadの3段に合わせて上段・中段・下段に配置する */
+/* 左側のボタン列（弓矢・待機）。キーパッドの高さいっぱいに
+   引き伸ばして配置する */
 #left-btns {
   display:flex; flex-direction:column; justify-content:space-between;
   align-self:stretch; flex-shrink:0;
 }
 
-/* 弓矢・ダッシュ・待機・袋の共通の角丸長方形ボタンスタイル */
-#bow-btn, #dash-btn, #wait-btn, #inv-btn {
+/* 弓矢・待機の共通の角丸長方形ボタンスタイル */
+#bow-btn, #wait-btn, #wait-btn2 {
   width:64px; height:80px; border-radius:12px;
   background:#2a1c0c; border:2px solid #6a5430;
   color:#f0d080; font-size:14px; font-family:'Courier New',monospace;
@@ -198,10 +191,8 @@ body { font-family:'Courier New',monospace; color:#c8b89a; user-select:none; -we
   display:flex; flex-direction:column; align-items:center; justify-content:center;
   -webkit-tap-highlight-color:transparent; user-select:none; -webkit-user-select:none;
 }
-#bow-btn:active, #dash-btn:active, #wait-btn:active, #inv-btn:active { background:#5a3c1c; }
-#inv-btn { height:120px; } /* 攻撃ボタンと同じ大きさに揃える */
-#inv-count { font-size:13px; color:#c0a860; }
-#dash-btn.dash-on { background:#1c4a2c; border-color:#40e080; color:#40e080; }
+#bow-btn:active, #wait-btn:active, #wait-btn2:active { background:#5a3c1c; }
+#wait-btn2 { height:120px; } /* 攻撃ボタンと同じ大きさに揃える */
 #bow-icon { width:36px; height:36px; }
 
 #overlay { position:absolute; top:0; left:0; right:0; bottom:0; pointer-events:none; z-index:20; }
@@ -427,7 +418,7 @@ body { font-family:'Courier New',monospace; color:#c8b89a; user-select:none; -we
 <div id="fade-overlay"></div>
 <div id="floor-announce"></div>
 <div id="title-screen">
-  <div id="title-logo">Wanderer's Dungeon<span class="title-ver">ver 0.9.52</span></div>
+  <div id="title-logo">Wanderer's Dungeon<span class="title-ver">ver 0.9.53</span></div>
   <div id="title-buttons">
     <button id="title-continue" class="title-btn slot-btn">
       <div class="slot-head">
@@ -463,7 +454,6 @@ body { font-family:'Courier New',monospace; color:#c8b89a; user-select:none; -we
       <div id="topbar-right"><span id="floor-num">1</span><span id="floor-suffix">F</span></div>
     </div>
   </div>
-  <button id="camera-toggle">👁 視点切替</button>
   <div id="action-label"></div>
   <div id="dash-indicator">▶ ダッシュモード中</div>
   <div id="turn-counter">Turn 0</div>
@@ -478,18 +468,17 @@ body { font-family:'Courier New',monospace; color:#c8b89a; user-select:none; -we
 
 <!-- 操作パネル -->
 <div id="ctrl-area">
-  <!-- サブボタン（動作は未定、後日割り当て予定） -->
+  <!-- サブボタン：視点切替・(未定)・ダッシュ・持ち物 -->
   <div id="sub-btns">
-    <button class="sub-btn" data-sub="menu">メニュー</button>
-    <button class="sub-btn" data-sub="inventory">持ち物</button>
-    <button class="sub-btn" data-sub="underfoot">足元</button>
-    <button class="sub-btn" data-sub="lookaround">見渡す</button>
+    <button id="camera-toggle" class="sub-btn">視点切替</button>
+    <button id="sub-tbd" class="sub-btn">－</button>
+    <button id="dash-btn" class="sub-btn">ダッシュ</button>
+    <button id="sub-inv" class="sub-btn">持ち物</button>
   </div>
   <div id="ctrl-main">
-    <!-- 左側：弓矢・ダッシュ・待機ボタン -->
+    <!-- 左側：弓矢・待機ボタン -->
     <div id="left-btns">
       <button id="bow-btn"><svg id="bow-icon" viewBox="0 0 24 24" fill="none"><path d="M9 2 C3 2 3 22 9 22" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M9 2 L9 22" stroke="currentColor" stroke-width="1.4"/><path d="M9 12 L20 12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M16 8 L22 12 L16 16 Z" fill="currentColor"/></svg></button>
-      <button id="dash-btn">ダッシュ</button>
       <button id="wait-btn">待機</button>
     </div>
     <!-- 8方向パッド -->
@@ -504,10 +493,10 @@ body { font-family:'Courier New',monospace; color:#c8b89a; user-select:none; -we
       <button class="dp" data-dir="4">↓</button>
       <button class="dp" data-dir="3">↘</button>
     </div>
-    <!-- 右側：攻撃・袋ボタン -->
+    <!-- 右側：攻撃・待機ボタン -->
     <div id="right-btns">
       <button id="attack-btn">攻撃</button>
-      <button id="inv-btn">袋<br><span id="inv-count">0</span>/20</button>
+      <button id="wait-btn2">待機</button>
     </div>
   </div>
 </div>
@@ -2864,16 +2853,11 @@ function updateUI(){
     topbarRightEl.classList.toggle('entrance',state.inEntrance);
     floorNumEl.textContent=state.inEntrance?'ENTRANCE':state.floor;
     floorSuffixEl.textContent=state.inEntrance?'':'F';
-    const topbarEl=document.getElementById('topbar');
-    const topbarH=topbarEl?topbarEl.getBoundingClientRect().height:40;
-    const camToggleEl=document.getElementById('camera-toggle');
-    if(camToggleEl)camToggleEl.style.top=(topbarH+2)+'px';
   }
   const hpEl=document.getElementById('hp-disp');
   if(hpEl){
     hpEl.textContent=`${state.hp}/${state.maxHp}`;
     document.getElementById('lv-disp').textContent=state.lv;
-    document.getElementById('inv-count').textContent=inventory.length;
     const foodEl=document.getElementById('food-disp');
     if(foodEl)foodEl.textContent=`${state.food}/${state.maxFood}`;
     const goldEl=document.getElementById('gold-disp');
@@ -4472,7 +4456,7 @@ document.getElementById('camera-toggle').onclick=()=>{
 };
 
 // ボタンイベント
-document.getElementById('inv-btn').onclick=openInventory;
+document.getElementById('sub-inv').onclick=openInventory;
 document.getElementById('inv-close').onclick=closeInventory;
 document.getElementById('inv-sort').onclick=sortInventory;
 
@@ -4784,9 +4768,11 @@ document.querySelectorAll('.dp').forEach(btn=>{
   ab.addEventListener('mousedown',e=>{e.preventDefault();doAttackButton();});
 })();
 
-// 待機ボタン（押しっぱなしでその場高速足踏み＝連続で待機ターンを消化）
-(()=>{
-  const wb=document.getElementById('wait-btn');
+// 待機ボタン（押しっぱなしでその場高速足踏み＝連続で待機ターンを消化）。
+// 左側の「待機」と右側の「待機」（旧・袋ボタン）の両方に同じ挙動を割り当てる。
+function attachWaitButton(id){
+  const wb=document.getElementById(id);
+  if(!wb)return;
   let repeatTimer=null;
   const startWait=()=>{
     doWait(); // 1回目は即座に
@@ -4800,7 +4786,9 @@ document.querySelectorAll('.dp').forEach(btn=>{
   wb.addEventListener('mousedown',e=>{e.preventDefault();startWait();});
   wb.addEventListener('mouseup',e=>{e.preventDefault();stopWait();});
   wb.addEventListener('mouseleave',e=>{stopWait();});
-})();
+}
+attachWaitButton('wait-btn');
+attachWaitButton('wait-btn2');
 
 // オーバーレイ
 const overlay=document.getElementById('overlay');
