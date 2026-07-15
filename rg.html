@@ -411,7 +411,7 @@ body { font-family:'Courier New',monospace; color:#c8b89a; user-select:none; -we
 <div id="fade-overlay"></div>
 <div id="floor-announce"></div>
 <div id="title-screen">
-  <div id="title-logo">Wanderer's Dungeon<span class="title-ver">ver 0.9.40</span></div>
+  <div id="title-logo">Wanderer's Dungeon<span class="title-ver">ver 0.9.41</span></div>
   <div id="title-buttons">
     <button id="title-continue" class="title-btn slot-btn">
       <div class="slot-head">
@@ -4865,7 +4865,7 @@ function drawMinimap(){
   if(stairsPos&&explored[stairsPos.y][stairsPos.x]){octx.strokeStyle='#70d8f0';octx.lineWidth=1;octx.strokeRect(ox+stairsPos.x*S+0.5,oy+stairsPos.y*S+0.5,S-1,S-1);}
   if(returnPos&&explored[returnPos.y][returnPos.x]){octx.fillStyle='#4080ff';octx.fillRect(ox+returnPos.x*S,oy+returnPos.y*S,S,S);}
   // アイテム（探索済みのみ）
-  floorItems.forEach(i=>{if(explored[i.y][i.x]){octx.fillStyle='#c08030';octx.fillRect(ox+i.x*S,oy+i.y*S,S-1,S-1);}});
+  floorItems.forEach(i=>{if(explored[i.y][i.x]){octx.fillStyle='#70d8f0';octx.fillRect(ox+i.x*S,oy+i.y*S,S-1,S-1);}});
   // 敵（探索済み、かつ自機と同じ部屋または隣接1マスなど実際に見えている場合のみ）
   enemies.forEach(e=>{if(e.hp>0&&explored[e.y][e.x]&&e.mesh.visible){octx.fillStyle='#e04040';octx.fillRect(ox+e.x*S,oy+e.y*S,S,S);}});
   // 自分（主観モード中のみ、現在向いている方向がわかる▲マーカーにする）
