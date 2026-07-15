@@ -32,7 +32,10 @@ body { font-family:'Courier New',monospace; color:#c8b89a; user-select:none; -we
   background:#080810;
 }
 
-/* 下エリア：操作パネル */
+/* 下エリア：操作パネル。高さは固定値を持たず、実際のdpadサイズ
+   （--dp-size/--dp-gap。機種の画面幅に応じてJS側で算出）に応じて
+   自動的に決まるようにし、機種によってボタン同士が重なったり
+   余白が偏ったりしないようにする */
 #ctrl-area {
   flex-shrink:0;
   background:#1a1008;
@@ -41,7 +44,6 @@ body { font-family:'Courier New',monospace; color:#c8b89a; user-select:none; -we
   flex-direction:column;
   padding:12px 8px;
   gap:1px;
-  height:317px;
 }
 /* サブボタン行：視点切替・(未定)・ダッシュ・持ち物 */
 #sub-btns {
@@ -429,7 +431,7 @@ body { font-family:'Courier New',monospace; color:#c8b89a; user-select:none; -we
 <div id="fade-overlay"></div>
 <div id="floor-announce"></div>
 <div id="title-screen">
-  <div id="title-logo">Wanderer's Dungeon<span class="title-ver">ver 0.9.58</span></div>
+  <div id="title-logo">Wanderer's Dungeon<span class="title-ver">ver 0.9.59</span></div>
   <div id="title-buttons">
     <button id="title-continue" class="title-btn slot-btn">
       <div class="slot-head">
