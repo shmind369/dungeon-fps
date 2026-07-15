@@ -40,7 +40,7 @@ body { font-family:'Courier New',monospace; color:#c8b89a; user-select:none; -we
   display:flex;
   flex-direction:column;
   padding:12px 8px;
-  gap:10px;
+  gap:4px;
   height:377px;
 }
 /* サブボタン行：視点切替・(未定)・ダッシュ・持ち物 */
@@ -176,22 +176,24 @@ body { font-family:'Courier New',monospace; color:#c8b89a; user-select:none; -we
 }
 #attack-btn:active { background:#6a2418; border-color:#ff9070; }
 
-/* 左側の弓矢・空きボタン。dpadの高さと上下ぴったり揃え、
-   2つのボタンを上段・下段に配置する */
+/* 左側の弓矢・空きボタン。隙間なく縦に並べ、2つ合わせた高さが
+   dpad（3×3）の実際の高さと上下ぴったり揃うようにする */
 #left-btns {
-  display:flex; flex-direction:column; justify-content:space-between;
+  display:flex; flex-direction:column;
   height:calc(var(--dp-size,68px)*3 + var(--dp-gap,4px)*2); flex-shrink:0;
 }
 
 /* 弓矢・空きボタンの共通の角丸長方形ボタンスタイル */
 #bow-btn, #left-spare-btn {
-  width:64px; height:80px; border-radius:12px;
+  width:64px; flex:1;
   background:#2a1c0c; border:2px solid #6a5430;
   color:#f0d080; font-size:14px; font-family:'Courier New',monospace;
-  cursor:pointer; line-height:1.3; flex-shrink:0;
+  cursor:pointer; line-height:1.3;
   display:flex; flex-direction:column; align-items:center; justify-content:center;
   -webkit-tap-highlight-color:transparent; user-select:none; -webkit-user-select:none;
 }
+#bow-btn { border-radius:12px 12px 0 0; }
+#left-spare-btn { border-radius:0 0 12px 12px; }
 #bow-btn:active, #left-spare-btn:active { background:#5a3c1c; }
 #wait-btn {
   width:64px; flex:1; border-radius:0 0 10px 10px;
@@ -427,7 +429,7 @@ body { font-family:'Courier New',monospace; color:#c8b89a; user-select:none; -we
 <div id="fade-overlay"></div>
 <div id="floor-announce"></div>
 <div id="title-screen">
-  <div id="title-logo">Wanderer's Dungeon<span class="title-ver">ver 0.9.55</span></div>
+  <div id="title-logo">Wanderer's Dungeon<span class="title-ver">ver 0.9.56</span></div>
   <div id="title-buttons">
     <button id="title-continue" class="title-btn slot-btn">
       <div class="slot-head">
