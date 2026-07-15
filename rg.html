@@ -411,7 +411,7 @@ body { font-family:'Courier New',monospace; color:#c8b89a; user-select:none; -we
 <div id="fade-overlay"></div>
 <div id="floor-announce"></div>
 <div id="title-screen">
-  <div id="title-logo">Wanderer's Dungeon<span class="title-ver">ver 0.9.35</span></div>
+  <div id="title-logo">Wanderer's Dungeon<span class="title-ver">ver 0.9.36</span></div>
   <div id="title-buttons">
     <button id="title-continue" class="title-btn slot-btn">
       <div class="slot-head">
@@ -4351,8 +4351,7 @@ function levelUp(){
   state.nextExp = state.lv<MAX_LEVEL ? (LEVEL_EXP_TOTAL[state.lv+1]-LEVEL_EXP_TOTAL[state.lv]) : Infinity;
   // ステータス上昇（攻撃力・防御力は装備/ちからから毎回算出するのでここでは加算しない）
   state.maxHp+=5;
-  state.hp=state.maxHp; // レベルアップで全回復
-  showAction(`Lv${state.lv}にあがった！ HP全回復`,2000);
+  showAction(`Lv${state.lv}にあがった！`,2000);
   sfxLevelUp();
   showLevelUpAnnounce();
   // レベルアップ時は余剰経験値で連続レベルアップ（最大レベルまで）
