@@ -277,6 +277,10 @@ body { font-family:'Courier New',monospace; color:#c8b89a; user-select:none; -we
   color:#fff; font-size:15px; text-align:center;
   padding-bottom:10px; border-bottom:1px solid #f8f8f8; margin-bottom:4px;
 }
+.act-btn-row {
+  display:flex; flex-direction:row; gap:8px;
+}
+.act-btn-row .act-btn { flex:1; min-width:0; padding:12px 4px; }
 .act-btn {
   background:#000; border:1px solid #f8f8f8; color:#fff;
   font-size:14px; padding:12px; cursor:pointer; border-radius:2px;
@@ -410,7 +414,7 @@ body { font-family:'Courier New',monospace; color:#c8b89a; user-select:none; -we
 <div id="fade-overlay"></div>
 <div id="floor-announce"></div>
 <div id="title-screen">
-  <div id="title-logo">Wanderer's Dungeon<span class="title-ver">ver 0.9.45</span></div>
+  <div id="title-logo">Wanderer's Dungeon<span class="title-ver">ver 0.9.46</span></div>
   <div id="title-buttons">
     <button id="title-continue" class="title-btn slot-btn">
       <div class="slot-head">
@@ -509,9 +513,11 @@ body { font-family:'Courier New',monospace; color:#c8b89a; user-select:none; -we
 <div id="action-modal">
   <div id="action-panel">
     <div id="action-title">アイテム</div>
-    <button class="act-btn" data-act="use">使う / 装備する</button>
-    <button class="act-btn" data-act="throw">投げる</button>
-    <button class="act-btn" data-act="drop">置く</button>
+    <div class="act-btn-row">
+      <button class="act-btn" data-act="use">使う</button>
+      <button class="act-btn" data-act="throw">投げる</button>
+      <button class="act-btn" data-act="drop">置く</button>
+    </div>
     <button class="act-btn" data-act="cancel">やめる</button>
   </div>
 </div>
@@ -520,9 +526,11 @@ body { font-family:'Courier New',monospace; color:#c8b89a; user-select:none; -we
 <div id="underfoot-modal">
   <div class="action-panel-box">
     <div id="underfoot-title">足元のアイテム</div>
-    <button class="act-btn" data-uf="pick">拾う</button>
-    <button class="act-btn" data-uf="use">使う / 装備する</button>
-    <button class="act-btn" data-uf="throw">投げる</button>
+    <div class="act-btn-row">
+      <button class="act-btn" data-uf="pick">拾う</button>
+      <button class="act-btn" data-uf="use">使う</button>
+      <button class="act-btn" data-uf="throw">投げる</button>
+    </div>
     <button class="act-btn" data-uf="cancel">やめる</button>
   </div>
 </div>
