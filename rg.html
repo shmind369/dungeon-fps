@@ -205,84 +205,86 @@ body { font-family:'Courier New',monospace; color:#c8b89a; user-select:none; -we
 
 #inv-panel {
   width:340px; max-width:440px; max-height:560px;
-  background:#15110a; border:1px solid #4a3a20; border-radius:8px;
+  background:#000; border:2px solid #f8f8f8; border-radius:2px;
+  box-shadow:0 0 0 1px #000818, 0 4px 10px rgba(0,0,0,0.5);
   display:flex; flex-direction:column; overflow:hidden;
 }
 #inv-header {
   display:flex; justify-content:space-between; align-items:center;
-  padding:12px 16px; border-bottom:1px solid #3a2c18;
-  color:#f0d080; font-size:15px; letter-spacing:2px;
+  padding:12px 16px; border-bottom:1px solid #f8f8f8;
+  color:#fff; font-size:15px; letter-spacing:2px;
 }
 #inv-header button {
-  background:#2a2010; border:1px solid #4a3a20; color:#f0d080;
+  background:#000; border:1px solid #f8f8f8; color:#fff;
   font-size:12px; padding:4px 10px; margin-left:6px; cursor:pointer;
-  font-family:'Courier New',monospace; border-radius:4px;
+  font-family:'Courier New',monospace; border-radius:2px;
 }
 #inv-list { overflow-y:auto; padding:8px; flex:1 1 auto; min-height:0; }
 .inv-item {
   display:flex; align-items:center; gap:10px;
   padding:10px 12px; margin-bottom:4px;
-  background:#1c1610; border:1px solid #2a2014; border-radius:5px;
-  cursor:pointer; color:#c8b89a; font-size:14px;
+  background:#000; border:1px solid #444; border-radius:2px;
+  cursor:pointer; color:#fff; font-size:14px;
 }
-.inv-item:active { background:#2a2014; }
-.inv-item.equipped { border-color:#c0a040; background:#241c10; }
+.inv-item:active { background:#222; }
+.inv-item.equipped { border-color:#f8f8f8; background:#141414; }
 .inv-icon { font-size:20px; width:28px; text-align:center; }
 .inv-name { flex:1; }
-.inv-eq { color:#ffd040; font-weight:bold; font-size:12px; border:1px solid #c0a040; border-radius:3px; padding:1px 5px; }
+.inv-eq { color:#ffd040; font-weight:bold; font-size:12px; border:1px solid #ffd040; border-radius:3px; padding:1px 5px; }
 .inv-plus { color:#80c0ff; font-size:13px; }
-.inv-stat { color:#ff9060; font-weight:bold; font-size:12px; border:1px solid #a05838; border-radius:3px; padding:1px 5px; flex-shrink:0; }
-.inv-empty { text-align:center; color:#6a5a40; padding:30px; font-size:13px; }
+.inv-stat { color:#ff9060; font-weight:bold; font-size:12px; border:1px solid #ff9060; border-radius:3px; padding:1px 5px; flex-shrink:0; }
+.inv-empty { text-align:center; color:#888; padding:30px; font-size:13px; }
 
 #inv-footer {
-  padding:10px 12px; border-top:1px solid #3a2c18; flex-shrink:0;
+  padding:10px 12px; border-top:1px solid #f8f8f8; flex-shrink:0;
   display:flex; flex-direction:column; gap:8px;
 }
 #inv-footer-row { display:flex; align-items:stretch; gap:8px; }
 #inv-underfoot {
-  flex:1 1 auto; min-width:0; background:#1c2a1a; border:1px solid #3a6a30; color:#90d080;
-  font-size:13px; letter-spacing:1px; padding:11px; border-radius:6px;
+  flex:1 1 auto; min-width:0; background:#000; border:1px solid #f8f8f8; color:#fff;
+  font-size:13px; letter-spacing:1px; padding:11px; border-radius:2px;
   font-family:'Courier New',monospace; cursor:pointer;
   display:flex; align-items:center; gap:10px;
 }
 #inv-sort {
-  flex-shrink:0; background:#2a2010; border:1px solid #4a3a20; color:#f0d080;
+  flex-shrink:0; background:#000; border:1px solid #f8f8f8; color:#fff;
   font-size:12px; padding:4px 10px; cursor:pointer;
-  font-family:'Courier New',monospace; border-radius:4px;
+  font-family:'Courier New',monospace; border-radius:2px;
 }
-#inv-underfoot:active { background:#2a4a24; }
+#inv-underfoot:active { background:#222; }
 #inv-underfoot .uf-label {
-  flex-shrink:0; color:#90d080; border:1px solid #3a6a30; border-radius:4px;
-  padding:2px 8px; font-size:12px;
+  flex-shrink:0; color:#90d080;
+  font-size:12px;
 }
-#inv-underfoot .uf-item { flex:1; text-align:left; color:#e8d4a0; }
+#inv-underfoot .uf-item { flex:1; text-align:left; color:#fff; }
 #inv-underfoot.empty { opacity:0.5; }
-#inv-underfoot.empty .uf-item { color:#6a5a40; }
+#inv-underfoot.empty .uf-item { color:#888; }
 #inv-suspend {
-  width:100%; background:#1a2a2c; border:1px solid #3a6a68; color:#80d0c8;
-  font-size:13px; letter-spacing:2px; padding:11px; border-radius:6px;
+  width:100%; background:#000; border:1px solid #f8f8f8; color:#80d0c8;
+  font-size:13px; letter-spacing:2px; padding:11px; border-radius:2px;
   font-family:'Courier New',monospace; cursor:pointer;
 }
-#inv-suspend:active { background:#2a4a48; }
+#inv-suspend:active { background:#222; }
 
 /* アクションメニュー */
 #action-panel, .action-panel-box {
   width:280px; max-width:320px;
-  background:#15110a; border:1px solid #4a3a20; border-radius:8px;
+  background:#000; border:2px solid #f8f8f8; border-radius:2px;
+  box-shadow:0 0 0 1px #000818, 0 4px 10px rgba(0,0,0,0.5);
   padding:16px; display:flex; flex-direction:column; gap:8px;
 }
 #action-title, #underfoot-title {
-  color:#f0d080; font-size:15px; text-align:center;
-  padding-bottom:10px; border-bottom:1px solid #3a2c18; margin-bottom:4px;
+  color:#fff; font-size:15px; text-align:center;
+  padding-bottom:10px; border-bottom:1px solid #f8f8f8; margin-bottom:4px;
 }
 .act-btn {
-  background:#2a2010; border:1px solid #4a3a20; color:#e0c890;
-  font-size:14px; padding:12px; cursor:pointer; border-radius:5px;
+  background:#000; border:1px solid #f8f8f8; color:#fff;
+  font-size:14px; padding:12px; cursor:pointer; border-radius:2px;
   font-family:'Courier New',monospace;
 }
-.act-btn[data-act="cancel"], .act-btn[data-uf="cancel"] { color:#a08860; }
+.act-btn[data-act="cancel"], .act-btn[data-uf="cancel"] { color:#a0a0a0; }
 .act-btn[data-uf="pick"] { color:#90d080; }
-.act-btn:active { background:#3a2c18; }
+.act-btn:active { background:#222; }
 
 /* 確認モーダル（YES/NO） */
 #confirm-modal {
@@ -293,43 +295,44 @@ body { font-family:'Courier New',monospace; color:#c8b89a; user-select:none; -we
 #confirm-modal.show { display:flex; }
 #confirm-panel {
   width:240px; max-width:300px;
-  background:#15110a; border:1px solid #4a3a20; border-radius:8px;
+  background:#000; border:2px solid #f8f8f8; border-radius:2px;
+  box-shadow:0 0 0 1px #000818, 0 4px 10px rgba(0,0,0,0.5);
   padding:18px; display:flex; flex-direction:column; gap:10px;
 }
 #confirm-title {
-  color:#f0d080; font-size:15px; text-align:center;
-  padding-bottom:10px; border-bottom:1px solid #3a2c18; margin-bottom:4px;
+  color:#fff; font-size:15px; text-align:center;
+  padding-bottom:10px; border-bottom:1px solid #f8f8f8; margin-bottom:4px;
   line-height:1.5;
 }
 .confirm-btn {
-  background:#2a2010; border:1px solid #4a3a20; color:#e0c890;
-  font-size:14px; padding:12px; cursor:pointer; border-radius:5px;
+  background:#000; border:1px solid #f8f8f8; color:#fff;
+  font-size:14px; padding:12px; cursor:pointer; border-radius:2px;
   font-family:'Courier New',monospace;
 }
-.confirm-btn:active { background:#3a2c18; }
-#confirm-yes { color:#80e090; border-color:#3a6040; }
-#confirm-no { color:#a08860; }
+.confirm-btn:active { background:#222; }
+#confirm-yes { color:#80e090; }
+#confirm-no { color:#a0a0a0; }
 
 /* セリフウィンドウ */
 #dialogue-box {
   position:absolute; left:10px; right:10px; bottom:10px;
-  background:rgba(10,8,4,0.92); border:2px solid #6a5430; border-radius:8px;
+  background:#000; border:2px solid #f8f8f8; border-radius:2px;
   padding:12px 14px 10px; z-index:25;
-  box-shadow:0 4px 14px rgba(0,0,0,0.5);
+  box-shadow:0 0 0 1px #000818, 0 4px 10px rgba(0,0,0,0.5);
   pointer-events:none;
   opacity:0; transition:opacity 0.35s ease;
 }
 #dialogue-box.show { opacity:1; pointer-events:auto; }
 #dialogue-name {
-  color:#f0d080; font-size:12px; letter-spacing:2px; margin-bottom:6px;
-  border-bottom:1px solid #3a2c18; padding-bottom:5px;
+  color:#fff; font-size:12px; letter-spacing:2px; margin-bottom:6px;
+  border-bottom:1px solid #f8f8f8; padding-bottom:5px;
 }
 #dialogue-text {
-  color:#e8d4a0; font-size:13.5px; line-height:1.6; letter-spacing:0.5px;
+  color:#fff; font-size:13.5px; line-height:1.6; letter-spacing:0.5px;
   white-space:pre-line;
 }
 #dialogue-hint {
-  color:#8a7a58; font-size:10px; text-align:right; margin-top:8px;
+  color:#a0a0a0; font-size:10px; text-align:right; margin-top:8px;
 }
 
 /* タイトル画面 */
@@ -407,7 +410,7 @@ body { font-family:'Courier New',monospace; color:#c8b89a; user-select:none; -we
 <div id="fade-overlay"></div>
 <div id="floor-announce"></div>
 <div id="title-screen">
-  <div id="title-logo">Wanderer's Dungeon<span class="title-ver">ver 0.9.44</span></div>
+  <div id="title-logo">Wanderer's Dungeon<span class="title-ver">ver 0.9.45</span></div>
   <div id="title-buttons">
     <button id="title-continue" class="title-btn slot-btn">
       <div class="slot-head">
