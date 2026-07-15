@@ -411,7 +411,7 @@ body { font-family:'Courier New',monospace; color:#c8b89a; user-select:none; -we
 <div id="fade-overlay"></div>
 <div id="floor-announce"></div>
 <div id="title-screen">
-  <div id="title-logo">Wanderer's Dungeon<span class="title-ver">ver 0.9.37</span></div>
+  <div id="title-logo">Wanderer's Dungeon<span class="title-ver">ver 0.9.38</span></div>
   <div id="title-buttons">
     <button id="title-continue" class="title-btn slot-btn">
       <div class="slot-head">
@@ -4849,14 +4849,10 @@ function updateExplored(){
 
 function drawMinimap(){
   if(!MAP.length||!explored.length)return;
-  const S=3,ox=10;
-  const topbarEl=document.getElementById('topbar');
-  const topbarH=topbarEl?topbarEl.getBoundingClientRect().height:0;
-  const floorEl=document.getElementById('floor-indicator');
-  const floorH=floorEl?floorEl.getBoundingClientRect().height:0;
-  const oy=topbarH+2+floorH+6; // 階数表示のすぐ下に配置（重ならないよう余白を確保）
+  const S=11; // 大胆に大きく表示する
+  const ox=(overlay.width-MAP_W*S)/2, oy=(overlay.height-MAP_H*S)/2; // 画面中央に配置
   octx.save();
-  octx.fillStyle='rgba(0,0,0,0.6)';octx.fillRect(ox-2,oy-2,MAP_W*S+4,MAP_H*S+4);
+  octx.globalAlpha=0.8; // 背景の箱は置かず、マップ全体を半透明にして奥のダンジョンも透けて見えるようにする
   // 探索済みマスのみ描画（壁は表示せず、床のみ描く）
   // 通路・部屋を隙間なくつなげて塗ることで、配管のような一続きの通路として見えるようにする
   octx.fillStyle='#2030c8';
