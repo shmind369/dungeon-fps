@@ -214,11 +214,6 @@ body { font-family:'Courier New',monospace; color:#c8b89a; user-select:none; -we
   padding:18px 24px; border-bottom:1px solid #f8f8f8;
   color:#fff; font-size:23px; letter-spacing:3px;
 }
-#inv-header button {
-  background:#000; border:1px solid #f8f8f8; color:#fff;
-  font-size:18px; padding:6px 15px; margin-left:9px; cursor:pointer;
-  font-family:'Courier New',monospace; border-radius:3px;
-}
 #inv-list { overflow-y:auto; padding:12px; flex:1 1 auto; min-height:0; }
 .inv-item {
   display:flex; align-items:center; gap:15px;
@@ -246,7 +241,7 @@ body { font-family:'Courier New',monospace; color:#c8b89a; user-select:none; -we
   font-family:'Courier New',monospace; cursor:pointer;
   display:flex; align-items:center; gap:15px;
 }
-#inv-sort {
+#inv-sort, #inv-close {
   flex-shrink:0; background:#000; border:1px solid #f8f8f8; color:#fff;
   font-size:18px; padding:6px 15px; cursor:pointer;
   font-family:'Courier New',monospace; border-radius:3px;
@@ -414,7 +409,7 @@ body { font-family:'Courier New',monospace; color:#c8b89a; user-select:none; -we
 <div id="fade-overlay"></div>
 <div id="floor-announce"></div>
 <div id="title-screen">
-  <div id="title-logo">Wanderer's Dungeon<span class="title-ver">ver 0.9.48</span></div>
+  <div id="title-logo">Wanderer's Dungeon<span class="title-ver">ver 0.9.49</span></div>
   <div id="title-buttons">
     <button id="title-continue" class="title-btn slot-btn">
       <div class="slot-head">
@@ -495,14 +490,12 @@ body { font-family:'Courier New',monospace; color:#c8b89a; user-select:none; -we
   <div id="inv-panel">
     <div id="inv-header">
       <span>持ち物</span>
-      <div>
-        <button id="inv-close">×</button>
-      </div>
     </div>
     <div id="inv-list"></div>
     <div id="inv-footer">
       <div id="inv-footer-row">
         <button id="inv-underfoot"><span class="uf-label">足元</span><span class="uf-item" id="uf-item">なし</span></button>
+        <button id="inv-close">閉じる</button>
         <button id="inv-sort">種別整理</button>
       </div>
     </div>
