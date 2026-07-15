@@ -55,6 +55,11 @@ body { font-family:'Courier New',monospace; color:#c8b89a; user-select:none; -we
 #topbar-left, #topbar-mid { display:flex; flex-direction:column; gap:1px; }
 .tb-row { display:flex; align-items:baseline; gap:6px; white-space:nowrap; }
 .tb-label { color:#50e0f0; font-weight:bold; }
+/* 右端の階数表示（大きな数字+F） */
+#topbar-right { margin-left:auto; display:flex; align-items:baseline; white-space:nowrap; }
+#floor-num { font-size:34px; font-weight:bold; line-height:1; }
+#floor-suffix { font-size:16px; font-weight:bold; margin-left:2px; }
+#topbar-right.entrance #floor-num { font-size:16px; }
 .stat-bar {
   display:block; width:96px; height:6px;
   background:#000; border:1px solid #000; border-radius:1px;
@@ -91,14 +96,6 @@ body { font-family:'Courier New',monospace; color:#c8b89a; user-select:none; -we
   text-shadow:0 0 4px rgba(96,255,144,0.5);
 }
 #dash-indicator.show { display:block; }
-
-/* 階数表示（左上・ミニマップの少し上に配置） */
-#floor-indicator {
-  position:absolute; left:8px;
-  background:rgba(20,20,24,0.6); border:1px solid #4a3a20; border-radius:4px;
-  color:#f0d080; font-size:11px; font-weight:bold; letter-spacing:1px;
-  padding:3px 8px; z-index:11; pointer-events:none;
-}
 
 /* ターン数表示（テスト用、右上・ステータスバー下） */
 #turn-counter {
@@ -410,7 +407,7 @@ body { font-family:'Courier New',monospace; color:#c8b89a; user-select:none; -we
 <div id="fade-overlay"></div>
 <div id="floor-announce"></div>
 <div id="title-screen">
-  <div id="title-logo">Wanderer's Dungeon<span class="title-ver">ver 0.9.42</span></div>
+  <div id="title-logo">Wanderer's Dungeon<span class="title-ver">ver 0.9.43</span></div>
   <div id="title-buttons">
     <button id="title-continue" class="title-btn slot-btn">
       <div class="slot-head">
@@ -443,9 +440,9 @@ body { font-family:'Courier New',monospace; color:#c8b89a; user-select:none; -we
         <span class="stat-bar"><span class="stat-bar-fill" id="exp-bar"></span></span>
         <div class="tb-row"><span class="tb-label">G</span><span id="gold-disp">0</span></div>
       </div>
+      <div id="topbar-right"><span id="floor-num">1</span><span id="floor-suffix">F</span></div>
     </div>
   </div>
-  <div id="floor-indicator">1F</div>
   <button id="camera-toggle">👁 視点切替</button>
   <div id="action-label"></div>
   <div id="dash-indicator">▶ ダッシュモード中</div>
@@ -2829,12 +2826,15 @@ function checkDialogueDistance(){
 }
 
 function updateUI(){
-  const floorEl=document.getElementById('floor-indicator');
-  if(floorEl){
-    floorEl.textContent=state.inEntrance?'ENTRANCE':`${state.floor}F`;
+  const topbarRightEl=document.getElementById('topbar-right');
+  if(topbarRightEl){
+    const floorNumEl=document.getElementById('floor-num');
+    const floorSuffixEl=document.getElementById('floor-suffix');
+    topbarRightEl.classList.toggle('entrance',state.inEntrance);
+    floorNumEl.textContent=state.inEntrance?'ENTRANCE':state.floor;
+    floorSuffixEl.textContent=state.inEntrance?'':'F';
     const topbarEl=document.getElementById('topbar');
     const topbarH=topbarEl?topbarEl.getBoundingClientRect().height:40;
-    floorEl.style.top=(topbarH+2)+'px';
     const camToggleEl=document.getElementById('camera-toggle');
     if(camToggleEl)camToggleEl.style.top=(topbarH+2)+'px';
   }
