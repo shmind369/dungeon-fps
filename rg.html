@@ -61,8 +61,6 @@ body { font-family:'Courier New',monospace; color:#c8b89a; user-select:none; -we
 .sub-btn:active { background:linear-gradient(#5a9c2e,#3a6a18); }
 #camera-toggle.active { background:linear-gradient(#4aa0e0,#1a6aa0); border-color:#0e3a5a; }
 #dash-btn.dash-on { background:linear-gradient(#9be05a,#5aa02a); border-color:#eaffb0; }
-/* 未割り当てのサブボタン（機能は後日決定） */
-#sub-tbd { opacity:0.5; cursor:default; }
 #ctrl-main {
   flex:1 1 auto; min-height:0;
   display:flex; align-items:center; justify-content:space-between;
@@ -163,7 +161,7 @@ body { font-family:'Courier New',monospace; color:#c8b89a; user-select:none; -we
 .dp-neutral { font-size:var(--dp-neutral-font,15px); color:#a09060; }
 .dp-neutral.turn-on { background:#5a3c1c; border-color:#f0d080; color:#f0d080; }
 
-/* 右側の攻撃・待機ボタン。誤タップ防止のため間に少し隙間を空けつつ、
+/* 右側の攻撃・空きボタン。誤タップ防止のため間に少し隙間を空けつつ、
    2つ合わせた高さがdpad（3×3）の実際の高さと上下ぴったり揃うようにする */
 #right-btns {
   display:flex; flex-direction:column; gap:6px;
@@ -195,7 +193,7 @@ body { font-family:'Courier New',monospace; color:#c8b89a; user-select:none; -we
   -webkit-tap-highlight-color:transparent; user-select:none; -webkit-user-select:none;
 }
 #bow-btn:active, #left-spare-btn:active { background:#5a3c1c; }
-#wait-btn {
+#right-spare-btn {
   width:64px; flex:1; border-radius:10px;
   background:#2a1c0c; border:2px solid #6a5430;
   color:#f0d080; font-size:14px; font-family:'Courier New',monospace;
@@ -203,7 +201,7 @@ body { font-family:'Courier New',monospace; color:#c8b89a; user-select:none; -we
   display:flex; flex-direction:column; align-items:center; justify-content:center;
   -webkit-tap-highlight-color:transparent; user-select:none; -webkit-user-select:none;
 }
-#wait-btn:active { background:#5a3c1c; }
+#right-spare-btn:active { background:#5a3c1c; }
 #bow-icon { width:36px; height:36px; }
 
 #overlay { position:absolute; top:0; left:0; right:0; bottom:0; pointer-events:none; z-index:20; }
@@ -429,7 +427,7 @@ body { font-family:'Courier New',monospace; color:#c8b89a; user-select:none; -we
 <div id="fade-overlay"></div>
 <div id="floor-announce"></div>
 <div id="title-screen">
-  <div id="title-logo">Wanderer's Dungeon<span class="title-ver">ver 0.9.62</span></div>
+  <div id="title-logo">Wanderer's Dungeon<span class="title-ver">ver 0.9.63</span></div>
   <div id="title-buttons">
     <button id="title-continue" class="title-btn slot-btn">
       <div class="slot-head">
@@ -479,10 +477,10 @@ body { font-family:'Courier New',monospace; color:#c8b89a; user-select:none; -we
 
 <!-- 操作パネル -->
 <div id="ctrl-area">
-  <!-- サブボタン：視点切替・(未定)・ダッシュ・持ち物 -->
+  <!-- サブボタン：視点切替・待機・ダッシュ・持ち物 -->
   <div id="sub-btns">
     <button id="camera-toggle" class="sub-btn">視点切替</button>
-    <button id="sub-tbd" class="sub-btn">－</button>
+    <button id="wait-btn" class="sub-btn">待機</button>
     <button id="dash-btn" class="sub-btn">ダッシュ</button>
     <button id="sub-inv" class="sub-btn">持ち物</button>
   </div>
@@ -504,10 +502,10 @@ body { font-family:'Courier New',monospace; color:#c8b89a; user-select:none; -we
       <button class="dp" data-dir="4">↓</button>
       <button class="dp" data-dir="3">↘</button>
     </div>
-    <!-- 右側：攻撃・待機ボタン -->
+    <!-- 右側：攻撃・空きボタン（機能は後日決定） -->
     <div id="right-btns">
       <button id="attack-btn">攻撃</button>
-      <button id="wait-btn">待機</button>
+      <button id="right-spare-btn"></button>
     </div>
   </div>
 </div>
