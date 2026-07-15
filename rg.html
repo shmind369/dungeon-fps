@@ -161,11 +161,11 @@ body { font-family:'Courier New',monospace; color:#c8b89a; user-select:none; -we
 .dp-neutral { font-size:var(--dp-neutral-font,15px); color:#a09060; }
 .dp-neutral.turn-on { background:#5a3c1c; border-color:#f0d080; color:#f0d080; }
 
-/* 右側の攻撃・待機ボタン。隙間なく縦に並べ、2つ合わせて
-   dpadの高さいっぱいになるよう均等に引き伸ばす */
+/* 右側の攻撃・待機ボタン。隙間なく縦に並べ、2つ合わせた高さが
+   dpad（3×3）の実際の高さと上下ぴったり揃うようにする */
 #right-btns {
   display:flex; flex-direction:column;
-  align-self:stretch; flex-shrink:0;
+  height:calc(var(--dp-size,68px)*3 + var(--dp-gap,4px)*2); flex-shrink:0;
 }
 #attack-btn {
   width:64px; flex:1; border-radius:10px 10px 0 0;
@@ -176,14 +176,15 @@ body { font-family:'Courier New',monospace; color:#c8b89a; user-select:none; -we
 }
 #attack-btn:active { background:#6a2418; border-color:#ff9070; }
 
-/* 左側の弓矢ボタン。キーパッドの高さの中央に配置する */
+/* 左側の弓矢・空きボタン。dpadの高さと上下ぴったり揃え、
+   2つのボタンを上段・下段に配置する */
 #left-btns {
-  display:flex; flex-direction:column; justify-content:center;
-  align-self:stretch; flex-shrink:0;
+  display:flex; flex-direction:column; justify-content:space-between;
+  height:calc(var(--dp-size,68px)*3 + var(--dp-gap,4px)*2); flex-shrink:0;
 }
 
-/* 弓矢の角丸長方形ボタンスタイル */
-#bow-btn {
+/* 弓矢・空きボタンの共通の角丸長方形ボタンスタイル */
+#bow-btn, #left-spare-btn {
   width:64px; height:80px; border-radius:12px;
   background:#2a1c0c; border:2px solid #6a5430;
   color:#f0d080; font-size:14px; font-family:'Courier New',monospace;
@@ -191,7 +192,7 @@ body { font-family:'Courier New',monospace; color:#c8b89a; user-select:none; -we
   display:flex; flex-direction:column; align-items:center; justify-content:center;
   -webkit-tap-highlight-color:transparent; user-select:none; -webkit-user-select:none;
 }
-#bow-btn:active { background:#5a3c1c; }
+#bow-btn:active, #left-spare-btn:active { background:#5a3c1c; }
 #wait-btn {
   width:64px; flex:1; border-radius:0 0 10px 10px;
   background:#2a1c0c; border:2px solid #6a5430;
@@ -426,7 +427,7 @@ body { font-family:'Courier New',monospace; color:#c8b89a; user-select:none; -we
 <div id="fade-overlay"></div>
 <div id="floor-announce"></div>
 <div id="title-screen">
-  <div id="title-logo">Wanderer's Dungeon<span class="title-ver">ver 0.9.54</span></div>
+  <div id="title-logo">Wanderer's Dungeon<span class="title-ver">ver 0.9.55</span></div>
   <div id="title-buttons">
     <button id="title-continue" class="title-btn slot-btn">
       <div class="slot-head">
@@ -484,9 +485,10 @@ body { font-family:'Courier New',monospace; color:#c8b89a; user-select:none; -we
     <button id="sub-inv" class="sub-btn">持ち物</button>
   </div>
   <div id="ctrl-main">
-    <!-- 左側：弓矢ボタン -->
+    <!-- 左側：弓矢ボタン・空きボタン（機能は後日決定） -->
     <div id="left-btns">
       <button id="bow-btn"><svg id="bow-icon" viewBox="0 0 24 24" fill="none"><path d="M9 2 C3 2 3 22 9 22" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M9 2 L9 22" stroke="currentColor" stroke-width="1.4"/><path d="M9 12 L20 12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M16 8 L22 12 L16 16 Z" fill="currentColor"/></svg></button>
+      <button id="left-spare-btn"></button>
     </div>
     <!-- 8方向パッド -->
     <div id="dpad">
