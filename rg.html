@@ -235,6 +235,13 @@ body { font-family:'Courier New',monospace; color:#c8b89a; user-select:none; -we
 }
 #underfoot-modal.show { display:flex; }
 
+#dungeon-select-modal {
+  position:fixed; inset:0; z-index:43;
+  background:rgba(0,0,0,0.6);
+  display:none; align-items:center; justify-content:center;
+}
+#dungeon-select-modal.show { display:flex; }
+
 #inv-panel {
   width:510px; max-width:660px; max-height:840px;
   background:#000; border:3px solid #f8f8f8; border-radius:3px;
@@ -300,7 +307,7 @@ body { font-family:'Courier New',monospace; color:#c8b89a; user-select:none; -we
   box-shadow:0 0 0 1px #000818, 0 4px 10px rgba(0,0,0,0.5);
   padding:24px; display:flex; flex-direction:column; gap:12px;
 }
-#action-title, #underfoot-title {
+#action-title, #underfoot-title, #dungeon-select-title {
   color:#fff; font-size:23px; text-align:center;
   padding-bottom:15px; border-bottom:1px solid #f8f8f8; margin-bottom:6px;
 }
@@ -316,6 +323,10 @@ body { font-family:'Courier New',monospace; color:#c8b89a; user-select:none; -we
 .act-btn[data-act="cancel"], .act-btn[data-uf="cancel"] { color:#a0a0a0; }
 .act-btn[data-uf="pick"] { color:#90d080; }
 .act-btn:active { background:#222; }
+.act-btn:disabled { color:#666; cursor:default; }
+.act-btn:disabled:active { background:#000; }
+.dungeon-select-note { display:block; font-size:13px; color:#888; margin-top:4px; }
+#dungeon-select-cancel { color:#a0a0a0; }
 
 /* 確認モーダル（YES/NO） */
 #confirm-modal {
@@ -441,7 +452,7 @@ body { font-family:'Courier New',monospace; color:#c8b89a; user-select:none; -we
 <div id="fade-overlay"></div>
 <div id="floor-announce"></div>
 <div id="title-screen">
-  <div id="title-logo">Wanderer's Dungeon<span class="title-ver">ver 0.9.64</span></div>
+  <div id="title-logo">Wanderer's Dungeon<span class="title-ver">ver 0.9.65</span></div>
   <div id="title-buttons">
     <button id="title-continue" class="title-btn slot-btn">
       <div class="slot-head">
@@ -576,6 +587,16 @@ body { font-family:'Courier New',monospace; color:#c8b89a; user-select:none; -we
     <div id="confirm-title">確認</div>
     <button class="confirm-btn" id="confirm-yes">YES</button>
     <button class="confirm-btn" id="confirm-no">NO</button>
+  </div>
+</div>
+
+<!-- ダンジョン選択モーダル -->
+<div id="dungeon-select-modal">
+  <div class="action-panel-box">
+    <div id="dungeon-select-title">ダンジョンを選択</div>
+    <button class="act-btn" id="dungeon-select-beginner" disabled>初級【全5F】<span class="dungeon-select-note">（開発中）</span></button>
+    <button class="act-btn" id="dungeon-select-normal">中級【全10F】</button>
+    <button class="act-btn" id="dungeon-select-cancel">やめる</button>
   </div>
 </div>
 </div><!-- /#viewport-root -->
@@ -3144,10 +3165,9 @@ function resetPlayerStatsForEntrance(){
 }
 
 function checkStepOn(){
-  // エントランス内：ダンジョン入口に乗ったら1Fへ
+  // エントランス内：ダンジョン入口に乗ったらダンジョン選択画面を表示
   if(state.inEntrance && entranceInfo && state.x===entranceInfo.doorX && state.y===entranceInfo.doorY){
-    sfxStairs();
-    fadeTransition(()=>{ initFloor(1); }, '地下 1 階');
+    showDungeonSelect();
     return;
   }
   if(stairsPos&&state.x===stairsPos.x&&state.y===stairsPos.y){
@@ -4074,6 +4094,17 @@ document.getElementById('confirm-no').onclick=()=>{
   closeConfirm();
   if(cb)cb();
 };
+
+// ダンジョン入口：初級/中級を選ぶモーダル（初級は開発中のため選択不可）
+const dungeonSelectModal=document.getElementById('dungeon-select-modal');
+function showDungeonSelect(){ dungeonSelectModal.classList.add('show'); }
+function closeDungeonSelect(){ dungeonSelectModal.classList.remove('show'); }
+document.getElementById('dungeon-select-normal').onclick=()=>{
+  closeDungeonSelect();
+  sfxStairs();
+  fadeTransition(()=>{ initFloor(1); }, '地下 1 階');
+};
+document.getElementById('dungeon-select-cancel').onclick=closeDungeonSelect;
 
 function openInventory(){ renderInventory(); updateUnderfootLabel(); invModal.classList.add('show'); }
 function closeInventory(){ invModal.classList.remove('show'); }
