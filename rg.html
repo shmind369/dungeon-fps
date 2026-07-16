@@ -83,23 +83,23 @@ body { font-family:'Courier New',monospace; color:#c8b89a; user-select:none; -we
 
 #ui { position:absolute; top:0; left:0; right:0; pointer-events:none; z-index:10; }
 #topbar {
-  display:flex; flex-direction:row; align-items:flex-start; gap:22px;
+  display:flex; flex-direction:row; align-items:flex-start; gap:26px;
   background:none; border:none;
-  padding:8px 10px; font-size:18px; color:#fff;
+  padding:10px 12px; font-size:22px; color:#fff;
   text-shadow:1px 1px 2px #000, -1px -1px 2px #000, 1px -1px 2px #000, -1px 1px 2px #000;
 }
 #topbar-left, #topbar-mid { display:flex; flex-direction:column; gap:1px; }
-.tb-row { display:flex; align-items:baseline; gap:6px; white-space:nowrap; }
+.tb-row { display:flex; align-items:baseline; gap:7px; white-space:nowrap; }
 .tb-label { color:#50e0f0; font-weight:bold; }
 /* 右端の階数表示（大きな数字+F） */
 #topbar-right { margin-left:auto; display:flex; align-items:baseline; white-space:nowrap; }
-#floor-num { font-size:34px; font-weight:bold; line-height:1; }
-#floor-suffix { font-size:16px; font-weight:bold; margin-left:2px; }
-#topbar-right.entrance #floor-num { font-size:16px; }
+#floor-num { font-size:41px; font-weight:bold; line-height:1; }
+#floor-suffix { font-size:19px; font-weight:bold; margin-left:2px; }
+#topbar-right.entrance #floor-num { font-size:13px; }
 .stat-bar {
-  display:block; width:96px; height:6px;
+  display:block; width:115px; height:7px;
   background:#000; border:1px solid #000; border-radius:1px;
-  margin-bottom:3px; overflow:hidden;
+  margin-bottom:4px; overflow:hidden;
 }
 .stat-bar-fill {
   display:block; height:100%; width:100%;
@@ -453,7 +453,7 @@ body { font-family:'Courier New',monospace; color:#c8b89a; user-select:none; -we
 <div id="fade-overlay"></div>
 <div id="floor-announce"></div>
 <div id="title-screen">
-  <div id="title-logo">Wanderer's Dungeon<span class="title-ver">ver 0.9.69</span></div>
+  <div id="title-logo">Wanderer's Dungeon<span class="title-ver">ver 0.9.70</span></div>
   <div id="title-buttons">
     <button id="title-continue" class="title-btn slot-btn">
       <div class="slot-head">
@@ -476,15 +476,15 @@ body { font-family:'Courier New',monospace; color:#c8b89a; user-select:none; -we
   <div id="ui">
     <div id="topbar">
       <div id="topbar-left">
+        <div class="tb-row"><span class="tb-label">Lv</span><span id="lv-disp">1</span></div>
+        <span class="stat-bar"><span class="stat-bar-fill" id="exp-bar"></span></span>
+        <div class="tb-row"><span class="tb-label">G</span><span id="gold-disp">0</span></div>
+      </div>
+      <div id="topbar-mid">
         <div class="tb-row"><span class="tb-label">満腹</span><span id="food-disp">100/100</span></div>
         <span class="stat-bar"><span class="stat-bar-fill" id="food-bar"></span></span>
         <div class="tb-row"><span class="tb-label">HP</span><span id="hp-disp">15/15</span></div>
         <span class="stat-bar"><span class="stat-bar-fill" id="hp-bar"></span></span>
-      </div>
-      <div id="topbar-mid">
-        <div class="tb-row"><span class="tb-label">Lv</span><span id="lv-disp">1</span></div>
-        <span class="stat-bar"><span class="stat-bar-fill" id="exp-bar"></span></span>
-        <div class="tb-row"><span class="tb-label">G</span><span id="gold-disp">0</span></div>
       </div>
       <div id="topbar-right"><span id="floor-num">1</span><span id="floor-suffix">F</span></div>
     </div>
