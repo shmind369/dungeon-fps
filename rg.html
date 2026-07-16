@@ -452,7 +452,7 @@ body { font-family:'Courier New',monospace; color:#c8b89a; user-select:none; -we
 <div id="fade-overlay"></div>
 <div id="floor-announce"></div>
 <div id="title-screen">
-  <div id="title-logo">Wanderer's Dungeon<span class="title-ver">ver 0.9.66</span></div>
+  <div id="title-logo">Wanderer's Dungeon<span class="title-ver">ver 0.9.67</span></div>
   <div id="title-buttons">
     <button id="title-continue" class="title-btn slot-btn">
       <div class="slot-head">
@@ -2831,7 +2831,7 @@ const _v=new THREE.Vector3();
 let firstPersonMode=false; // 試験的な一人称視点モード（ステータスバー下のボタンで切り替え）
 const FP_EYE_HEIGHT=1.3;
 // 手前のマスが見やすいよう、視線をわずかに下向きにする（カメラの高さ自体は変えない）
-const FP_TILT_DOWN=Math.tan(5*Math.PI/180);
+const FP_TILT_DOWN=Math.tan(15*Math.PI/180);
 function updateCamera(){
   // 自機の論理座標（補間後）にカメラを追従させる（攻撃突進などの演出では動かさない）
   const px=camX, pz=camZ;
