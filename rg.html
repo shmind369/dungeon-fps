@@ -217,6 +217,7 @@ body { font-family:'Courier New',monospace; color:#c8b89a; user-select:none; -we
 }
 #right-spare-btn:active { background:#5a3c1c; }
 #bow-icon { width:36px; height:36px; }
+#bow-count { display:block; font-size:12px; color:#f0d080; margin-top:2px; }
 
 #overlay { position:absolute; top:0; left:0; right:0; bottom:0; pointer-events:none; z-index:20; }
 
@@ -452,7 +453,7 @@ body { font-family:'Courier New',monospace; color:#c8b89a; user-select:none; -we
 <div id="fade-overlay"></div>
 <div id="floor-announce"></div>
 <div id="title-screen">
-  <div id="title-logo">Wanderer's Dungeon<span class="title-ver">ver 0.9.67</span></div>
+  <div id="title-logo">Wanderer's Dungeon<span class="title-ver">ver 0.9.68</span></div>
   <div id="title-buttons">
     <button id="title-continue" class="title-btn slot-btn">
       <div class="slot-head">
@@ -515,7 +516,7 @@ body { font-family:'Courier New',monospace; color:#c8b89a; user-select:none; -we
   <div id="ctrl-main">
     <!-- 左側：弓矢ボタン・空きボタン（機能は後日決定） -->
     <div id="left-btns">
-      <button id="bow-btn"><svg id="bow-icon" viewBox="0 0 24 24" fill="none"><path d="M9 2 C3 2 3 22 9 22" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M9 2 L9 22" stroke="currentColor" stroke-width="1.4"/><path d="M9 12 L20 12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M16 8 L22 12 L16 16 Z" fill="currentColor"/></svg></button>
+      <button id="bow-btn"><svg id="bow-icon" viewBox="0 0 24 24" fill="none"><path d="M9 2 C3 2 3 22 9 22" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M9 2 L9 22" stroke="currentColor" stroke-width="1.4"/><path d="M9 12 L20 12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M16 8 L22 12 L16 16 Z" fill="currentColor"/></svg><span id="bow-count"></span></button>
       <button id="left-spare-btn"></button>
     </div>
     <!-- 8方向パッド -->
@@ -770,6 +771,8 @@ const ITEM_DB={
   bread:    {name:'パン',        type:'food', icon:'🍞', color:'#c0c0c0', effect:{food:50}},
   bigbread: {name:'大きいパン',  type:'food', icon:'🍞', color:'#c0c0c0', effect:{food:90}},
   badbread: {name:'くさったパン',type:'food', icon:'🍞', color:'#c0c0c0', effect:{food:20,damage:8}},
+  // === 矢（arrow・弓で撃つ消耗品。所持数のみで管理し、拾うと1スタックにまとまる） ===
+  arrow_wood: {name:'木の矢', type:'arrow', icon:'🏹', color:'#c0c0c0', atk:2},
 };
 const ITEM_KEYS=Object.keys(ITEM_DB);
 // 床に落ちるアイテム候補（装備は控えめ、消費を多め）
@@ -777,18 +780,22 @@ const FLOOR_ITEM_KEYS=['herb','herb','hiherb','bread','bread','bigbread','badbre
   'powerp','lifep','speedp','chargep','invisp','poisonp','confusep','sleepp','curep','revivep',
   'iron','copper','club','woodsh','bronzesh','ironsh','flame','ice','poison','steel','flamesh','poisonsh','steelsh',
   'st_atk','st_fire','st_sleep','st_confuse','st_swap','st_knock','st_weak','st_seal','st_pull',
-  'sc_enchant','sc_enchant_shield','sc_fire','sc_teleport','sc_return','sc_pitfall','sc_confuse','sc_sleep','sc_luck','sc_nuke','sc_map','sc_seal'];
+  'sc_enchant','sc_enchant_shield','sc_fire','sc_teleport','sc_return','sc_pitfall','sc_confuse','sc_sleep','sc_luck','sc_nuke','sc_map','sc_seal',
+  'arrow_wood','arrow_wood','arrow_wood'];
 
 // インベントリ（最大20）
 const MAX_INV=20;
+const MAX_ARROWS=99; // 矢の最大所持数
 let inventory=[]; // {id, key, plus, equipped}
 let nextItemId=1;
-let equippedWeapon=null, equippedArmor=null;
+let equippedWeapon=null, equippedArmor=null, equippedArrow=null;
 
-function makeItem(key){
+function makeItem(key,count){
   const it={id:nextItemId++, key, plus:0, equipped:false};
   if(ITEM_DB[key].type==='staff'){
     it.charges=4+Math.floor(Math.random()*3); // 4〜6回
+  } else if(ITEM_DB[key].type==='arrow'){
+    it.count=count||0;
   }
   return it;
 }
@@ -1722,6 +1729,12 @@ function buildItemMesh(g, itemType){
     top.scale.set(1.5,0.48,0.62);
     top.position.set(0,0.26,0);
     g.add(top);
+  } else if(itemType==='arrow'){
+    // 矢：茶色の軸+銀の矢尻+白い羽根
+    vox(0.06,0.5,0.06, BROWN,  0,0.25,0, g); // 軸
+    vox(0.1,0.12,0.1,  SILVER, 0,0.53,0, g); // 矢尻
+    vox(0.16,0.06,0.03, WHITE, 0,0.02,0.05, g); // 羽根
+    vox(0.16,0.06,0.03, WHITE, 0,0.02,-0.05, g); // 羽根
   } else {
     vox(0.3,0.25,0.3, SILVER, 0,0.13,0, g);
   }
@@ -2256,7 +2269,7 @@ function getCeilingTexture(){
   return tex;
 }
 
-function spawnObject(type,gx,gy,arg){
+function spawnObject(type,gx,gy,arg,count){
   const wx=gx*CELL,wz=gy*CELL;let mesh;
   if(type==='stairs'){
     // 下り階段：Canvasで描いた階段の絵をテクスチャとして床に貼る
@@ -2286,8 +2299,8 @@ function spawnObject(type,gx,gy,arg){
     g.children.forEach(child=>{ child.position.sub(center); });
     const itemScale=db.type==='food'?2.2*0.75:2.2;
     g.scale.set(itemScale,itemScale,itemScale);
-    // 縦長の武器・盾・杖・巻物は寝かせる、薬・食べ物は立てたまま
-    if(db.type==='weapon'||db.type==='shield'||db.type==='staff'||db.type==='scroll'){
+    // 縦長の武器・盾・杖・巻物・矢は寝かせる、薬・食べ物は立てたまま
+    if(db.type==='weapon'||db.type==='shield'||db.type==='staff'||db.type==='scroll'||db.type==='arrow'){
       g.rotation.x=-Math.PI/2;
       // 寝かせた時、床から浮く高さ = 回転後に厚みとなるローカルZサイズの半分
       g.position.set(wx, Math.max(0.06,(size.z/2)*itemScale), wz);
@@ -2297,7 +2310,9 @@ function spawnObject(type,gx,gy,arg){
     }
     scene.add(g);
     g.userData={gx,gy};
-    floorItems.push({x:gx, y:gy, mesh:g, key});
+    // 矢は本数（3〜9本、明示指定がなければランダム）を持つ
+    const itemCount = db.type==='arrow' ? (count!==undefined?count:3+Math.floor(Math.random()*7)) : undefined;
+    floorItems.push({x:gx, y:gy, mesh:g, key, count:itemCount});
     mesh=null;
     objectMeshes.push(g);
     if(mesh){mesh.userData={type,gx,gy};scene.add(mesh);objectMeshes.push(mesh);}
@@ -2489,7 +2504,7 @@ function restoreWarehouseItems(room){
     if(!it)return;
     const [sx,sy]=key.split(',').map(Number);
     const gx=baseX+sx, gy=baseY+sy;
-    spawnObject('item',gx,gy,it.itemKey);
+    spawnObject('item',gx,gy,it.itemKey,it.count);
     // 見た目に反映（plusやchargesは床アイテムには紐付かないため簡易表示）
   });
 }
@@ -2643,6 +2658,7 @@ function serializeSave(){
     inventory:inventory.map(it=>{
       const o={id:it.id,key:it.key,plus:it.plus||0,equipped:!!it.equipped};
       if(it.charges!==undefined)o.charges=it.charges;
+      if(it.count!==undefined)o.count=it.count;
       return o;
     }),
     floor:null
@@ -2650,7 +2666,7 @@ function serializeSave(){
   if(!state.inEntrance){
     data.floor={
       MAP, rooms, stairsPos, returnPos, explored,
-      floorItems:floorItems.map(f=>({x:f.x,y:f.y,key:f.key,gold:f.gold})),
+      floorItems:floorItems.map(f=>({x:f.x,y:f.y,key:f.key,gold:f.gold,count:f.count})),
       enemies:enemies.map(e=>({
         x:e.x,y:e.y,hp:e.hp,maxHp:e.maxHp,atk:e.atk,def:e.def,exp:e.exp,
         type:e.type,monType:e.monType,roomIdx:e.roomIdx,aware:e.aware,
@@ -2705,16 +2721,18 @@ function applySave(data){
   pendingFloorSpawns=data.pendingFloorSpawns||{};
 
   inventory.length=0;
-  equippedWeapon=null; equippedArmor=null;
+  equippedWeapon=null; equippedArmor=null; equippedArrow=null;
   (data.inventory||[]).forEach(saved=>{
     const db=ITEM_DB[saved.key];
     if(!db)return;
     const it={id:saved.id, key:saved.key, plus:saved.plus||0, equipped:!!saved.equipped};
     if(saved.charges!==undefined)it.charges=saved.charges;
+    if(saved.count!==undefined)it.count=saved.count;
     inventory.push(it);
     if(it.equipped){
       if(db.type==='weapon') equippedWeapon=it;
       else if(db.type==='shield'||db.type==='armor') equippedArmor=it;
+      else if(db.type==='arrow') equippedArrow=it;
     }
   });
 
@@ -2741,7 +2759,7 @@ function resetFullGameState(){
     haste:0,charge:false,invis:0,confuse:0,inEntrance:false,playTimeMs:0,globalTurnCount:0
   });
   inventory.length=0;
-  equippedWeapon=null; equippedArmor=null;
+  equippedWeapon=null; equippedArmor=null; equippedArrow=null;
   nextItemId=1;
   playerSleepTurns=0;
   warehouseUnlocked=9;
@@ -2762,7 +2780,7 @@ function rebuildCurrentScene(){
   } else {
     const floorSnapshot={
       MAP, rooms, stairsPos, returnPos, explored,
-      floorItems: floorItems.map(f=>({x:f.x,y:f.y,key:f.key,gold:f.gold})),
+      floorItems: floorItems.map(f=>({x:f.x,y:f.y,key:f.key,gold:f.gold,count:f.count})),
       enemies: enemies.map(e=>({
         x:e.x,y:e.y,hp:e.hp,maxHp:e.maxHp,atk:e.atk,def:e.def,exp:e.exp,
         type:e.type,monType:e.monType,roomIdx:e.roomIdx,aware:e.aware,
@@ -2806,7 +2824,7 @@ function restoreFloor(floorData){
   (floorData.floorItems||[]).forEach(f=>{
     try{
       if(f.key==='gold'){ spawnObject('gold',f.x,f.y,f.gold); }
-      else if(ITEM_DB[f.key]){ spawnObject('item',f.x,f.y,f.key); }
+      else if(ITEM_DB[f.key]){ spawnObject('item',f.x,f.y,f.key,f.count); }
       else { console.warn('不明なアイテムキーをスキップしました',f.key); }
     }catch(err){ console.error('床アイテムの復元に失敗しました',f,err); }
   });
@@ -2962,6 +2980,9 @@ function updateUI(){
     subInvFill.classList.toggle('full',full);
     document.getElementById('sub-inv-count').textContent=`${inventory.length}/${MAX_INV}`;
   }
+  // 弓矢ボタンの残弾数表示
+  const bowCountEl=document.getElementById('bow-count');
+  if(bowCountEl)bowCountEl.textContent=(equippedArrow&&equippedArrow.count>0)?equippedArrow.count:'';
   checkAutoFaceNewAdjacent();
 }
 
@@ -2989,10 +3010,12 @@ function checkAutoFaceNewAdjacent(){
   prevAdjacentEnemies=current;
 }
 
-// 攻撃力＝基本攻撃力+基本攻撃力×(剣の強さ+ちから-8)/16の小数点以下を四捨五入した値（上限255）
-function totalAtk(){
+// 攻撃力＝基本攻撃力+基本攻撃力×(武器の強さ+ちから-8)/16の小数点以下を四捨五入した値（上限255）
+// overridePowerを渡すと、装備中の武器の代わりにその値を使う（矢の威力計算などに流用）
+function totalAtk(overridePower){
   const base=LEVEL_BASE[Math.min(state.lv,MAX_LEVEL)];
-  const weaponPower=equippedWeapon?(ITEM_DB[equippedWeapon.key].atk||ITEM_DB[equippedWeapon.key].effect?.damage||0)+equippedWeapon.plus:0;
+  const weaponPower=overridePower!==undefined?overridePower
+    :equippedWeapon?(ITEM_DB[equippedWeapon.key].atk||ITEM_DB[equippedWeapon.key].effect?.damage||0)+equippedWeapon.plus:0;
   const str=state.str||0;
   const atk=base+Math.round(base*(weaponPower+str-8)/16);
   return Math.max(0,Math.min(255,atk));
@@ -3107,7 +3130,7 @@ function playDeathSequence(){
 // ゲームオーバー：所持金・持ち物を全ロストし、ステータスをリセットしてエントランスへ
 function gameOverToEntrance(){
   inventory.length=0;
-  equippedWeapon=null; equippedArmor=null;
+  equippedWeapon=null; equippedArmor=null; equippedArrow=null;
   state.gold=0;
   resetPlayerStatsForEntrance();
   animLocked=false;
@@ -3156,6 +3179,27 @@ function pickupItem(key,gx,gy){
   return true;
 }
 
+// 矢の入手（金貨と同様に本数のみで管理。既存の矢スタックがあれば数を合算し、
+// なければ新しくインベントリに1枠使って入手する。99本が上限）
+function pickupArrows(key, dropAmount){
+  const existing=inventory.find(x=>x.key===key);
+  if(existing){
+    if(existing.count>=MAX_ARROWS){ showAction(`これ以上${ITEM_DB[key].name}は持てない`,1200); return false; }
+    const got=Math.min(MAX_ARROWS-existing.count, dropAmount);
+    existing.count+=got;
+    showAction(`${ITEM_DB[key].name}を${got}本拾った！`,1200);setLog('アイテム取得');
+    updateUI(); renderInventory();
+    return true;
+  }
+  if(inventory.length>=MAX_INV){showAction(`持ち物がいっぱい！\n${ITEM_DB[key].name}の上に乗った。`,1500);return false;}
+  const got=Math.min(MAX_ARROWS,dropAmount);
+  const it=makeItem(key,got);
+  inventory.unshift(it);
+  showAction(`${ITEM_DB[key].name}を${got}本拾った！`,1200);setLog('アイテム取得');
+  updateUI();
+  return true;
+}
+
 // エントランス帰還時：Lv・EXP・素のステータスをリセット（お金・アイテムは持ち帰り）
 function resetPlayerStatsForEntrance(){
   state.lv=1; state.exp=0; state.nextExp=10;
@@ -3198,6 +3242,8 @@ function checkStepOn(){
     if(it){
       if(it.key==='gold'){
         showAction(`${it.gold}💰`,900);
+      } else if(it.key==='arrow_wood'){
+        showAction(`${ITEM_DB[it.key].name} x${it.count}`,900);
       } else {
         showAction(`${ITEM_DB[it.key].name}`,900);
       }
@@ -3215,6 +3261,12 @@ function checkStepOn(){
       if(item.light)scene.remove(item.light);
       floorItems.splice(floorItems.indexOf(item),1);
       updateUI();
+    } else if(item.key==='arrow_wood'){
+      if(pickupArrows(item.key,item.count)){
+        sfxItem();
+        scene.remove(item.mesh);floorItems.splice(floorItems.indexOf(item),1);
+        if(state.inEntrance) removeFromWarehouseAt(state.x,state.y);
+      }
     } else if(pickupItem(item.key,state.x,state.y)){
       sfxItem();
       scene.remove(item.mesh);floorItems.splice(floorItems.indexOf(item),1);
@@ -4118,6 +4170,7 @@ function getUnderfootItem(){
 function underfootItemLabel(it){
   if(!it)return 'なし';
   if(it.key==='gold')return `${it.gold} ゴールド`;
+  if(it.key==='arrow_wood')return `${ITEM_DB[it.key].name} x${it.count}`;
   return ITEM_DB[it.key].name;
 }
 function updateUnderfootLabel(){
@@ -4149,11 +4202,13 @@ function renderInventory(){
     div.className='inv-item'+(it.equipped?' equipped':'');
     const plusStr=it.plus>0?`<span class="inv-plus">+${it.plus}</span>`:'';
     const eqStr=it.equipped?'<span class="inv-eq">E</span>':'';
-    const chargeStr=(db.type==='staff')?`<span class="inv-plus">(残${it.charges})</span>`:'';
+    const chargeStr=(db.type==='staff')?`<span class="inv-plus">(残${it.charges})</span>`
+      :(db.type==='arrow')?`<span class="inv-plus">x${it.count}</span>`:'';
     // 武器/盾は攻撃力・防御力を一目でわかるように表示
     const statVal=db.type==='weapon'?(db.atk||db.effect?.damage||0)+(it.plus||0)
-      :(db.type==='shield'||db.type==='armor')?(db.def||0)+(it.plus||0):null;
-    const statStr=statVal!==null?`<span class="inv-stat">${db.type==='weapon'?'攻':'防'}${statVal}</span>`:'';
+      :(db.type==='shield'||db.type==='armor')?(db.def||0)+(it.plus||0)
+      :db.type==='arrow'?(db.atk||0):null;
+    const statStr=statVal!==null?`<span class="inv-stat">${db.type==='weapon'||db.type==='arrow'?'攻':'防'}${statVal}</span>`:'';
     div.innerHTML=`<span class="inv-icon">${db.icon}</span>
       <span class="inv-name" style="color:${db.color}">${db.name} ${plusStr}${chargeStr}</span>${statStr} ${eqStr}`;
     div.onclick=()=>openActionMenu(it);
@@ -4162,7 +4217,7 @@ function renderInventory(){
 }
 
 function sortInventory(){
-  const order={weapon:0,shield:1,staff:2,potion:3,scroll:4,food:5,enhance:6};
+  const order={weapon:0,arrow:1,shield:2,staff:3,potion:4,scroll:5,food:6,enhance:7};
   inventory.sort((a,b)=>{
     // 装備中のものは最優先で先頭へ
     if(a.equipped&&!b.equipped)return -1;
@@ -4180,11 +4235,11 @@ function sortInventory(){
 function openActionMenu(it){
   selectedItem=it;
   const db=ITEM_DB[it.key];
-  const chargeTxt=(db.type==='staff')?` (残${it.charges})`:'';
+  const chargeTxt=(db.type==='staff')?` (残${it.charges})`:(db.type==='arrow')?` (残${it.count}本)`:'';
   document.getElementById('action-title').textContent=db.name+(it.plus>0?` +${it.plus}`:'')+chargeTxt;
   // 使う/装備するボタンのラベル切替
   const useBtn=document.querySelector('.act-btn[data-act="use"]');
-  if(db.type==='weapon'||db.type==='armor'||db.type==='shield'){
+  if(db.type==='weapon'||db.type==='armor'||db.type==='shield'||db.type==='arrow'){
     useBtn.textContent=it.equipped?'はずす':'装備する';
   } else if(db.type==='staff'){
     useBtn.textContent='振る';
@@ -4220,6 +4275,10 @@ function doAction(act){
       if(it.equipped){ it.equipped=false; equippedArmor=null; showAction('防具をはずした'); }
       else { inventory.forEach(x=>{if(ITEM_DB[x.key].type==='armor'||ITEM_DB[x.key].type==='shield')x.equipped=false;}); it.equipped=true; equippedArmor=it; showAction(`${db.name}を装備した`); }
       closeActionMenu(); closeInventory(); renderInventory(); updateUI(); enemyTurn();
+    } else if(db.type==='arrow'){
+      if(it.equipped){ it.equipped=false; equippedArrow=null; showAction('矢をはずした'); }
+      else { inventory.forEach(x=>{if(ITEM_DB[x.key].type==='arrow')x.equipped=false;}); it.equipped=true; equippedArrow=it; showAction(`${db.name}を装備した`); }
+      closeActionMenu(); closeInventory(); renderInventory(); updateUI(); enemyTurn();
     } else if(db.type==='food'){
       // 食べ物：満腹度を回復（くさったパンはHPダメージも）
       closeActionMenu(); closeInventory();
@@ -4252,6 +4311,7 @@ function doAction(act){
     }
 
   } else if(act==='throw'){
+    if(db.type==='arrow'){ showAction('矢は🏹ボタンで放ってください',1200); closeActionMenu(); return; }
     closeActionMenu(); closeInventory();
     throwItem(it);
 
@@ -4263,15 +4323,15 @@ function doAction(act){
       const slot=getWarehouseSlot(state.x,state.y);
       if(slot){
         if(slot.idx>=warehouseUnlocked){ showAction('ここはまだ使えない…',1200); closeActionMenu(); return; }
-        warehouseData[`${slot.sx},${slot.sy}`]={itemKey:it.key, plus:it.plus||0, charges:it.charges};
-        spawnObject('item',state.x,state.y,it.key);
+        warehouseData[`${slot.sx},${slot.sy}`]={itemKey:it.key, plus:it.plus||0, charges:it.charges, count:it.count};
+        spawnObject('item',state.x,state.y,it.key,it.count);
         removeFromInv(it);
         showAction(`${db.name}を倉庫に預けた`,1200);
         closeActionMenu(); renderInventory(); updateUI();
         return;
       }
     }
-    spawnObject('item',state.x,state.y,it.key);
+    spawnObject('item',state.x,state.y,it.key,it.count);
     removeFromInv(it);
     showAction(`${db.name}を置いた`);
     closeActionMenu(); renderInventory(); updateUI();
@@ -4284,7 +4344,7 @@ function doAction(act){
 function removeFromInv(it){
   const i=inventory.indexOf(it);
   if(i>=0)inventory.splice(i,1);
-  if(it.equipped){ if(equippedWeapon===it)equippedWeapon=null; if(equippedArmor===it)equippedArmor=null; }
+  if(it.equipped){ if(equippedWeapon===it)equippedWeapon=null; if(equippedArmor===it)equippedArmor=null; if(equippedArrow===it)equippedArrow=null; }
 }
 
 // ============================================================
@@ -4363,6 +4423,84 @@ function throwItem(it){
       } else {
         spawnObject('item',finalX,finalY,it.key);
         if(!hitEnemy) showAction(`${db.name}を投げた`,1200);
+      }
+      animLocked=false;
+      enemyTurn();
+    });
+  }
+}
+
+// ============================================================
+// 矢を撃つ（🏹ボタン）。投擲と同じ要領で飛ばし、壁で止まればその場に落ち、
+// 敵に当たれば自機の基本値に応じたダメージを与える
+// ============================================================
+function shootArrow(){
+  if(animLocked||isPlayerDown)return;
+  if(!equippedArrow||equippedArrow.count<=0){
+    showAction('矢を装備していない',1000);
+    return;
+  }
+  animLocked=true;
+  const it=equippedArrow;
+  const db=ITEM_DB[it.key];
+  const dx=DIR_DX[state.dir], dy=DIR_DY[state.dir];
+  let hitEnemy=null;
+  let landX=state.x, landY=state.y;
+
+  // 矢の飛距離は10マス
+  for(let step=1; step<=10; step++){
+    const nx=state.x+dx*step, ny=state.y+dy*step;
+    if(!isWalkable(nx,ny)){ break; } // 壁で停止、直前マスに落ちる
+    landX=nx; landY=ny;
+    const en=enemies.find(e=>e.x===nx&&e.y===ny);
+    if(en){ hitEnemy=en; break; }
+  }
+
+  // 命中率7/8（約87.5%）。外れたらすり抜けて先へ飛ぶ
+  const willHit = hitEnemy ? Math.random()<7/8 : false;
+
+  it.count--;
+  updateUI();
+
+  if(hitEnemy && willHit){
+    spawnThrowTrail(state.x*CELL,state.y*CELL,hitEnemy.x*CELL,hitEnemy.y*CELL,db,()=>{
+      hitEnemy.aware=true;
+      const dmg=calcDamage(totalAtk(db.atk),hitEnemy.def||0);
+      spawnDamageNum(hitEnemy.mesh.position.x,2.0,hitEnemy.mesh.position.z,`${dmg}`,'#ffffff');
+      sfxAttack();
+      damageEnemy(hitEnemy, dmg);
+      animLocked=false;
+      enemyTurn();
+    });
+  } else {
+    // 外れ or 何もない：外れた場合はモンスターの足元に落ちる
+    if(hitEnemy && !willHit){
+      showAction('矢は外れた！',1000);
+      landX=hitEnemy.x; landY=hitEnemy.y;
+    }
+    // 着地点にアイテム/階段があれば隣にずらす
+    let finalX=landX, finalY=landY;
+    let lost=false;
+    const occupied=floorItems.find(f=>f.x===landX&&f.y===landY)||
+                   (stairsPos&&stairsPos.x===landX&&stairsPos.y===landY)||
+                   (returnPos&&returnPos.x===landX&&returnPos.y===landY);
+    if(occupied){
+      const dirs=[[0,-1],[1,0],[0,1],[-1,0],[1,-1],[1,1],[-1,1],[-1,-1]].sort(()=>Math.random()-0.5);
+      let foundSpot=false;
+      for(const [ox,oy] of dirs){
+        if(isWalkable(landX+ox,landY+oy)&&!floorItems.find(f=>f.x===landX+ox&&f.y===landY+oy)){
+          finalX=landX+ox; finalY=landY+oy; foundSpot=true; break;
+        }
+      }
+      // 周囲も全て埋まっていて置き場がない場合は、重ねて置かずロストさせる
+      if(!foundSpot) lost=true;
+    }
+    spawnThrowTrail(state.x*CELL,state.y*CELL,finalX*CELL,finalY*CELL,db,()=>{
+      if(lost){
+        showAction('矢は床に落ちて使い物にならなくなった',1500);
+      } else {
+        spawnObject('item',finalX,finalY,it.key,1);
+        if(!hitEnemy) showAction(`${db.name}を放った`,1000);
       }
       animLocked=false;
       enemyTurn();
@@ -4545,10 +4683,10 @@ document.getElementById('sub-inv').onclick=openInventory;
 document.getElementById('inv-close').onclick=closeInventory;
 document.getElementById('inv-sort').onclick=sortInventory;
 
-// 弓矢ボタン（未実装。矢を装備していない旨を表示するのみでターンは消費しない）
+// 弓矢ボタン：矢を装備していれば発射、していなければその旨を表示
 document.getElementById('bow-btn').onclick=()=>{
   if(animLocked||isPlayerDown)return;
-  showAction('矢を装備していない',1000);
+  shootArrow();
 };
 
 // 「足元」ボタン：足元のアイテム/階段などに応じてメニューを出す
@@ -4568,6 +4706,17 @@ document.getElementById('inv-underfoot').onclick=()=>{
       if(it.light)scene.remove(it.light);
       floorItems.splice(floorItems.indexOf(it),1);
       updateUI();updateUnderfootLabel();
+      return;
+    }
+    if(it.key==='arrow_wood'){
+      // 矢も金貨と同様、拾うだけ
+      if(pickupArrows(it.key,it.count)){
+        sfxItem();
+        scene.remove(it.mesh);
+        floorItems.splice(floorItems.indexOf(it),1);
+        if(state.inEntrance) removeFromWarehouseAt(it.x,it.y);
+      }
+      updateUnderfootLabel();
       return;
     }
     openUnderfootMenu(it);
