@@ -453,7 +453,7 @@ body { font-family:'Courier New',monospace; color:#c8b89a; user-select:none; -we
 <div id="fade-overlay"></div>
 <div id="floor-announce"></div>
 <div id="title-screen">
-  <div id="title-logo">Wanderer's Dungeon<span class="title-ver">ver 0.9.68</span></div>
+  <div id="title-logo">Wanderer's Dungeon<span class="title-ver">ver 0.9.69</span></div>
   <div id="title-buttons">
     <button id="title-continue" class="title-btn slot-btn">
       <div class="slot-head">
@@ -679,7 +679,7 @@ const RETURN_FLOORS=[]; // 帰還スポットは一旦廃止
 // 階層別モンスター出現プール
 const FLOOR_MONSTER_POOL={
   1:['slime','bat'],2:['slime','bat'],
-  3:['zombie','mage','goblin'],4:['zombie','mage','goblin'],
+  3:['zombie','mage','goblin','skeleton_archer'],4:['zombie','mage','goblin','skeleton_archer'],
   5:['knight','chimera'],6:['knight','chimera'],
   7:['golem','wizard','devilape'],8:['golem','wizard','devilape'],
   9:['golem','wizard','devilape'],10:['dragon']
@@ -1796,6 +1796,28 @@ const MONSTER_DB={
       // 手に持つ棍棒
       vox(0.06,0.32,0.06, 0x705028, 0.28,0.5,0, g);
       vox(0.12,0.1,0.12, 0x584020, 0.28,0.68,0, g);
+    }
+  },
+  skeleton_archer:{
+    name:'スケルトンアーチャー',hp:6,atk:4,def:6,exp:6,aiType:'archer',
+    buildMesh(g){
+      // 足（骨色）
+      vox(0.14,0.26,0.14, 0x8a7850, -0.1,0.13,0, g);
+      vox(0.14,0.26,0.14, 0x8a7850,  0.1,0.13,0, g);
+      // ローブ（緑）
+      vox(0.48,0.38,0.26, 0x4a6a30, 0,0.46,0, g);
+      // 頭（骸骨）
+      vox(0.3,0.3,0.28, 0xe4dcc4, 0,0.82,0, g);
+      // フード（緑）
+      vox(0.36,0.14,0.34, 0x3a5a24, 0,0.96,0, g);
+      vox(0.18,0.22,0.2, 0x3a5a24, 0,1.1,-0.02, g);
+      // 目（赤く光る）
+      vox(0.06,0.06,0.04, 0xff2020, -0.08,0.84,0.14, g);
+      vox(0.06,0.06,0.04, 0xff2020,  0.08,0.84,0.14, g);
+      // 弓（茶）
+      vox(0.06,0.55,0.06, 0x6a4020, 0.34,0.5,0, g);
+      // 矢筒（背中、茶）
+      vox(0.1,0.28,0.1, 0x5a3818, -0.05,0.65,-0.18, g);
     }
   },
   zombie:{
@@ -3701,11 +3723,72 @@ function updateMagicBolts(dt){
     const gx=Math.round(b.mesh.position.x/CELL), gz=Math.round(b.mesh.position.z/CELL);
     const wall=gx<0||gx>=MAP_W||gz<0||gz>=MAP_H||MAP[gz][gx]===1;
     if(reached||wall||b.dist>25){
-      shakeCamera(); triggerFlash('rgba(80,160,255,');
+      shakeCamera(); triggerFlash(b.flashColor||'rgba(80,160,255,');
       scene.remove(b.mesh);
       magicBolts.splice(i,1);
     }
   }
+}
+
+// 矢を指定マスに落とす（モンスターの矢が外れた時用。床が塞がっていれば諦める）
+function dropArrowAt(x,y){
+  if(floorItems.find(f=>f.x===x&&f.y===y))return;
+  if(stairsPos&&stairsPos.x===x&&stairsPos.y===y)return;
+  if(returnPos&&returnPos.x===x&&returnPos.y===y)return;
+  spawnObject('item',x,y,'arrow_wood',1);
+}
+
+// スケルトンアーチャーの矢（直線上・命中率7/8。間に別モンスターがいればそちらに当たる。
+// 外れれば狙った相手＝自機か割り込んだモンスターの足元に矢が落ちる）
+function fireArcherArrow(e, atk){
+  const dx=Math.sign(state.x-e.x), dz=Math.sign(state.y-e.y);
+  if(dx!==0&&dz!==0) return false; // 斜めは撃てない
+  // 壁チェック（直線上に壁があれば撃てない）。途中に別の敵がいれば、そこが標的になる
+  let blockerEnemy=null, hitX=state.x, hitY=state.y;
+  for(let step=1;step<=20;step++){
+    const cx=e.x+dx*step, cz=e.y+dz*step;
+    if(!isWalkable(cx,cz)) return false;
+    const other=enemies.find(o=>o!==e&&o.hp>0&&o.x===cx&&o.y===cz);
+    if(other){ blockerEnemy=other; hitX=cx; hitY=cz; break; }
+    if(cx===state.x&&cz===state.y) break;
+  }
+  // 命中率7/8（約87.5%）
+  const willHit=Math.random()<7/8;
+  if(blockerEnemy){
+    if(willHit){
+      const dmg=calcDamage(atk, blockerEnemy.def||0);
+      blockerEnemy.hp-=dmg;
+      spawnDamageNum(blockerEnemy.mesh.position.x,2.0,blockerEnemy.mesh.position.z,`${dmg}`,'#ffffff');
+      showAction('矢が他のモンスターに当たった！',800);
+      if(blockerEnemy.hp<=0) damageEnemy(blockerEnemy,0,false);
+    } else {
+      showAction('矢が外れた！',800);
+      dropArrowAt(hitX,hitY);
+    }
+  } else {
+    if(willHit){
+      const dmg=calcDamage(atk, totalDef());
+      state.hp=Math.max(0,state.hp-dmg);
+      sfxHit();
+      spawnDamageNum(state.x*CELL,1.5,state.y*CELL,`${dmg}`,'#ffffff');
+      showAction(`矢が命中！ ${dmg}ダメージ`,800);
+      updateUI();
+      checkPlayerDeath();
+    } else {
+      showAction('敵の矢を外した！',800);
+      dropArrowAt(state.x,state.y);
+    }
+  }
+  // 見た目だけの矢（当たり判定なし、演出用）
+  const geo=new THREE.BoxGeometry(0.06,0.06,0.32);
+  const mat=new THREE.MeshBasicMaterial({color:0xa07040});
+  const bolt=new THREE.Mesh(geo,mat);
+  bolt.position.set(e.x*CELL,0.9,e.y*CELL);
+  bolt.rotation.y=Math.atan2(dx,dz);
+  scene.add(bolt);
+  magicBolts.push({mesh:bolt,dx,dz,dmg:0,dist:0,maxDist:20,visualOnly:true,
+    flashColor:'rgba(200,180,120,',targetX:hitX*CELL, targetY:hitY*CELL});
+  return true;
 }
 
 // ドラゴンの炎ブレス（直線上・射程無限・必中）
@@ -3827,7 +3910,7 @@ function enemyTurn(){
     if(state.invis>0){ e.aware=false; wanderStep(e); return; }
     // 気づき判定
     if(!e.aware){
-      if(e.type==='normal'||e.type==='mage'||e.type==='wander'){
+      if(e.type==='normal'||e.type==='mage'||e.type==='wander'||e.type==='archer'){
         if(playerRoomIdx>=0&&e.roomIdx===playerRoomIdx)e.aware=true;
       } else {
         if(distToPlayer(e)<=1)e.aware=true;
@@ -3870,6 +3953,17 @@ function enemyTurn(){
       if(inSameRoom&&inLine&&distToPlayer(e)>1){
         const dmg=calcDamage(Math.floor(atk*1.2), Math.floor(totalDef()*0.5));
         attackQueue.push({isRanged:true,dirIdx:dirIdxFromPlayer(e),exec:()=>fireMagicBolt(e,dmg)});
+        return;
+      }
+    }
+
+    // スケルトンアーチャー：部屋内で同一直線なら矢を放つ。命中率7/8で、外れれば
+    // 狙った相手（自機、または間に割り込んだ別モンスター）の足元に木の矢が落ちる
+    if(e.type==='archer'&&!(e.sealed>0)){
+      const inSameRoom=playerRoomIdx>=0&&e.roomIdx===playerRoomIdx;
+      const inLine=(state.x===e.x||state.y===e.y); // 直線上
+      if(inSameRoom&&inLine&&distToPlayer(e)>1){
+        attackQueue.push({isRanged:true,dirIdx:dirIdxFromPlayer(e),exec:()=>fireArcherArrow(e,atk)});
         return;
       }
     }
