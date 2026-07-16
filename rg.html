@@ -455,7 +455,7 @@ body { font-family:'Courier New',monospace; color:#c8b89a; user-select:none; -we
 <div id="fade-overlay"></div>
 <div id="floor-announce"></div>
 <div id="title-screen">
-  <div id="title-logo">Wanderer's Dungeon<span class="title-ver">ver 0.9.72</span></div>
+  <div id="title-logo">Wanderer's Dungeon<span class="title-ver">ver 0.9.73</span></div>
   <div id="title-buttons">
     <button id="title-continue" class="title-btn slot-btn">
       <div class="slot-head">
@@ -1024,6 +1024,44 @@ const playerLight=new THREE.PointLight(0xfff0c0,15,30);
 playerLight.castShadow=true;playerLight.shadow.mapSize.set(512,512);scene.add(playerLight);
 const fillLight=new THREE.PointLight(0xa08860,7,40);scene.add(fillLight);
 
+// ライトプール：金貨や魔法弾などの一時的な光源をゲームプレイ中に
+// scene.add/removeすると、その都度Three.jsが全マテリアルのシェーダーを
+// 再コンパイルしてカクつきの原因になる。あらかじめ固定数のPointLightを
+// シーンに常駐させ、使い回すことでライトの総数を変化させないようにする
+const LIGHT_POOL_SIZE=12;
+const lightPool=[];
+for(let i=0;i<LIGHT_POOL_SIZE;i++){
+  const lt=new THREE.PointLight(0xffffff,0,1);
+  scene.add(lt);
+  lightPool.push(lt);
+}
+let lightPoolCursor=0;
+function acquirePooledLight(color,intensity,distance){
+  const lt=lightPool[lightPoolCursor];
+  lightPoolCursor=(lightPoolCursor+1)%LIGHT_POOL_SIZE;
+  lt.color.setHex(color);
+  lt.intensity=intensity;
+  lt.distance=distance;
+  return lt;
+}
+function releasePooledLight(lt){
+  if(lt)lt.intensity=0;
+}
+
+// フロア切り替え時にシーンから外すオブジェクトのgeometry/materialを解放する。
+// 呼ばないとGPU上のメモリが解放されず、長時間プレイするほど重くなっていく。
+// テクスチャ（material.map）は各種getXxxTexture()でキャッシュ・使い回しされて
+// いるため、ここでは解放しない（解放すると次のフロアで再利用できなくなる）
+function disposeObject3D(obj){
+  obj.traverse(node=>{
+    if(node.geometry)node.geometry.dispose();
+    if(node.material){
+      const mats=Array.isArray(node.material)?node.material:[node.material];
+      mats.forEach(m=>m.dispose());
+    }
+  });
+}
+
 const wallMeshes=[];
 const fadedWalls=new Set();
 const ceilingMeshes=[];
@@ -1561,11 +1599,11 @@ function fireWandBolt(dx,dz,eff,target){
   const bolt=new THREE.Mesh(geo,mat);
   bolt.position.set(state.x*CELL,0.9,state.y*CELL);
   scene.add(bolt);
-  const lt=new THREE.PointLight(0xffe060,3,2);
-  bolt.add(lt);
+  const lt=acquirePooledLight(0xffe060,3,2);
+  lt.position.copy(bolt.position);
   const tx=target?target.x*CELL:state.x*CELL+dx*CELL*6;
   const tz=target?target.y*CELL:state.y*CELL+dz*CELL*6;
-  wandBolts.push({mesh:bolt,dx,dz,targetX:tx,targetY:tz,dist:0});
+  wandBolts.push({mesh:bolt,dx,dz,targetX:tx,targetY:tz,dist:0,light:lt});
 }
 
 const wandBolts=[];
@@ -1576,10 +1614,13 @@ function updateWandBolts(dt){
     b.dist+=speed*dt;
     b.mesh.position.x+=b.dx*speed*dt*CELL;
     b.mesh.position.z+=b.dz*speed*dt*CELL;
+    if(b.light)b.light.position.copy(b.mesh.position);
     const reached=(b.dx!==0 ? (b.dx>0?b.mesh.position.x>=b.targetX:b.mesh.position.x<=b.targetX)
                             : (b.dz!==0 ? (b.dz>0?b.mesh.position.z>=b.targetY:b.mesh.position.z<=b.targetY) : true));
     if(reached||b.dist>25){
       triggerFlash('rgba(255,220,80,');
+      releasePooledLight(b.light);
+      disposeObject3D(b.mesh);
       scene.remove(b.mesh);
       wandBolts.splice(i,1);
     }
@@ -2389,14 +2430,12 @@ function spawnObject(type,gx,gy,arg,count){
     g.position.set(wx,0.05,wz);
     g.userData={gx,gy,isGold:true};
     scene.add(g);
-    // 金色の光で存在を強調
-    const glt=new THREE.PointLight(0xffd040,1.8,3.5);
+    // 金色の光で存在を強調（プールから使い回してシェーダー再コンパイルを防ぐ）
+    const glt=acquirePooledLight(0xffd040,1.8,3.5);
     glt.position.set(wx,0.9,wz);
-    scene.add(glt);
     g.userData.light=glt;
     floorItems.push({x:gx, y:gy, mesh:g, key:'gold', gold:amount, light:glt});
     objectMeshes.push(g);
-    objectMeshes.push(glt);
     return;
   } else if(type==='enemy'){
     const monType=arg||'slime';
@@ -2419,9 +2458,10 @@ function initEntrance(){
   state.inEntrance=true;
   stairsPos=null; returnPos=null;
   floorTurnCount=0; updateTurnCounterDisplay();
-  const keep=new Set([playerGroup,playerLight,fillLight,guideLine]);
+  const keep=new Set([playerGroup,playerLight,fillLight,guideLine,...lightPool]);
   const rem=[];scene.children.forEach(c=>{if(!keep.has(c)&&!(c instanceof THREE.AmbientLight))rem.push(c);});
-  rem.forEach(c=>scene.remove(c));
+  rem.forEach(c=>{disposeObject3D(c);scene.remove(c);});
+  lightPool.forEach(lt=>{lt.intensity=0;});
   wallMeshes.length=0;fadedWalls.clear();ceilingMeshes.length=0;objectMeshes.length=0;floorItems=[];enemies=[];
   npcList=[]; // NPCリストをリセット
 
@@ -2540,9 +2580,10 @@ function initFloor(floor){
   state.floor=floor;
   npcList=[];
   floorTurnCount=0; updateTurnCounterDisplay(); // このフロアでのターン数をリセット
-  const keep=new Set([playerGroup,playerLight,fillLight,guideLine]);
+  const keep=new Set([playerGroup,playerLight,fillLight,guideLine,...lightPool]);
   const rem=[];scene.children.forEach(c=>{if(!keep.has(c)&&!(c instanceof THREE.AmbientLight))rem.push(c);});
-  rem.forEach(c=>scene.remove(c));
+  rem.forEach(c=>{disposeObject3D(c);scene.remove(c);});
+  lightPool.forEach(lt=>{lt.intensity=0;});
   wallMeshes.length=0;fadedWalls.clear();ceilingMeshes.length=0;objectMeshes.length=0;floorItems=[];enemies=[];
 
   const res=generateMap(floor);MAP=res.cells;rooms=res.rooms;
@@ -2821,9 +2862,10 @@ function restoreFloor(floorData){
   state.inEntrance=false;
   npcList=[];
   floorTurnCount=0; updateTurnCounterDisplay();
-  const keep=new Set([playerGroup,playerLight,fillLight,guideLine]);
+  const keep=new Set([playerGroup,playerLight,fillLight,guideLine,...lightPool]);
   const rem=[];scene.children.forEach(c=>{if(!keep.has(c)&&!(c instanceof THREE.AmbientLight))rem.push(c);});
-  rem.forEach(c=>scene.remove(c));
+  rem.forEach(c=>{disposeObject3D(c);scene.remove(c);});
+  lightPool.forEach(lt=>{lt.intensity=0;});
   wallMeshes.length=0;fadedWalls.clear();ceilingMeshes.length=0;objectMeshes.length=0;floorItems=[];enemies=[];
 
   MAP=floorData.MAP;
@@ -3282,7 +3324,7 @@ function checkStepOn(){
       showAction(`${item.gold}💰 拾った！`,1200);
       sfxItem();
       scene.remove(item.mesh);
-      if(item.light)scene.remove(item.light);
+      if(item.light)releasePooledLight(item.light);
       floorItems.splice(floorItems.indexOf(item),1);
       updateUI();
     } else if(item.key==='arrow_wood'){
@@ -3704,10 +3746,10 @@ function fireMagicBolt(e, dmg){
   const bolt=new THREE.Mesh(geo,mat);
   bolt.position.set(e.x*CELL,0.9,e.y*CELL);
   scene.add(bolt);
-  const lt=new THREE.PointLight(0x80c0ff,3,2);
-  bolt.add(lt);
+  const lt=acquirePooledLight(0x80c0ff,3,2);
+  lt.position.copy(bolt.position);
   magicBolts.push({mesh:bolt,dx,dz,dmg:0,dist:0,maxDist:20,visualOnly:true,
-    targetX:hitX*CELL, targetY:hitY*CELL});
+    targetX:hitX*CELL, targetY:hitY*CELL, light:lt});
   return true;
 }
 
@@ -3718,6 +3760,7 @@ function updateMagicBolts(dt){
     b.dist+=speed*dt;
     b.mesh.position.x+=b.dx*speed*dt*CELL;
     b.mesh.position.z+=b.dz*speed*dt*CELL;
+    if(b.light)b.light.position.copy(b.mesh.position);
     // 発射時に狙った着弾点（固定）に到達したら着弾。プレイヤーが動いても弾は当初の位置へ飛ぶ
     const tx=b.targetX, tz=b.targetY;
     const reached=(b.dx!==0 ? (b.dx>0?b.mesh.position.x>=tx:b.mesh.position.x<=tx)
@@ -3726,6 +3769,8 @@ function updateMagicBolts(dt){
     const wall=gx<0||gx>=MAP_W||gz<0||gz>=MAP_H||MAP[gz][gx]===1;
     if(reached||wall||b.dist>25){
       shakeCamera(); triggerFlash(b.flashColor||'rgba(80,160,255,');
+      if(b.light)releasePooledLight(b.light);
+      disposeObject3D(b.mesh);
       scene.remove(b.mesh);
       magicBolts.splice(i,1);
     }
@@ -4799,7 +4844,7 @@ document.getElementById('inv-underfoot').onclick=()=>{
       showAction(`${it.gold}💰 拾った！`,1200);
       sfxItem();
       scene.remove(it.mesh);
-      if(it.light)scene.remove(it.light);
+      if(it.light)releasePooledLight(it.light);
       floorItems.splice(floorItems.indexOf(it),1);
       updateUI();updateUnderfootLabel();
       return;
