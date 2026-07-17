@@ -468,7 +468,7 @@ body { font-family:'Courier New',monospace; color:#c8b89a; user-select:none; -we
 <div id="fade-overlay"></div>
 <div id="floor-announce"></div>
 <div id="title-screen">
-  <div id="title-logo">Wanderer's Dungeon<span class="title-ver">ver 0.9.76</span></div>
+  <div id="title-logo">Wanderer's Dungeon<span class="title-ver">ver 0.9.77</span></div>
   <div id="title-buttons">
     <button id="title-continue" class="title-btn slot-btn">
       <div class="slot-head">
@@ -2922,6 +2922,10 @@ function restoreFloor(floorData){
         e.aware=saved.aware; e.sleep=saved.sleep||0; e.confused=saved.confused||0;
         e.sealed=saved.sealed||0; e.poisoned=saved.poisoned||0; e.atkDown=saved.atkDown||0;
         e.roomIdx=saved.roomIdx;
+        // 保存データには「最後に見た自機の位置」は含まれないため、復元直後に
+        // 気づいている状態の敵は、ひとまず自分の現在地を最後に見た位置として
+        // 扱う（今のターンで自機が見えなければ、その場で捜索を諦めて通常状態に戻る）
+        if(e.aware){ e.lastSeenX=e.x; e.lastSeenY=e.y; }
       }
     }catch(err){ console.error('敵の復元に失敗しました',saved,err); }
   });
@@ -3724,6 +3728,20 @@ function getPlayerRoomIdx(){
 }
 function distToPlayer(e){return Math.abs(e.x-state.x)+Math.abs(e.y-state.y);}
 
+// (x0,y0)から(x1,y1)まで、間に壁を挟まず見通せるかを判定する簡易的な視線チェック。
+// 始点・終点は含めず、間にあるマスだけを壁判定する（始点=敵自身、終点=自機の座標は
+// 当然歩行可能マスなのでチェック不要）
+function hasLineOfSight(x0,y0,x1,y1){
+  const steps=Math.max(Math.abs(x1-x0),Math.abs(y1-y0));
+  if(steps===0)return true;
+  const stepX=(x1-x0)/steps, stepY=(y1-y0)/steps;
+  for(let i=1;i<steps;i++){
+    const cx=Math.round(x0+stepX*i), cy=Math.round(y0+stepY*i);
+    if(!isWalkable(cx,cy))return false;
+  }
+  return true;
+}
+
 // 魔法弾
 const magicBolts=[];
 function fireMagicBolt(e, dmg){
@@ -4041,20 +4059,32 @@ function enemyTurn(){
     if(e.pullStun){ e.pullStun=false; return; }
     // 透明中のプレイヤーには気づかない。その場で眠るのではなく適当に徘徊させる
     if(state.invis>0){ e.aware=false; wanderStep(e); return; }
-    // 気づき判定
+    // 気づき判定：視界範囲内かつ壁に遮られていなければプレイヤーを発見する
+    // （ゾンビ・ゴーレム等の鈍い敵は隣接時のみ、それ以外は6〜8マス程度の視界を持つ）
+    const sightRange=e.type==='dull'?1:7;
+    const sees=distToPlayer(e)<=sightRange&&hasLineOfSight(e.x,e.y,state.x,state.y);
+    if(sees){ e.lastSeenX=state.x; e.lastSeenY=state.y; e.investigating=false; }
     if(!e.aware){
-      if(e.type==='normal'||e.type==='mage'||e.type==='archer'){
-        if(playerRoomIdx>=0&&e.roomIdx===playerRoomIdx)e.aware=true;
-      } else {
-        if(distToPlayer(e)<=1)e.aware=true;
-      }
+      if(sees) e.aware=true;
       // 今まさに気づいた敵は、その場では攻撃も移動もせず様子を見るだけ（次のターンから行動開始）
-      if(e.aware)return;
+      if(e.aware){ e.chasePath=null; return; }
       // 徘徊個体：気づいていなくてもランダムにうろつく（種類に関わらず約30%が対象）
       if(e.wandering){
         wanderStep(e);
       }
       return;
+    }
+    if(!sees){
+      // 見失った：最後に見た位置（記憶）を目指して捜索する。すでにその場所まで
+      // たどり着いていてそれでも見つからなければ、追跡を諦めてランダム移動や
+      // 巡回状態（気づく前の状態）に戻る。万一記憶がない状態（想定外）でも
+      // 経路探索が解決不能なまま固まらないよう、その場合も諦め扱いにする
+      if(e.lastSeenX==null||(e.x===e.lastSeenX&&e.y===e.lastSeenY)){
+        e.aware=false; e.investigating=false;
+        e.lastSeenX=null; e.lastSeenY=null; e.chasePath=null;
+        return;
+      }
+      e.investigating=true;
     }
 
     // 封印中：ターン経過でカウントダウン（特殊攻撃を封じる効果は下記の各判定で参照）
@@ -4162,48 +4192,48 @@ function enemyTurn(){
       return;
     }
 
-    const candidates=[];
-    const sx=Math.sign(dx), sy=Math.sign(dy);
-    // プレイヤーが斜め方向にいるなら、まず斜め移動を最優先で試す
-    if(sx!==0&&sy!==0){
-      candidates.push([sx,sy]);   // 斜め（最短）
-      // 斜めが無理な場合の代替：距離が大きい軸を優先
-      if(Math.abs(dx)>=Math.abs(dy)){
-        candidates.push([sx,0]);
-        candidates.push([0,sy]);
-      } else {
-        candidates.push([0,sy]);
-        candidates.push([sx,0]);
-      }
-    } else if(sy!==0){
-      // 縦一直線：他の敵に塞がれて進めない時は斜めに迂回して追い越そうとする
-      candidates.push([0,sy]);
-      candidates.push([1,sy]);
-      candidates.push([-1,sy]);
-    } else if(sx!==0){
-      // 横一直線：他の敵に塞がれて進めない時は斜めに迂回して追い越そうとする
-      candidates.push([sx,0]);
-      candidates.push([sx,1]);
-      candidates.push([sx,-1]);
+    // 追跡移動：見えている間は自機の現在地、見失った後は最後に見た位置を目標にする。
+    // 経路は毎ターン計算せず、(1)目標が変わった時 (2)経路が塞がれ続けた時
+    // (3)一定ターンごと のいずれかの時だけBFSで再計算し、それ以外は前回計算した
+    // 経路をそのまま辿ることで、敵の数が多くても毎ターン全員分の経路探索をしない
+    const targetX=sees?state.x:e.lastSeenX, targetY=sees?state.y:e.lastSeenY;
+    const needRecompute=!e.chasePath||e.chaseTargetX!==targetX||e.chaseTargetY!==targetY||(e.chaseRecomputeTimer||0)<=0;
+    if(needRecompute){
+      e.chasePath=bfsPath(e.x,e.y,targetX,targetY);
+      e.chasePathIdx=1; // インデックス0は現在地
+      e.chaseTargetX=targetX; e.chaseTargetY=targetY;
+      e.chaseRecomputeTimer=5;
+    } else {
+      e.chaseRecomputeTimer--;
     }
-
-    for(const [mx,my] of candidates){
-      const nx=e.x+mx, ny=e.y+my;
-      if(!isWalkable(nx,ny))continue;
-      // 斜め移動時は角抜け（壁越し）を禁止：隣接2マスのどちらかが壁なら不可
-      if(mx!==0&&my!==0){
-        if(!isWalkable(e.x+mx,e.y)||!isWalkable(e.x,e.y+my))continue;
+    const next=e.chasePath&&e.chasePath[e.chasePathIdx];
+    if(!next){ e.chasePath=null; return; } // 経路の終端まで来たのに未到達＝次ターンに再計算
+    if(enemies.some(o=>o!==e&&o.x===next.x&&o.y===next.y)){
+      // 他の敵に道を塞がれている：徘徊時と同様、一定ターン続いたら空いている隣の
+      // マスへ一旦避けてから経路を引き直し、狭い通路での鉢合わせによる永久
+      // デッドロックを防ぐ
+      e.chaseBlockedTurns=(e.chaseBlockedTurns||0)+1;
+      if(e.chaseBlockedTurns>=3){
+        const dirs2=[[0,-1],[0,1],[-1,0],[1,0]].sort(()=>Math.random()-0.5);
+        for(const [wx,wy] of dirs2){
+          const sx2=e.x+wx, sy2=e.y+wy;
+          if(!isWalkable(sx2,sy2))continue;
+          if(enemies.some(o=>o!==e&&o.x===sx2&&o.y===sy2))continue;
+          if(sx2===state.x&&sy2===state.y)continue;
+          e.x=sx2; e.y=sy2;
+          e.roomIdx=rooms.findIndex(r=>sx2>=r.x&&sx2<r.x+r.w&&sy2>=r.y&&sy2<r.y+r.h);
+          e.chasePath=null;
+          e.chaseBlockedTurns=0;
+          return;
+        }
       }
-      if(enemies.some(o=>o!==e&&o.x===nx&&o.y===ny))continue;
-      if(nx===state.x&&ny===state.y){
-        attackQueue.push({isRanged:false,dirIdx:dirIdxFromPlayer(e),exec:()=>doAttack(e)});
-        break;
-      }
-      // 移動実行（表示座標は毎フレームのupdateEnemiesSmoothで滑らかに追従させる）
-      e.x=nx;e.y=ny;
-      e.roomIdx=rooms.findIndex(r=>nx>=r.x&&nx<r.x+r.w&&ny>=r.y&&ny<r.y+r.h);
-      break;
+      return;
     }
+    e.chaseBlockedTurns=0;
+    // 移動実行（表示座標は毎フレームのupdateEnemiesSmoothで滑らかに追従させる）
+    e.x=next.x; e.y=next.y;
+    e.chasePathIdx++;
+    e.roomIdx=rooms.findIndex(r=>e.x>=r.x&&e.x<r.x+r.w&&e.y>=r.y&&e.y<r.y+r.h);
   });
 
   // 攻撃優先順位：自機の正面が最優先、そこから時計回り。魔法弾・炎ブレスなど遠隔攻撃は必ず最後
