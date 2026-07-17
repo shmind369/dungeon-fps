@@ -468,7 +468,7 @@ body { font-family:'Courier New',monospace; color:#c8b89a; user-select:none; -we
 <div id="fade-overlay"></div>
 <div id="floor-announce"></div>
 <div id="title-screen">
-  <div id="title-logo">Wanderer's Dungeon<span class="title-ver">ver 0.9.74</span></div>
+  <div id="title-logo">Wanderer's Dungeon<span class="title-ver">ver 0.9.75</span></div>
   <div id="title-buttons">
     <button id="title-continue" class="title-btn slot-btn">
       <div class="slot-head">
@@ -3893,47 +3893,115 @@ function updateDragonFlames(dt){
 }
 
 let floorTurnCount=0; // このフロアでの経過ターン数（テスト表示用）
-// 徘徊行動：部屋を巡回目標地点としてランダムに選び、そこへ向かって移動する。
-// 着いたら（または詰まったら）次の目標を選び直すので、ランダムウォークより効率よく
-// フロア全体（通路を含む）を巡回できる。
+// 全部屋のインデックスをランダムな順番に並べた巡回順を作る（毎回シャッフルし直すことで
+// 敵ごとに違う順路になり、複数の徘徊敵が同じ動きに揃ってしまうのを防ぐ）
+function shuffledRoomOrder(){
+  const arr=rooms.map((_,i)=>i);
+  for(let i=arr.length-1;i>0;i--){
+    const j=Math.floor(Math.random()*(i+1));
+    [arr[i],arr[j]]=[arr[j],arr[i]];
+  }
+  return arr;
+}
+
+// 幅優先探索で(sx,sy)から(tx,ty)への最短経路を求める（歩行可能マスのみを辿る）。
+// 到達不可能ならnullを返す。返り値は始点を含む座標配列（[start, ..., goal]）
+function bfsPath(sx,sy,tx,ty){
+  if(sx===tx&&sy===ty)return [{x:sx,y:sy}];
+  const visited=Array.from({length:MAP_H},()=>Array(MAP_W).fill(false));
+  const prev=Array.from({length:MAP_H},()=>Array(MAP_W).fill(null));
+  visited[sy][sx]=true;
+  const queue=[{x:sx,y:sy}];
+  let qi=0;
+  const DIRS=[[0,-1],[0,1],[-1,0],[1,0]];
+  while(qi<queue.length){
+    const cur=queue[qi++];
+    if(cur.x===tx&&cur.y===ty){
+      const path=[];
+      let p=cur;
+      while(p){ path.push({x:p.x,y:p.y}); p=prev[p.y][p.x]; }
+      return path.reverse();
+    }
+    for(const [dx,dy] of DIRS){
+      const nx=cur.x+dx, ny=cur.y+dy;
+      if(!isWalkable(nx,ny)||visited[ny][nx])continue;
+      visited[ny][nx]=true;
+      prev[ny][nx]=cur;
+      queue.push({x:nx,y:ny});
+    }
+  }
+  return null; // 到達不可能
+}
+
+// 徘徊行動：あらかじめ決めた巡回順（全部屋をランダムな順に並べたもの）に従って
+// 部屋を1つずつ目指して移動する。BFS経路探索で実際に歩ける最短ルートを辿るため、
+// 壁に阻まれて迷子になることがない。1部屋に着いたら巡回順の次の部屋へ進み、全部屋を
+// 回り終えたら巡回順を新たにシャッフルして続ける。これにより特定の部屋だけ何度も
+// 通ったり、逆に長い間訪れない部屋が出たりすることなく、フロア全体を漏れなく巡回する。
 function wanderStep(e){
   if(Math.random()>=0.6)return; // 60%の確率で1歩動く
-  if(!e.patrolTarget || (e.x===e.patrolTarget.x&&e.y===e.patrolTarget.y)){
-    const others=rooms.filter((r,i)=>i!==e.roomIdx);
-    const pool=others.length?others:rooms;
-    const room=pool[Math.floor(Math.random()*pool.length)];
+  if(!e.patrolOrder){
+    e.patrolOrder=shuffledRoomOrder();
+    e.patrolOrderIdx=0;
+  }
+  if(e.patrolTarget && e.x===e.patrolTarget.x && e.y===e.patrolTarget.y){
+    // 目標に到着：巡回順の次の部屋へ進む（一周し終えたら新たにシャッフルし直す）
+    e.patrolOrderIdx=(e.patrolOrderIdx+1)%e.patrolOrder.length;
+    if(e.patrolOrderIdx===0) e.patrolOrder=shuffledRoomOrder();
+    e.patrolTarget=null;
+    e.patrolPath=null;
+  }
+  if(!e.patrolTarget){
+    let roomIdx=e.patrolOrder[e.patrolOrderIdx];
+    // 巡回順の部屋がちょうど今いる部屋と同じ場合は足踏みにならないよう次の部屋へ進める
+    let guard=0;
+    while(roomIdx===e.roomIdx && guard<e.patrolOrder.length){
+      e.patrolOrderIdx=(e.patrolOrderIdx+1)%e.patrolOrder.length;
+      if(e.patrolOrderIdx===0) e.patrolOrder=shuffledRoomOrder();
+      roomIdx=e.patrolOrder[e.patrolOrderIdx];
+      guard++;
+    }
+    const room=rooms[roomIdx];
     const p=rndInRoom(room);
     e.patrolTarget={x:p.x,y:p.y};
-  }
-  const tdx=e.patrolTarget.x-e.x, tdy=e.patrolTarget.y-e.y;
-  const tsx=Math.sign(tdx), tsy=Math.sign(tdy);
-  let dirs;
-  if(tsx!==0&&tsy!==0){
-    dirs=[[tsx,tsy]];
-    if(Math.abs(tdx)>=Math.abs(tdy)){ dirs.push([tsx,0],[0,tsy]); }
-    else { dirs.push([0,tsy],[tsx,0]); }
-  } else if(tsy!==0){
-    dirs=[[0,tsy],[1,tsy],[-1,tsy]];
-  } else if(tsx!==0){
-    dirs=[[tsx,0],[tsx,1],[tsx,-1]];
-  } else {
-    dirs=[[0,-1],[0,1],[-1,0],[1,0]].sort(()=>Math.random()-0.5);
-  }
-  for(const [wx,wy] of dirs){
-    const nx=e.x+wx, ny=e.y+wy;
-    if(!isWalkable(nx,ny))continue;
-    if(wx!==0&&wy!==0){
-      if(!isWalkable(e.x+wx,e.y)||!isWalkable(e.x,e.y+wy))continue;
+    e.patrolPath=bfsPath(e.x,e.y,p.x,p.y);
+    e.patrolPathIdx=1; // インデックス0は現在地なので次のマスから
+    if(!e.patrolPath){
+      // 万一到達不可能な場合は目標をリセットして次ターンに選び直す
+      e.patrolTarget=null;
+      return;
     }
-    if(enemies.some(o=>o!==e&&o.x===nx&&o.y===ny))continue;
-    if(nx===state.x&&ny===state.y)continue;
-    e.x=nx; e.y=ny;
-    // 表示座標は毎フレームのupdateEnemiesSmoothで滑らかに追従させる
-    e.roomIdx=rooms.findIndex(r=>nx>=r.x&&nx<r.x+r.w&&ny>=r.y&&ny<r.y+r.h);
+  }
+  const next=e.patrolPath&&e.patrolPath[e.patrolPathIdx];
+  if(!next){ e.patrolTarget=null; e.patrolPath=null; return; } // 経路を辿り終えたのに未到着＝再計算
+  const blocked=enemies.some(o=>o!==e&&o.x===next.x&&o.y===next.y)||(next.x===state.x&&next.y===state.y);
+  if(blocked){
+    // 他の敵や自機に道を塞がれている場合はこのターン足踏み。ただし塞がれた状態が
+    // 続く（狭い通路で敵同士が鉢合わせする等）と経路固定のままお互い永遠に
+    // 動けなくなるため、一定ターン続いたら空いている隣のマスへ一旦避けて
+    // 経路を引き直す（次ターンに現在地から目標への経路を再計算させる）
+    e.wanderBlockedTurns=(e.wanderBlockedTurns||0)+1;
+    if(e.wanderBlockedTurns>=3){
+      const DIRS=[[0,-1],[0,1],[-1,0],[1,0]].sort(()=>Math.random()-0.5);
+      for(const [dx,dy] of DIRS){
+        const sx=e.x+dx, sy=e.y+dy;
+        if(!isWalkable(sx,sy))continue;
+        if(enemies.some(o=>o!==e&&o.x===sx&&o.y===sy))continue;
+        if(sx===state.x&&sy===state.y)continue;
+        e.x=sx; e.y=sy;
+        e.roomIdx=rooms.findIndex(r=>sx>=r.x&&sx<r.x+r.w&&sy>=r.y&&sy<r.y+r.h);
+        e.patrolPath=null; // 現在地から目標への経路を次ターンに引き直す
+        e.wanderBlockedTurns=0;
+        return;
+      }
+    }
     return;
   }
-  // どこにも動けなければ目標を選び直す（次ターンに再試行）
-  e.patrolTarget=null;
+  e.wanderBlockedTurns=0;
+  e.x=next.x; e.y=next.y;
+  e.patrolPathIdx++;
+  // 表示座標は毎フレームのupdateEnemiesSmoothで滑らかに追従させる
+  e.roomIdx=rooms.findIndex(r=>e.x>=r.x&&e.x<r.x+r.w&&e.y>=r.y&&e.y<r.y+r.h);
 }
 
 // 自機から見て敵がいる向き（DIR_DXインデックス）を返す。隣接していなくても直線上の遠距離攻撃者の向き判定に使う
