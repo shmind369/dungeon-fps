@@ -468,7 +468,7 @@ body { font-family:'Courier New',monospace; color:#c8b89a; user-select:none; -we
 <div id="fade-overlay"></div>
 <div id="floor-announce"></div>
 <div id="title-screen">
-  <div id="title-logo">Wanderer's Dungeon<span class="title-ver">ver 0.9.80</span></div>
+  <div id="title-logo">Wanderer's Dungeon<span class="title-ver">ver 0.9.81</span></div>
   <div id="title-buttons">
     <button id="title-continue" class="title-btn slot-btn">
       <div class="slot-head">
@@ -4238,9 +4238,8 @@ function enemyTurn(){
     // 行い、それ以外は前回のマップを使い回すことで、敵の数が多くても毎ターン
     // 全員分の探索をしない。経路配列と違って「今どこにいるか」に依存しないため、
     // 目標が自機の現在地のように毎ターン動く場合でも柔軟に対応できる。
-    // 一歩の選び方は、斜め移動先が通行可能ならそれを最優先し（最短距離で
-    // 自機に近づける上、横や縦だけの遠回りな動きにならない）、塞がっている
-    // 場合のみ横・縦移動に切り替える
+    // 一歩の選び方は、自機がいる本来の方向（斜め含む）へ進む手を優先し、
+    // それが壁などで塞がっている場合のみ距離マップ全体から代替の手を探す
     const targetX=sees?state.x:e.lastSeenX, targetY=sees?state.y:e.lastSeenY;
     const needRecompute=!e.chaseDistMap||e.chaseTargetX!==targetX||e.chaseTargetY!==targetY||(e.chaseRecomputeTimer||0)<=0;
     if(needRecompute){
@@ -4253,21 +4252,49 @@ function enemyTurn(){
     const dmap=e.chaseDistMap;
     const curDist=dmap&&dmap[e.y]?dmap[e.y][e.x]:-1;
     if(curDist==null||curDist<0){ e.chaseDistMap=null; return; } // 現在地が目標から到達不能＝次ターンに再計算
-    let best=null, bestIsDiag=false, bestScore=Infinity;
-    for(const [wx,wy] of DIRS8){
+    // 実際に目標へ近づく手（真の理想方向）を優先順位順に並べる。斜め同士でも
+    // 単純に「距離マップの値が1減るならどの斜めでもよい」とすると、目標と同じ行/列
+    // にいる場合などに、目標から外れる向きの斜め移動（例：横一直線なのに右上・右下
+    // へ斜めに逸れる）も同じ距離として選ばれてしまい、まっすぐ向かってこないように
+    // 見えてしまう。ここでは自機からの本来の方向（符号）に基づいた候補だけを、
+    // 斜め→軸移動の順に試すことで、遠回りにならない自然な最短経路にする
+    const rawDx=targetX-e.x, rawDy=targetY-e.y;
+    const idealX=Math.sign(rawDx), idealY=Math.sign(rawDy);
+    let dirCandidates;
+    if(idealX!==0&&idealY!==0){
+      dirCandidates=[[idealX,idealY]];
+      if(Math.abs(rawDx)>=Math.abs(rawDy)) dirCandidates.push([idealX,0],[0,idealY]);
+      else dirCandidates.push([0,idealY],[idealX,0]);
+    } else if(idealY!==0){
+      dirCandidates=[[0,idealY],[1,idealY],[-1,idealY]];
+    } else if(idealX!==0){
+      dirCandidates=[[idealX,0],[idealX,1],[idealX,-1]];
+    } else {
+      dirCandidates=[];
+    }
+    let best=null;
+    for(const [wx,wy] of dirCandidates){
       if(!canStepDir(e.x,e.y,wx,wy))continue;
       const nx=e.x+wx, ny=e.y+wy;
       const nd=dmap[ny][nx];
       if(nd<0||nd>=curDist)continue; // 目標に近づく手のみを候補にする
       if(enemies.some(o=>o!==e&&o.x===nx&&o.y===ny))continue;
       if(nx===state.x&&ny===state.y)continue; // 隣接攻撃は既に上で処理済み
-      // 斜め移動先が通行可能ならそちらを最優先する（斜めが塞がっている場合のみ
-      // 横・縦移動に切り替える）。同種同士（斜め同士・直線同士）の場合は残りの
-      // x距離とy距離の差が小さい手を選び、自然な動きにする
-      const isDiag=wx!==0&&wy!==0;
-      const score=Math.abs(Math.abs(targetX-nx)-Math.abs(targetY-ny));
-      if(!best||(isDiag&&!bestIsDiag)||(isDiag===bestIsDiag&&score<bestScore)){
-        best={x:nx,y:ny}; bestIsDiag=isDiag; bestScore=score;
+      best={x:nx,y:ny};
+      break; // 優先順位の高い順に見ているので最初に見つかった候補を採用
+    }
+    if(!best){
+      // 理想方向の候補が全て塞がっていた（壁で迂回が必要）場合は、距離マップ上で
+      // 実際に近づける手を8方向すべてから探す（壁に阻まれて動けなくなるのを防ぐ）
+      for(const [wx,wy] of DIRS8){
+        if(!canStepDir(e.x,e.y,wx,wy))continue;
+        const nx=e.x+wx, ny=e.y+wy;
+        const nd=dmap[ny][nx];
+        if(nd<0||nd>=curDist)continue;
+        if(enemies.some(o=>o!==e&&o.x===nx&&o.y===ny))continue;
+        if(nx===state.x&&ny===state.y)continue;
+        best={x:nx,y:ny};
+        break;
       }
     }
     if(!best){
