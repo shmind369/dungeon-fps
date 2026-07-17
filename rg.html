@@ -468,7 +468,7 @@ body { font-family:'Courier New',monospace; color:#c8b89a; user-select:none; -we
 <div id="fade-overlay"></div>
 <div id="floor-announce"></div>
 <div id="title-screen">
-  <div id="title-logo">Wanderer's Dungeon<span class="title-ver">ver 0.9.79</span></div>
+  <div id="title-logo">Wanderer's Dungeon<span class="title-ver">ver 0.9.80</span></div>
   <div id="title-buttons">
     <button id="title-continue" class="title-btn slot-btn">
       <div class="slot-head">
@@ -4233,13 +4233,14 @@ function enemyTurn(){
 
     // 追跡移動：見えている間は自機の現在地、見失った後は最後に見た位置を目標にする。
     // 経路をマス目の配列として固定するのではなく「目標からの最短距離マップ」を
-    // BFSでキャッシュし、毎ターンその場で隣接4マスの中から最善の一歩を選ぶ方式に
+    // BFSでキャッシュし、毎ターンその場で隣接8マスの中から最善の一歩を選ぶ方式に
     // している。距離マップの再計算は (1)目標が変わった時 (2)一定ターンごと のみ
     // 行い、それ以外は前回のマップを使い回すことで、敵の数が多くても毎ターン
     // 全員分の探索をしない。経路配列と違って「今どこにいるか」に依存しないため、
-    // 目標が自機の現在地のように毎ターン動く場合でも、xとyどちらの軸も
-    // バランス良く詰めていける（片方の軸にばかり寄って自機と並走してしまう
-    // ことがない）
+    // 目標が自機の現在地のように毎ターン動く場合でも柔軟に対応できる。
+    // 一歩の選び方は、斜め移動先が通行可能ならそれを最優先し（最短距離で
+    // 自機に近づける上、横や縦だけの遠回りな動きにならない）、塞がっている
+    // 場合のみ横・縦移動に切り替える
     const targetX=sees?state.x:e.lastSeenX, targetY=sees?state.y:e.lastSeenY;
     const needRecompute=!e.chaseDistMap||e.chaseTargetX!==targetX||e.chaseTargetY!==targetY||(e.chaseRecomputeTimer||0)<=0;
     if(needRecompute){
@@ -4252,7 +4253,7 @@ function enemyTurn(){
     const dmap=e.chaseDistMap;
     const curDist=dmap&&dmap[e.y]?dmap[e.y][e.x]:-1;
     if(curDist==null||curDist<0){ e.chaseDistMap=null; return; } // 現在地が目標から到達不能＝次ターンに再計算
-    let best=null, bestScore=Infinity;
+    let best=null, bestIsDiag=false, bestScore=Infinity;
     for(const [wx,wy] of DIRS8){
       if(!canStepDir(e.x,e.y,wx,wy))continue;
       const nx=e.x+wx, ny=e.y+wy;
@@ -4260,10 +4261,14 @@ function enemyTurn(){
       if(nd<0||nd>=curDist)continue; // 目標に近づく手のみを候補にする
       if(enemies.some(o=>o!==e&&o.x===nx&&o.y===ny))continue;
       if(nx===state.x&&ny===state.y)continue; // 隣接攻撃は既に上で処理済み
-      // タイブレーク：残りのx距離とy距離の差が小さい手（＝より斜めに近く、
-      // 大きい方の軸を優先して詰める手）を選ぶことで自然な動きにする
+      // 斜め移動先が通行可能ならそちらを最優先する（斜めが塞がっている場合のみ
+      // 横・縦移動に切り替える）。同種同士（斜め同士・直線同士）の場合は残りの
+      // x距離とy距離の差が小さい手を選び、自然な動きにする
+      const isDiag=wx!==0&&wy!==0;
       const score=Math.abs(Math.abs(targetX-nx)-Math.abs(targetY-ny));
-      if(score<bestScore){ bestScore=score; best={x:nx,y:ny}; }
+      if(!best||(isDiag&&!bestIsDiag)||(isDiag===bestIsDiag&&score<bestScore)){
+        best={x:nx,y:ny}; bestIsDiag=isDiag; bestScore=score;
+      }
     }
     if(!best){
       // 他の敵に道を全て塞がれている：徘徊時と同様、一定ターン続いたら空いている
