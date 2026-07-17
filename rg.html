@@ -468,7 +468,7 @@ body { font-family:'Courier New',monospace; color:#c8b89a; user-select:none; -we
 <div id="fade-overlay"></div>
 <div id="floor-announce"></div>
 <div id="title-screen">
-  <div id="title-logo">Wanderer's Dungeon<span class="title-ver">ver 0.9.77</span></div>
+  <div id="title-logo">Wanderer's Dungeon<span class="title-ver">ver 0.9.78</span></div>
   <div id="title-buttons">
     <button id="title-continue" class="title-btn slot-btn">
       <div class="slot-head">
@@ -3954,6 +3954,29 @@ function bfsPath(sx,sy,tx,ty){
   return null; // 到達不可能
 }
 
+// (tx,ty)を起点に全マスへの最短距離（マス数）を幅優先探索で計算した「距離マップ」を返す。
+// 追跡AIはこれを使い、現在地の隣接4マスのうち距離が1減るマスの中から、xとyの残り距離の
+// バランスを見て毎ターンその場で最善の一歩を選ぶ。経路そのものをマス目の配列として固定
+// しないため、途中でデッドロック回避の避け動作を挟んでも次の一歩を柔軟に選び直せる
+function bfsDistanceMap(tx,ty){
+  const dist=Array.from({length:MAP_H},()=>Array(MAP_W).fill(-1));
+  if(!isWalkable(tx,ty))return dist;
+  dist[ty][tx]=0;
+  const queue=[{x:tx,y:ty}];
+  let qi=0;
+  const DIRS=[[0,-1],[0,1],[-1,0],[1,0]];
+  while(qi<queue.length){
+    const cur=queue[qi++];
+    for(const [dx,dy] of DIRS){
+      const nx=cur.x+dx, ny=cur.y+dy;
+      if(!isWalkable(nx,ny)||dist[ny][nx]!==-1)continue;
+      dist[ny][nx]=dist[cur.y][cur.x]+1;
+      queue.push({x:nx,y:ny});
+    }
+  }
+  return dist;
+}
+
 // 徘徊行動：あらかじめ決めた巡回順（全部屋をランダムな順に並べたもの）に従って
 // 部屋を1つずつ目指して移動する。BFS経路探索で実際に歩ける最短ルートを辿るため、
 // 壁に阻まれて迷子になることがない。1部屋に着いたら巡回順の次の部屋へ進み、全部屋を
@@ -4193,24 +4216,43 @@ function enemyTurn(){
     }
 
     // 追跡移動：見えている間は自機の現在地、見失った後は最後に見た位置を目標にする。
-    // 経路は毎ターン計算せず、(1)目標が変わった時 (2)経路が塞がれ続けた時
-    // (3)一定ターンごと のいずれかの時だけBFSで再計算し、それ以外は前回計算した
-    // 経路をそのまま辿ることで、敵の数が多くても毎ターン全員分の経路探索をしない
+    // 経路をマス目の配列として固定するのではなく「目標からの最短距離マップ」を
+    // BFSでキャッシュし、毎ターンその場で隣接4マスの中から最善の一歩を選ぶ方式に
+    // している。距離マップの再計算は (1)目標が変わった時 (2)一定ターンごと のみ
+    // 行い、それ以外は前回のマップを使い回すことで、敵の数が多くても毎ターン
+    // 全員分の探索をしない。経路配列と違って「今どこにいるか」に依存しないため、
+    // 目標が自機の現在地のように毎ターン動く場合でも、xとyどちらの軸も
+    // バランス良く詰めていける（片方の軸にばかり寄って自機と並走してしまう
+    // ことがない）
     const targetX=sees?state.x:e.lastSeenX, targetY=sees?state.y:e.lastSeenY;
-    const needRecompute=!e.chasePath||e.chaseTargetX!==targetX||e.chaseTargetY!==targetY||(e.chaseRecomputeTimer||0)<=0;
+    const needRecompute=!e.chaseDistMap||e.chaseTargetX!==targetX||e.chaseTargetY!==targetY||(e.chaseRecomputeTimer||0)<=0;
     if(needRecompute){
-      e.chasePath=bfsPath(e.x,e.y,targetX,targetY);
-      e.chasePathIdx=1; // インデックス0は現在地
+      e.chaseDistMap=bfsDistanceMap(targetX,targetY);
       e.chaseTargetX=targetX; e.chaseTargetY=targetY;
       e.chaseRecomputeTimer=5;
     } else {
       e.chaseRecomputeTimer--;
     }
-    const next=e.chasePath&&e.chasePath[e.chasePathIdx];
-    if(!next){ e.chasePath=null; return; } // 経路の終端まで来たのに未到達＝次ターンに再計算
-    if(enemies.some(o=>o!==e&&o.x===next.x&&o.y===next.y)){
-      // 他の敵に道を塞がれている：徘徊時と同様、一定ターン続いたら空いている隣の
-      // マスへ一旦避けてから経路を引き直し、狭い通路での鉢合わせによる永久
+    const dmap=e.chaseDistMap;
+    const curDist=dmap&&dmap[e.y]?dmap[e.y][e.x]:-1;
+    if(curDist==null||curDist<0){ e.chaseDistMap=null; return; } // 現在地が目標から到達不能＝次ターンに再計算
+    const DIRS4=[[0,-1],[0,1],[-1,0],[1,0]];
+    let best=null, bestScore=Infinity;
+    for(const [wx,wy] of DIRS4){
+      const nx=e.x+wx, ny=e.y+wy;
+      if(!isWalkable(nx,ny))continue;
+      const nd=dmap[ny][nx];
+      if(nd<0||nd>=curDist)continue; // 目標に近づく手のみを候補にする
+      if(enemies.some(o=>o!==e&&o.x===nx&&o.y===ny))continue;
+      if(nx===state.x&&ny===state.y)continue; // 隣接攻撃は既に上で処理済み
+      // タイブレーク：残りのx距離とy距離の差が小さい手（＝より斜めに近く、
+      // 大きい方の軸を優先して詰める手）を選ぶことで自然な動きにする
+      const score=Math.abs(Math.abs(targetX-nx)-Math.abs(targetY-ny));
+      if(score<bestScore){ bestScore=score; best={x:nx,y:ny}; }
+    }
+    if(!best){
+      // 他の敵に道を全て塞がれている：徘徊時と同様、一定ターン続いたら空いている
+      // 隣のマスへ一旦避けてから仕切り直し、狭い通路での鉢合わせによる永久
       // デッドロックを防ぐ
       e.chaseBlockedTurns=(e.chaseBlockedTurns||0)+1;
       if(e.chaseBlockedTurns>=3){
@@ -4222,7 +4264,7 @@ function enemyTurn(){
           if(sx2===state.x&&sy2===state.y)continue;
           e.x=sx2; e.y=sy2;
           e.roomIdx=rooms.findIndex(r=>sx2>=r.x&&sx2<r.x+r.w&&sy2>=r.y&&sy2<r.y+r.h);
-          e.chasePath=null;
+          e.chaseDistMap=null;
           e.chaseBlockedTurns=0;
           return;
         }
@@ -4231,8 +4273,7 @@ function enemyTurn(){
     }
     e.chaseBlockedTurns=0;
     // 移動実行（表示座標は毎フレームのupdateEnemiesSmoothで滑らかに追従させる）
-    e.x=next.x; e.y=next.y;
-    e.chasePathIdx++;
+    e.x=best.x; e.y=best.y;
     e.roomIdx=rooms.findIndex(r=>e.x>=r.x&&e.x<r.x+r.w&&e.y>=r.y&&e.y<r.y+r.h);
   });
 
