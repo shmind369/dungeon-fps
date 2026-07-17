@@ -468,7 +468,7 @@ body { font-family:'Courier New',monospace; color:#c8b89a; user-select:none; -we
 <div id="fade-overlay"></div>
 <div id="floor-announce"></div>
 <div id="title-screen">
-  <div id="title-logo">Wanderer's Dungeon<span class="title-ver">ver 0.9.78</span></div>
+  <div id="title-logo">Wanderer's Dungeon<span class="title-ver">ver 0.9.79</span></div>
   <div id="title-buttons">
     <button id="title-continue" class="title-btn slot-btn">
       <div class="slot-head">
@@ -3925,8 +3925,23 @@ function shuffledRoomOrder(){
   return arr;
 }
 
-// 幅優先探索で(sx,sy)から(tx,ty)への最短経路を求める（歩行可能マスのみを辿る）。
-// 到達不可能ならnullを返す。返り値は始点を含む座標配列（[start, ..., goal]）
+// 8方向移動の候補（上下左右＋斜め4方向）。自機・モンスターの移動は元々斜めも
+// できるため、経路探索も4方向だけでなく斜めを含めないと遠回り（最短距離での
+// 接近ができない）になってしまう
+const DIRS8=[[0,-1],[0,1],[-1,0],[1,0],[-1,-1],[-1,1],[1,-1],[1,1]];
+// (x,y)から(x+dx,y+dy)へ実際に移動できるか判定する。斜め移動は、他の移動処理
+// 同様に隣接する2マスの両方が歩行可能でないと角抜け（壁越し）になるため禁止する
+function canStepDir(x,y,dx,dy){
+  const nx=x+dx, ny=y+dy;
+  if(!isWalkable(nx,ny))return false;
+  if(dx!==0&&dy!==0){
+    if(!isWalkable(x+dx,y)||!isWalkable(x,y+dy))return false;
+  }
+  return true;
+}
+
+// 幅優先探索で(sx,sy)から(tx,ty)への最短経路を求める（歩行可能マスのみ・斜め移動も
+// 考慮）。到達不可能ならnullを返す。返り値は始点を含む座標配列（[start, ..., goal]）
 function bfsPath(sx,sy,tx,ty){
   if(sx===tx&&sy===ty)return [{x:sx,y:sy}];
   const visited=Array.from({length:MAP_H},()=>Array(MAP_W).fill(false));
@@ -3934,7 +3949,6 @@ function bfsPath(sx,sy,tx,ty){
   visited[sy][sx]=true;
   const queue=[{x:sx,y:sy}];
   let qi=0;
-  const DIRS=[[0,-1],[0,1],[-1,0],[1,0]];
   while(qi<queue.length){
     const cur=queue[qi++];
     if(cur.x===tx&&cur.y===ty){
@@ -3943,9 +3957,10 @@ function bfsPath(sx,sy,tx,ty){
       while(p){ path.push({x:p.x,y:p.y}); p=prev[p.y][p.x]; }
       return path.reverse();
     }
-    for(const [dx,dy] of DIRS){
+    for(const [dx,dy] of DIRS8){
+      if(!canStepDir(cur.x,cur.y,dx,dy))continue;
       const nx=cur.x+dx, ny=cur.y+dy;
-      if(!isWalkable(nx,ny)||visited[ny][nx])continue;
+      if(visited[ny][nx])continue;
       visited[ny][nx]=true;
       prev[ny][nx]=cur;
       queue.push({x:nx,y:ny});
@@ -3954,22 +3969,23 @@ function bfsPath(sx,sy,tx,ty){
   return null; // 到達不可能
 }
 
-// (tx,ty)を起点に全マスへの最短距離（マス数）を幅優先探索で計算した「距離マップ」を返す。
-// 追跡AIはこれを使い、現在地の隣接4マスのうち距離が1減るマスの中から、xとyの残り距離の
-// バランスを見て毎ターンその場で最善の一歩を選ぶ。経路そのものをマス目の配列として固定
-// しないため、途中でデッドロック回避の避け動作を挟んでも次の一歩を柔軟に選び直せる
+// (tx,ty)を起点に全マスへの最短距離（マス数、斜め移動も1手として考慮）を幅優先探索で
+// 計算した「距離マップ」を返す。追跡AIはこれを使い、現在地の隣接8マスのうち距離が
+// 1減るマスの中から、xとyの残り距離のバランスを見て毎ターンその場で最善の一歩を選ぶ。
+// 経路そのものをマス目の配列として固定しないため、途中でデッドロック回避の避け動作を
+// 挟んでも次の一歩を柔軟に選び直せる
 function bfsDistanceMap(tx,ty){
   const dist=Array.from({length:MAP_H},()=>Array(MAP_W).fill(-1));
   if(!isWalkable(tx,ty))return dist;
   dist[ty][tx]=0;
   const queue=[{x:tx,y:ty}];
   let qi=0;
-  const DIRS=[[0,-1],[0,1],[-1,0],[1,0]];
   while(qi<queue.length){
     const cur=queue[qi++];
-    for(const [dx,dy] of DIRS){
+    for(const [dx,dy] of DIRS8){
+      if(!canStepDir(cur.x,cur.y,dx,dy))continue;
       const nx=cur.x+dx, ny=cur.y+dy;
-      if(!isWalkable(nx,ny)||dist[ny][nx]!==-1)continue;
+      if(dist[ny][nx]!==-1)continue;
       dist[ny][nx]=dist[cur.y][cur.x]+1;
       queue.push({x:nx,y:ny});
     }
@@ -4236,11 +4252,10 @@ function enemyTurn(){
     const dmap=e.chaseDistMap;
     const curDist=dmap&&dmap[e.y]?dmap[e.y][e.x]:-1;
     if(curDist==null||curDist<0){ e.chaseDistMap=null; return; } // 現在地が目標から到達不能＝次ターンに再計算
-    const DIRS4=[[0,-1],[0,1],[-1,0],[1,0]];
     let best=null, bestScore=Infinity;
-    for(const [wx,wy] of DIRS4){
+    for(const [wx,wy] of DIRS8){
+      if(!canStepDir(e.x,e.y,wx,wy))continue;
       const nx=e.x+wx, ny=e.y+wy;
-      if(!isWalkable(nx,ny))continue;
       const nd=dmap[ny][nx];
       if(nd<0||nd>=curDist)continue; // 目標に近づく手のみを候補にする
       if(enemies.some(o=>o!==e&&o.x===nx&&o.y===ny))continue;
@@ -4256,10 +4271,10 @@ function enemyTurn(){
       // デッドロックを防ぐ
       e.chaseBlockedTurns=(e.chaseBlockedTurns||0)+1;
       if(e.chaseBlockedTurns>=3){
-        const dirs2=[[0,-1],[0,1],[-1,0],[1,0]].sort(()=>Math.random()-0.5);
+        const dirs2=DIRS8.slice().sort(()=>Math.random()-0.5);
         for(const [wx,wy] of dirs2){
+          if(!canStepDir(e.x,e.y,wx,wy))continue;
           const sx2=e.x+wx, sy2=e.y+wy;
-          if(!isWalkable(sx2,sy2))continue;
           if(enemies.some(o=>o!==e&&o.x===sx2&&o.y===sy2))continue;
           if(sx2===state.x&&sy2===state.y)continue;
           e.x=sx2; e.y=sy2;
