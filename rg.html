@@ -468,7 +468,7 @@ body { font-family:'Courier New',monospace; color:#c8b89a; user-select:none; -we
 <div id="fade-overlay"></div>
 <div id="floor-announce"></div>
 <div id="title-screen">
-  <div id="title-logo">Wanderer's Dungeon<span class="title-ver">ver 0.9.75</span></div>
+  <div id="title-logo">Wanderer's Dungeon<span class="title-ver">ver 0.9.76</span></div>
   <div id="title-buttons">
     <button id="title-continue" class="title-btn slot-btn">
       <div class="slot-head">
@@ -1835,7 +1835,7 @@ const MONSTER_DB={
     }
   },
   goblin:{
-    name:'ゴブリン',hp:8,atk:7,def:10,exp:8,aiType:'wander',
+    name:'ゴブリン',hp:8,atk:7,def:10,exp:8,aiType:'normal',
     buildMesh(g){
       // 足
       vox(0.16,0.28,0.16, 0x3a6030, -0.12,0.14,0, g);
@@ -2460,8 +2460,11 @@ function spawnObject(type,gx,gy,arg,count){
     g.position.set(wx,0,wz);
     scene.add(g);objectMeshes.push(g);
     const roomIdx=rooms.findIndex(r=>gx>=r.x&&gx<r.x+r.w&&gy>=r.y&&gy<r.y+r.h);
+    // 種類に関わらず約30%の個体は最初から徘徊型（起きて歩き回る）、残り70%は
+    // 従来通り自機が同じ部屋に入るまで眠ったままにする
+    const wandering=Math.random()<0.3;
     enemies.push({x:gx,y:gy,hp:db.hp,maxHp:db.hp,atk:db.atk,def:db.def,exp:db.exp,
-      mesh:g,aware:false,type:db.aiType,monType,roomIdx});
+      mesh:g,aware:false,type:db.aiType,monType,roomIdx,wandering});
     return;
   }
   if(mesh){mesh.userData={type,gx,gy};scene.add(mesh);objectMeshes.push(mesh);}
@@ -3504,9 +3507,9 @@ function drawSleepMarks(){
     }
     octx.restore();
   }
-  // 眠っている敵（睡眠状態 or まだ気づいていない＝寝ている。徘徊型は起きて歩いているので対象外）
+  // 眠っている敵（睡眠状態 or まだ気づいていない＝寝ている。徘徊個体は起きて歩いているので対象外）
   // ただし自機が透明化中は、透明ゆえに気づいていないだけなので「寝ている」表示は出さない
-  enemies.forEach(e=>{ if(e.hp>0&&(e.sleep>0||(!e.aware&&e.type!=='wander'&&state.invis<=0))&&e.mesh.visible) drawZ(e.mesh.position.x,2.2,e.mesh.position.z); });
+  enemies.forEach(e=>{ if(e.hp>0&&(e.sleep>0||(!e.aware&&!e.wandering&&state.invis<=0))&&e.mesh.visible) drawZ(e.mesh.position.x,2.2,e.mesh.position.z); });
   // 眠っているプレイヤー
   if(playerSleepTurns>0) drawZ(playerGroup.position.x,2.6,playerGroup.position.z);
 }
@@ -3641,8 +3644,8 @@ function updateAnims(dt){
       const stretch=1+Math.cos(phase)*0.12;
       const squash=1-Math.cos(phase)*0.10;
       e.mesh.scale.set(ENEMY_SCALE*squash, ENEMY_SCALE*stretch, ENEMY_SCALE*squash);
-    } else if(e.type==='wander'){
-      // 徘徊型：未発見でも歩いているので軽く揺れる
+    } else if(e.wandering){
+      // 徘徊個体：未発見でも歩いているので軽く揺れる
       const phase=nowSec*3+e.x*1.3+e.y*0.7;
       e.mesh.position.y=Math.abs(Math.sin(phase))*0.12;
       e.mesh.scale.set(ENEMY_SCALE,ENEMY_SCALE,ENEMY_SCALE);
@@ -4040,15 +4043,15 @@ function enemyTurn(){
     if(state.invis>0){ e.aware=false; wanderStep(e); return; }
     // 気づき判定
     if(!e.aware){
-      if(e.type==='normal'||e.type==='mage'||e.type==='wander'||e.type==='archer'){
+      if(e.type==='normal'||e.type==='mage'||e.type==='archer'){
         if(playerRoomIdx>=0&&e.roomIdx===playerRoomIdx)e.aware=true;
       } else {
         if(distToPlayer(e)<=1)e.aware=true;
       }
       // 今まさに気づいた敵は、その場では攻撃も移動もせず様子を見るだけ（次のターンから行動開始）
       if(e.aware)return;
-      // 徘徊型：気づいていなくてもランダムにうろつく
-      if(e.type==='wander'){
+      // 徘徊個体：気づいていなくてもランダムにうろつく（種類に関わらず約30%が対象）
+      if(e.wandering){
         wanderStep(e);
       }
       return;
