@@ -341,7 +341,6 @@ body { font-family:'Courier New',monospace; color:#c8b89a; user-select:none; -we
 .act-btn:active { background:#222; }
 .act-btn:disabled { color:#666; cursor:default; }
 .act-btn:disabled:active { background:#000; }
-.dungeon-select-note { display:block; font-size:13px; color:#888; margin-top:4px; }
 #dungeon-select-cancel { color:#a0a0a0; }
 
 /* 確認モーダル（YES/NO） */
@@ -468,7 +467,7 @@ body { font-family:'Courier New',monospace; color:#c8b89a; user-select:none; -we
 <div id="fade-overlay"></div>
 <div id="floor-announce"></div>
 <div id="title-screen">
-  <div id="title-logo">Wanderer's Dungeon<span class="title-ver">ver 0.9.83</span></div>
+  <div id="title-logo">Wanderer's Dungeon<span class="title-ver">ver 0.9.84</span></div>
   <div id="title-buttons">
     <button id="title-continue" class="title-btn slot-btn">
       <div class="slot-head">
@@ -611,7 +610,7 @@ body { font-family:'Courier New',monospace; color:#c8b89a; user-select:none; -we
 <div id="dungeon-select-modal">
   <div class="action-panel-box">
     <div id="dungeon-select-title">ダンジョンを選択</div>
-    <button class="act-btn" id="dungeon-select-beginner" disabled>初級【全5F】<span class="dungeon-select-note">（開発中）</span></button>
+    <button class="act-btn" id="dungeon-select-beginner">初級【全5F】</button>
     <button class="act-btn" id="dungeon-select-normal">中級【全10F】</button>
     <button class="act-btn" id="dungeon-select-cancel">やめる</button>
   </div>
@@ -700,6 +699,23 @@ const FLOOR_MONSTER_POOL={
   7:['golem','wizard','devilape'],8:['golem','wizard','devilape'],
   9:['golem','wizard','devilape'],10:['dragon']
 };
+// 初級ダンジョン（全5F、練習用）専用の階層別モンスター出現プール
+const BEGINNER_FLOOR_MONSTER_POOL={
+  1:['slime'],2:['slime','bat'],
+  3:['skeleton_archer','goblin'],4:['skeleton_archer','goblin'],
+  5:['skeleton_archer','goblin','zombie']
+};
+// 初級ダンジョンの階層別「部屋数」「出現モンスター数」レンジ（[最小,最大]）。
+// 中級より部屋数・敵数を絞って難易度を下げる
+const BEGINNER_ROOM_COUNT={1:[3,4],2:[4,5],3:[5,6],4:[6,7],5:[6,7]};
+const BEGINNER_MONSTER_COUNT={1:[1,2],2:[2,3],3:[2,3],4:[3,4],5:[3,4]};
+// 初級ダンジョンの各階で必ず1つ配置する装備・アイテム（プレイヤーの成長を保証する）
+const BEGINNER_GUARANTEED_ITEMS={
+  1:[{key:'copper'},{key:'woodsh'}],
+  3:[{key:'arrow_wood',count:10},{key:'iron'}],
+  4:[{key:'bronzesh'}],
+  5:[{key:'steel'}]
+};
 // レベル別「基本攻撃力」（index=レベル。0は未使用）
 const LEVEL_BASE=[0,5,7,9,11,13,15,17,19,21,23,26,29,32,35,38,41,44,47,50,53,56,59,62,65,68,71,74,77,80,82,84,86,88,90,91,92,93,94,95,96,97,98,99,100,101,102,103,104,105,106,107,108,109,110,111,112,113,115,116,117];
 // レベル別「そのレベルに到達するまでの累計必要経験値」（index=レベル。0は未使用）
@@ -711,7 +727,8 @@ const DIR_DY=[-1,-1,0,1,1,1,0,-1];
 const state={x:0,y:0,dir:0,angle:-Math.PI/2,targetAngle:-Math.PI/2,actionTimer:0,floor:1,
   hp:15,maxHp:15,str:0,lv:1,exp:0,nextExp:10,stepCount:0,
   food:100,maxFood:100,foodStep:0,gold:0,
-  haste:0,charge:false,invis:0,confuse:0,inEntrance:false,playTimeMs:0,globalTurnCount:0};
+  haste:0,charge:false,invis:0,confuse:0,inEntrance:false,playTimeMs:0,globalTurnCount:0,
+  dungeonType:'normal'}; // 'normal'=中級【全10F】 / 'beginner'=初級【全5F】
 let MAP=[],rooms=[],stairsPos=null,returnPos=null,floorItems=[],explored=[];
 // 自機がいない間に配送予約されたモンスター（floor番号 -> 未出現数）。
 // 未訪問フロアはシミュレートされないため、実際の生成はそのフロアへ次に入った時に行う
@@ -1296,7 +1313,13 @@ function generateMap(floor){
     return{cells:m,rooms:rs};
   }
 
-  const cnt=4+Math.floor(Math.random()*3);
+  let cnt;
+  if(state.dungeonType==='beginner'&&BEGINNER_ROOM_COUNT[floor]){
+    const [lo,hi]=BEGINNER_ROOM_COUNT[floor];
+    cnt=lo+Math.floor(Math.random()*(hi-lo+1));
+  } else {
+    cnt=4+Math.floor(Math.random()*3);
+  }
   for(let att=0;att<300&&rs.length<cnt;att++){
     const rw=4+Math.floor(Math.random()*6),rh=4+Math.floor(Math.random()*6);
     const rx=1+Math.floor(Math.random()*(MAP_W-rw-2)),ry=1+Math.floor(Math.random()*(MAP_H-rh-2));
@@ -2665,8 +2688,29 @@ function initFloor(floor){
     }
   });
 
+  // 初級ダンジョン：各階で必ず1つ配置する装備・アイテム（プレイヤーの成長を保証する）。
+  // 「保証」する以上、1部屋だけで10回試して駄目なら諦める通常の抽選ロジックでは
+  // 弱いため、全部屋をランダムな順で回って必ずどこかに置けるようにする
+  if(state.dungeonType==='beginner'&&BEGINNER_GUARANTEED_ITEMS[floor]){
+    BEGINNER_GUARANTEED_ITEMS[floor].forEach(entry=>{
+      const roomOrder=rooms.slice().sort(()=>Math.random()-0.5);
+      for(const room of roomOrder){
+        let p=null, tries=0;
+        while(tries<10){
+          const cand=rndInRoom(room);
+          const bl=(stairsPos&&cand.x===stairsPos.x&&cand.y===stairsPos.y)||
+                   (returnPos&&cand.x===returnPos.x&&cand.y===returnPos.y)||
+                   floorItems.some(f=>f.x===cand.x&&f.y===cand.y);
+          if(!bl){ p=cand; break; }
+          tries++;
+        }
+        if(p){ spawnObject('item',p.x,p.y,entry.key,entry.count); break; }
+      }
+    });
+  }
+
   // 階層別モンスタースポーン
-  const monTypes=FLOOR_MONSTER_POOL[floor]||['slime'];
+  const monTypes=(state.dungeonType==='beginner'?BEGINNER_FLOOR_MONSTER_POOL:FLOOR_MONSTER_POOL)[floor]||['slime'];
 
   if(floor===10){
     // 10F：ドラゴン1体のみ、部屋中央に配置
@@ -2674,8 +2718,14 @@ function initFloor(floor){
     const bp=rndInRoom(bossRoom);
     spawnObject('enemy',bp.x,bp.y,'dragon');
   } else {
-    // 1〜9F：7〜8体を全フロアから均等にスポーン
-    const targetCount=7+Math.floor(Math.random()*2);
+    // 初級ダンジョンは階層ごとに少なめの敵数、中級は1〜9Fで7〜8体を均等にスポーン
+    let targetCount;
+    if(state.dungeonType==='beginner'&&BEGINNER_MONSTER_COUNT[floor]){
+      const [lo,hi]=BEGINNER_MONSTER_COUNT[floor];
+      targetCount=lo+Math.floor(Math.random()*(hi-lo+1));
+    } else {
+      targetCount=7+Math.floor(Math.random()*2);
+    }
     let spawned=0;
     let attempts=0;
     const usedPositions=new Set();
@@ -2841,7 +2891,8 @@ function resetFullGameState(){
     x:0,y:0,dir:0,angle:-Math.PI/2,targetAngle:-Math.PI/2,actionTimer:0,floor:1,
     hp:15,maxHp:15,str:0,lv:1,exp:0,nextExp:10,stepCount:0,
     food:100,maxFood:100,foodStep:0,gold:0,
-    haste:0,charge:false,invis:0,confuse:0,inEntrance:false,playTimeMs:0,globalTurnCount:0
+    haste:0,charge:false,invis:0,confuse:0,inEntrance:false,playTimeMs:0,globalTurnCount:0,
+    dungeonType:'normal'
   });
   inventory.length=0;
   equippedWeapon=null; equippedArmor=null; equippedArrow=null;
@@ -3308,6 +3359,22 @@ function checkStepOn(){
     return;
   }
   if(stairsPos&&state.x===stairsPos.x&&state.y===stairsPos.y){
+    // 初級ダンジョンは5Fが最終階。ボスはいないため、階段を降りる操作自体を
+    // クリアの合図にする（中級ドラゴン撃破時のクリア演出と同様、持ち物・
+    // お金は持ち帰ってエントランスへ）
+    if(state.dungeonType==='beginner'&&state.floor>=5){
+      showConfirm('初級ダンジョンをクリアしますか？',()=>{
+        showAction('🎉 初級ダンジョンをクリアした！',2400);
+        setLog('CLEAR！');
+        sfxItem();
+        triggerFlash('rgba(255,215,0,');
+        fadeTransition(()=>{
+          resetPlayerStatsForEntrance();
+          initEntrance();
+        }, '✧ DUNGEON CLEAR ✧');
+      });
+      return;
+    }
     if(state.floor>=10){showAction('最深部に到達！',2000);return;}
     showConfirm('次のフロアに移りますか？',()=>{
       const nextFloor=state.floor+1;
@@ -4079,8 +4146,9 @@ function dirIdxFromPlayer(e){
 // 未訪問フロアはシミュレートしていないため、実際の出現はそのフロアへ次に入った時（initFloor）に行う
 function dispatchRandomFloorMonster(){
   const candidates=[];
-  // 10Fはドラゴン1体のみのボスフロアなので配送対象から除外する
-  for(let f=1; f<=9; f++){ if(state.inEntrance||f!==state.floor) candidates.push(f); }
+  // 10Fはドラゴン1体のみのボスフロアなので配送対象から除外する（初級ダンジョンは全5F）
+  const maxFloor=state.dungeonType==='beginner'?5:9;
+  for(let f=1; f<=maxFloor; f++){ if(state.inEntrance||f!==state.floor) candidates.push(f); }
   if(candidates.length===0)return;
   const targetFloor=candidates[Math.floor(Math.random()*candidates.length)];
   pendingFloorSpawns[targetFloor]=(pendingFloorSpawns[targetFloor]||0)+1;
@@ -4503,13 +4571,23 @@ document.getElementById('confirm-no').onclick=()=>{
   if(cb)cb();
 };
 
-// ダンジョン入口：初級/中級を選ぶモーダル（初級は開発中のため選択不可）
+// ダンジョン入口：初級/中級を選ぶモーダル
 const dungeonSelectModal=document.getElementById('dungeon-select-modal');
 function showDungeonSelect(){ dungeonSelectModal.classList.add('show'); }
 function closeDungeonSelect(){ dungeonSelectModal.classList.remove('show'); }
 document.getElementById('dungeon-select-normal').onclick=()=>{
   closeDungeonSelect();
   sfxStairs();
+  // 別種のダンジョンを選び直した際に前回分の配送予約が混ざらないようにする
+  pendingFloorSpawns={};
+  state.dungeonType='normal';
+  fadeTransition(()=>{ initFloor(1); }, '地下 1 階');
+};
+document.getElementById('dungeon-select-beginner').onclick=()=>{
+  closeDungeonSelect();
+  sfxStairs();
+  pendingFloorSpawns={};
+  state.dungeonType='beginner';
   fadeTransition(()=>{ initFloor(1); }, '地下 1 階');
 };
 document.getElementById('dungeon-select-cancel').onclick=closeDungeonSelect;
