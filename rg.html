@@ -467,7 +467,7 @@ body { font-family:'Courier New',monospace; color:#c8b89a; user-select:none; -we
 <div id="fade-overlay"></div>
 <div id="floor-announce"></div>
 <div id="title-screen">
-  <div id="title-logo">Wanderer's Dungeon<span class="title-ver">ver 0.9.84</span></div>
+  <div id="title-logo">Wanderer's Dungeon<span class="title-ver">ver 0.9.85</span></div>
   <div id="title-buttons">
     <button id="title-continue" class="title-btn slot-btn">
       <div class="slot-head">
@@ -712,9 +712,8 @@ const BEGINNER_MONSTER_COUNT={1:[1,2],2:[2,3],3:[2,3],4:[3,4],5:[3,4]};
 // 初級ダンジョンの各階で必ず1つ配置する装備・アイテム（プレイヤーの成長を保証する）
 const BEGINNER_GUARANTEED_ITEMS={
   1:[{key:'copper'},{key:'woodsh'}],
-  3:[{key:'arrow_wood',count:10},{key:'iron'}],
-  4:[{key:'bronzesh'}],
-  5:[{key:'steel'}]
+  3:[{key:'arrow_wood',count:10}],
+  4:[{key:'bronzesh'}]
 };
 // レベル別「基本攻撃力」（index=レベル。0は未使用）
 const LEVEL_BASE=[0,5,7,9,11,13,15,17,19,21,23,26,29,32,35,38,41,44,47,50,53,56,59,62,65,68,71,74,77,80,82,84,86,88,90,91,92,93,94,95,96,97,98,99,100,101,102,103,104,105,106,107,108,109,110,111,112,113,115,116,117];
@@ -815,6 +814,14 @@ const FLOOR_ITEM_KEYS=['herb','herb','hiherb','bread','bread','bigbread','badbre
   'st_atk','st_fire','st_sleep','st_confuse','st_swap','st_knock','st_weak','st_seal','st_pull',
   'sc_enchant','sc_enchant_shield','sc_fire','sc_teleport','sc_return','sc_pitfall','sc_confuse','sc_sleep','sc_luck','sc_nuke','sc_map','sc_seal',
   'arrow_wood','arrow_wood','arrow_wood'];
+// 初級ダンジョンでは武器・盾のドロップをこん棒・銅の剣・木の盾・青銅の盾のみに絞る
+// （それ以外の武器・防具種別は除外し、薬・食料・杖・巻物・矢はそのまま残す）
+const BEGINNER_ALLOWED_EQUIPMENT=['club','copper','woodsh','bronzesh'];
+const BEGINNER_FLOOR_ITEM_KEYS=FLOOR_ITEM_KEYS.filter(k=>{
+  const t=ITEM_DB[k].type;
+  if(t==='weapon'||t==='shield'||t==='armor') return BEGINNER_ALLOWED_EQUIPMENT.includes(k);
+  return true;
+});
 
 // インベントリ（最大20）
 const MAX_INV=20;
@@ -2393,7 +2400,8 @@ function spawnObject(type,gx,gy,arg,count){
     mesh.userData={gx,gy};
     const lt=new THREE.PointLight(0x4080ff,2,4);lt.position.set(wx,1,wz);scene.add(lt);
   } else if(type==='item'){
-    const key=arg||FLOOR_ITEM_KEYS[Math.floor(Math.random()*FLOOR_ITEM_KEYS.length)];
+    const itemPool=state.dungeonType==='beginner'?BEGINNER_FLOOR_ITEM_KEYS:FLOOR_ITEM_KEYS;
+    const key=arg||itemPool[Math.floor(Math.random()*itemPool.length)];
     const db=ITEM_DB[key];
     const g=new THREE.Group();
     buildItemMesh(g, db.type);
@@ -2659,6 +2667,8 @@ function initFloor(floor){
   rooms.forEach(room=>{
     const cnt=Math.floor(Math.random()*3);
     for(let i=0;i<cnt;i++){
+      // 初級ダンジョンはアイテムのドロップ量を通常の50%に抑える
+      if(state.dungeonType==='beginner'&&Math.random()>=0.5)continue;
       let p=null, tries=0;
       while(tries<10){
         const cand=rndInRoom(room);
