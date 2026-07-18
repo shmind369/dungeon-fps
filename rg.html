@@ -468,7 +468,7 @@ body { font-family:'Courier New',monospace; color:#c8b89a; user-select:none; -we
 <div id="fade-overlay"></div>
 <div id="floor-announce"></div>
 <div id="title-screen">
-  <div id="title-logo">Wanderer's Dungeon<span class="title-ver">ver 0.9.82</span></div>
+  <div id="title-logo">Wanderer's Dungeon<span class="title-ver">ver 0.9.83</span></div>
   <div id="title-buttons">
     <button id="title-continue" class="title-btn slot-btn">
       <div class="slot-head">
@@ -4092,6 +4092,10 @@ function enemyTurn(){
   state.globalTurnCount++;
   if(state.globalTurnCount%50===0) dispatchRandomFloorMonster();
   const playerRoomIdx=getPlayerRoomIdx();
+  // 自機が部屋（またはエントランス）に足を踏み入れているか。通路にいる間は
+  // ドア越しに視線が通っていてもモンスターにまだ気づかれたくないため、
+  // 初回発見の判定にはこのフラグも合わせて使う
+  const playerInRoom=state.inEntrance||playerRoomIdx>=0;
   const attackQueue=[];
   enemies.forEach(e=>{
     if(e.hp<=0)return;
@@ -4107,7 +4111,9 @@ function enemyTurn(){
     const sees=distToPlayer(e)<=sightRange&&hasLineOfSight(e.x,e.y,state.x,state.y);
     if(sees){ e.lastSeenX=state.x; e.lastSeenY=state.y; e.investigating=false; }
     if(!e.aware){
-      if(sees) e.aware=true;
+      // 通路からドア越しに見えているだけでは気づかせず、自機が実際に部屋へ
+      // 足を踏み入れて明るくなってから初めて発見させる
+      if(sees&&playerInRoom) e.aware=true;
       // 今まさに気づいた敵は、その場では攻撃も移動もせず様子を見るだけ（次のターンから行動開始）
       if(e.aware){ e.chasePath=null; return; }
       // 徘徊個体：気づいていなくてもランダムにうろつく（種類に関わらず約30%が対象）
