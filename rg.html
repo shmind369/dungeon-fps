@@ -468,7 +468,7 @@ body { font-family:'Courier New',monospace; color:#c8b89a; user-select:none; -we
 <div id="fade-overlay"></div>
 <div id="floor-announce"></div>
 <div id="title-screen">
-  <div id="title-logo">Wanderer's Dungeon<span class="title-ver">ver 0.9.81</span></div>
+  <div id="title-logo">Wanderer's Dungeon<span class="title-ver">ver 0.9.82</span></div>
   <div id="title-buttons">
     <button id="title-continue" class="title-btn slot-btn">
       <div class="slot-head">
@@ -1643,8 +1643,11 @@ function updateWandBolts(dt){
 
 // 杖の効果を敵に適用（投げた薬と同じ必中ロジック）
 function applyWandEffect(eff,e,wdx,wdz){
-  // 命中すれば眠っていても目を覚まし、自機に気づく
+  // 命中すれば眠っていても目を覚まし、自機に気づく（遠距離からの命中でも、
+  // 視界範囲外で即座に見失って再び眠ってしまわないよう、命中した瞬間の自機の
+  // 位置を「最後に見た位置」として記憶させる）
   e.aware=true;
+  e.lastSeenX=state.x; e.lastSeenY=state.y; e.investigating=false; e.chaseDistMap=null;
   switch(eff.wand){
     case 'damage':
       e.hp-=eff.power;
@@ -4722,8 +4725,11 @@ function throwItem(it){
     removeFromInv(it);
     renderInventory();updateUI();
     spawnThrowTrail(state.x*CELL,state.y*CELL,hitEnemy.x*CELL,hitEnemy.y*CELL,db,()=>{
-      // 命中すれば眠っていても目を覚まし、自機に気づく
+      // 命中すれば眠っていても目を覚まし、自機に気づく（遠距離からの命中でも
+      // 即座に見失って再び眠ってしまわないよう、最後に見た位置を記憶させる）
       hitEnemy.aware=true;
+      hitEnemy.lastSeenX=state.x; hitEnemy.lastSeenY=state.y;
+      hitEnemy.investigating=false; hitEnemy.chaseDistMap=null;
       if(db.type==='potion'){
         applyPotionToEnemy(db.effect, hitEnemy);
       } else if(db.type==='staff'){
@@ -4809,7 +4815,11 @@ function shootArrow(){
 
   if(hitEnemy && willHit){
     spawnThrowTrail(state.x*CELL,state.y*CELL,hitEnemy.x*CELL,hitEnemy.y*CELL,db,()=>{
+      // 命中すれば眠っていても目を覚まし、自機に気づく（遠距離からの命中でも
+      // 即座に見失って再び眠ってしまわないよう、最後に見た位置を記憶させる）
       hitEnemy.aware=true;
+      hitEnemy.lastSeenX=state.x; hitEnemy.lastSeenY=state.y;
+      hitEnemy.investigating=false; hitEnemy.chaseDistMap=null;
       const dmg=calcDamage(totalAtk(db.atk),hitEnemy.def||0);
       spawnDamageNum(hitEnemy.mesh.position.x,2.0,hitEnemy.mesh.position.z,`${dmg}`,'#ffffff');
       sfxAttack();
