@@ -467,7 +467,7 @@ body { font-family:'Courier New',monospace; color:#c8b89a; user-select:none; -we
 <div id="fade-overlay"></div>
 <div id="floor-announce"></div>
 <div id="title-screen">
-  <div id="title-logo">Wanderer's Dungeon<span class="title-ver">ver 0.9.85</span></div>
+  <div id="title-logo">Wanderer's Dungeon<span class="title-ver">ver 0.9.86</span></div>
   <div id="title-buttons">
     <button id="title-continue" class="title-btn slot-btn">
       <div class="slot-head">
@@ -997,6 +997,84 @@ function sfxLevelUp(){
     osc.connect(gain); gain.connect(ctx.destination);
     osc.start(t); osc.stop(t+0.24);
   });
+}
+
+// ============================================================
+// ダンジョンBGM（効果音と同じくWeb Audio APIでその場で合成。音声ファイル不要）
+// ============================================================
+function midiToFreq(m){return 440*Math.pow(2,(m-69)/12);}
+// Dナチュラルマイナー: i(Dm) - VI(Bb) - III(F) - VII(C)
+const BGM_CHORDS=[
+  {bassMidi:50, tones:[62,65,69,74]}, // Dm: D3 bass / D4-F4-A4-D5
+  {bassMidi:46, tones:[58,62,65,70]}, // Bb: Bb2 bass / Bb3-D4-F4-Bb4
+  {bassMidi:53, tones:[65,69,72,77]}, // F : F3 bass / F4-A4-C5-F5
+  {bassMidi:48, tones:[60,64,67,72]}, // C : C3 bass / C4-E4-G4-C5
+];
+const BGM_ARP_PATTERN=[0,1,2,3,2,1,0,1];
+const BGM_TEMPO=78;
+const BGM_BEAT=60/BGM_TEMPO;
+const BGM_EIGHTH=BGM_BEAT/2;
+let bgmPlaying=false, bgmSchedulerTimer=null, bgmNextNoteTime=0, bgmChordIndex=0, bgmBarsInChord=0;
+let bgmMaster=null;
+
+function bgmPlayTone(ctx,dest,freq,startTime,dur,type,peakGain,attack,release){
+  const osc=ctx.createOscillator(); osc.type=type; osc.frequency.value=freq;
+  const g=ctx.createGain();
+  g.gain.setValueAtTime(0,startTime);
+  g.gain.linearRampToValueAtTime(peakGain,startTime+attack);
+  g.gain.setValueAtTime(peakGain,startTime+dur-release);
+  g.gain.linearRampToValueAtTime(0,startTime+dur);
+  osc.connect(g).connect(dest);
+  osc.start(startTime); osc.stop(startTime+dur+0.05);
+}
+function bgmPlayThump(ctx,dest,startTime){
+  const src=ctx.createBufferSource(); src.buffer=getNoiseBuffer(ctx);
+  const filt=ctx.createBiquadFilter(); filt.type='lowpass'; filt.frequency.value=120;
+  const g=ctx.createGain();
+  g.gain.setValueAtTime(0.25,startTime);
+  g.gain.exponentialRampToValueAtTime(0.001,startTime+0.35);
+  src.connect(filt).connect(g).connect(dest);
+  src.start(startTime); src.stop(startTime+0.4);
+}
+function bgmScheduleBar(ctx,master,delayNode){
+  const chord=BGM_CHORDS[bgmChordIndex];
+  bgmPlayTone(ctx,master,midiToFreq(chord.bassMidi),bgmNextNoteTime,BGM_BEAT*4*0.95,'triangle',0.16,0.05,0.3);
+  bgmPlayThump(ctx,master,bgmNextNoteTime);
+  for(let i=0;i<8;i++){
+    const freq=midiToFreq(chord.tones[BGM_ARP_PATTERN[i]]);
+    const t=bgmNextNoteTime+i*BGM_EIGHTH;
+    bgmPlayTone(ctx,delayNode,freq,t,BGM_EIGHTH*0.9,'sine',0.065,0.01,0.08);
+  }
+  bgmNextNoteTime+=BGM_BEAT*4;
+  bgmBarsInChord++;
+  if(bgmBarsInChord>=2){bgmBarsInChord=0; bgmChordIndex=(bgmChordIndex+1)%BGM_CHORDS.length;}
+}
+function startBGM(){
+  const ctx=getAudioCtx(); if(!ctx||bgmPlaying)return;
+  bgmPlaying=true;
+  bgmMaster=ctx.createGain(); bgmMaster.gain.value=0.35;
+  bgmMaster.connect(ctx.destination);
+  const delayNode=ctx.createDelay(); delayNode.delayTime.value=0.28;
+  const feedback=ctx.createGain(); feedback.gain.value=0.32;
+  const delayGain=ctx.createGain(); delayGain.gain.value=0.6;
+  delayNode.connect(feedback).connect(delayNode);
+  delayNode.connect(delayGain).connect(bgmMaster);
+  delayNode.connect(bgmMaster);
+  bgmNextNoteTime=ctx.currentTime+0.1; bgmChordIndex=0; bgmBarsInChord=0;
+  bgmSchedulerTimer=setInterval(()=>{
+    while(bgmNextNoteTime<ctx.currentTime+0.2){ bgmScheduleBar(ctx,bgmMaster,delayNode); }
+  },25);
+}
+function stopBGM(){
+  if(!bgmPlaying)return;
+  bgmPlaying=false;
+  clearInterval(bgmSchedulerTimer); bgmSchedulerTimer=null;
+  if(bgmMaster){
+    const ctx=getAudioCtx();
+    if(ctx){ bgmMaster.gain.linearRampToValueAtTime(0,ctx.currentTime+0.6); }
+    const m=bgmMaster; bgmMaster=null;
+    setTimeout(()=>{ try{ m.disconnect(); }catch(e){} },700);
+  }
 }
 
 const scene=new THREE.Scene();
@@ -2506,6 +2584,7 @@ function spawnObject(type,gx,gy,arg,count){
 
 // エントランス初期化
 function initEntrance(){
+  stopBGM();
   state.inEntrance=true;
   stairsPos=null; returnPos=null;
   floorTurnCount=0; updateTurnCounterDisplay();
@@ -4599,6 +4678,7 @@ document.getElementById('dungeon-select-beginner').onclick=()=>{
   pendingFloorSpawns={};
   state.dungeonType='beginner';
   fadeTransition(()=>{ initFloor(1); }, '地下 1 階');
+  startBGM();
 };
 document.getElementById('dungeon-select-cancel').onclick=closeDungeonSelect;
 
