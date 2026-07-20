@@ -467,7 +467,7 @@ body { font-family:'Courier New',monospace; color:#c8b89a; user-select:none; -we
 <div id="fade-overlay"></div>
 <div id="floor-announce"></div>
 <div id="title-screen">
-  <div id="title-logo">Wanderer's Dungeon<span class="title-ver">ver 0.9.86</span></div>
+  <div id="title-logo">Wanderer's Dungeon<span class="title-ver">ver 0.9.87</span></div>
   <div id="title-buttons">
     <button id="title-continue" class="title-btn slot-btn">
       <div class="slot-head">
@@ -996,6 +996,32 @@ function sfxLevelUp(){
     gain.gain.exponentialRampToValueAtTime(0.0001,t+0.22);
     osc.connect(gain); gain.connect(ctx.destination);
     osc.start(t); osc.stop(t+0.24);
+  });
+}
+
+// 武器・防具の装備「ジャキ！」：金属質のノイズ＋短い金属共鳴音
+function sfxEquip(){
+  const ctx=getAudioCtx(); if(!ctx)return;
+  const now=ctx.currentTime;
+  // 「ジャ」：金属的な高域ノイズの立ち上がり
+  const src=ctx.createBufferSource(); src.buffer=getNoiseBuffer(ctx);
+  const bp=ctx.createBiquadFilter(); bp.type='bandpass'; bp.frequency.value=3000; bp.Q.value=1.8;
+  const noiseGain=ctx.createGain();
+  noiseGain.gain.setValueAtTime(0.0001,now);
+  noiseGain.gain.exponentialRampToValueAtTime(0.5,now+0.008);
+  noiseGain.gain.exponentialRampToValueAtTime(0.0001,now+0.09);
+  src.connect(bp).connect(noiseGain).connect(ctx.destination);
+  src.start(now); src.stop(now+0.1);
+  // 「キ！」：金属が触れ合う共鳴（近接デチューンした2音）
+  [1900,1915].forEach((freq)=>{
+    const osc=ctx.createOscillator(); osc.type='triangle';
+    osc.frequency.setValueAtTime(freq,now+0.02);
+    const gain=ctx.createGain();
+    gain.gain.setValueAtTime(0.0001,now+0.02);
+    gain.gain.exponentialRampToValueAtTime(0.28,now+0.03);
+    gain.gain.exponentialRampToValueAtTime(0.0001,now+0.2);
+    osc.connect(gain); gain.connect(ctx.destination);
+    osc.start(now+0.02); osc.stop(now+0.22);
   });
 }
 
@@ -4784,7 +4810,7 @@ function doAction(act){
   if(act==='use'){
     if(db.type==='weapon'){
       if(it.equipped){ it.equipped=false; equippedWeapon=null; showAction('武器をはずした'); }
-      else { inventory.forEach(x=>{if(ITEM_DB[x.key].type==='weapon')x.equipped=false;}); it.equipped=true; equippedWeapon=it; showAction(`${db.name}を装備した`); }
+      else { inventory.forEach(x=>{if(ITEM_DB[x.key].type==='weapon')x.equipped=false;}); it.equipped=true; equippedWeapon=it; showAction(`${db.name}を装備した`); sfxEquip(); }
       closeActionMenu(); closeInventory(); renderInventory(); updateUI(); enemyTurn();
     } else if(db.type==='staff'){
       closeActionMenu(); closeInventory();
@@ -4798,7 +4824,7 @@ function doAction(act){
       return;
     } else if(db.type==='armor'||db.type==='shield'){
       if(it.equipped){ it.equipped=false; equippedArmor=null; showAction('防具をはずした'); }
-      else { inventory.forEach(x=>{if(ITEM_DB[x.key].type==='armor'||ITEM_DB[x.key].type==='shield')x.equipped=false;}); it.equipped=true; equippedArmor=it; showAction(`${db.name}を装備した`); }
+      else { inventory.forEach(x=>{if(ITEM_DB[x.key].type==='armor'||ITEM_DB[x.key].type==='shield')x.equipped=false;}); it.equipped=true; equippedArmor=it; showAction(`${db.name}を装備した`); sfxEquip(); }
       closeActionMenu(); closeInventory(); renderInventory(); updateUI(); enemyTurn();
     } else if(db.type==='arrow'){
       if(it.equipped){ it.equipped=false; equippedArrow=null; showAction('矢をはずした'); }
