@@ -1038,12 +1038,14 @@ function bgmPlayThump(ctx,dest,startTime){
 }
 function bgmScheduleBar(ctx,master,delayNode){
   const chord=BGM_CHORDS[bgmChordIndex];
-  bgmPlayTone(ctx,master,midiToFreq(chord.bassMidi),bgmNextNoteTime,BGM_BEAT*4*0.95,'triangle',0.16,0.05,0.3);
+  // 低音はスマホ等の小型スピーカーでは聞こえにくいため、1オクターブ上を重ねて可聴性を確保
+  bgmPlayTone(ctx,master,midiToFreq(chord.bassMidi),bgmNextNoteTime,BGM_BEAT*4*0.95,'triangle',0.22,0.05,0.3);
+  bgmPlayTone(ctx,master,midiToFreq(chord.bassMidi+12),bgmNextNoteTime,BGM_BEAT*4*0.95,'triangle',0.12,0.05,0.3);
   bgmPlayThump(ctx,master,bgmNextNoteTime);
   for(let i=0;i<8;i++){
     const freq=midiToFreq(chord.tones[BGM_ARP_PATTERN[i]]);
     const t=bgmNextNoteTime+i*BGM_EIGHTH;
-    bgmPlayTone(ctx,delayNode,freq,t,BGM_EIGHTH*0.9,'sine',0.065,0.01,0.08);
+    bgmPlayTone(ctx,delayNode,freq,t,BGM_EIGHTH*0.9,'sine',0.13,0.01,0.08);
   }
   bgmNextNoteTime+=BGM_BEAT*4;
   bgmBarsInChord++;
@@ -1051,8 +1053,9 @@ function bgmScheduleBar(ctx,master,delayNode){
 }
 function startBGM(){
   const ctx=getAudioCtx(); if(!ctx||bgmPlaying)return;
+  if(ctx.state==='suspended'){ ctx.resume().catch(()=>{}); }
   bgmPlaying=true;
-  bgmMaster=ctx.createGain(); bgmMaster.gain.value=0.35;
+  bgmMaster=ctx.createGain(); bgmMaster.gain.value=0.6;
   bgmMaster.connect(ctx.destination);
   const delayNode=ctx.createDelay(); delayNode.delayTime.value=0.28;
   const feedback=ctx.createGain(); feedback.gain.value=0.32;
