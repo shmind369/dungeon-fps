@@ -467,7 +467,7 @@ body { font-family:'Courier New',monospace; color:#c8b89a; user-select:none; -we
 <div id="fade-overlay"></div>
 <div id="floor-announce"></div>
 <div id="title-screen">
-  <div id="title-logo">Wanderer's Dungeon<span class="title-ver">ver 0.9.90</span></div>
+  <div id="title-logo">Wanderer's Dungeon<span class="title-ver">ver 0.9.91</span></div>
   <div id="title-buttons">
     <button id="title-continue" class="title-btn slot-btn">
       <div class="slot-head">
@@ -2101,13 +2101,13 @@ const MONSTER_DB={
       // 頭
       vox(0.26,0.26,0.24, 0xc0a8b0, 0,0.86,0, g);
       // 蛇の髪：各房を「胴体→首→頭→舌」の細い節をずらして繋げ、
-      // うねった蛇らしいシルエットと鎌首をもたげた頭部を表現する（太さ・長さを4倍に拡大）
+      // うねった蛇らしいシルエットと鎌首をもたげた頭部を表現する（太さは元のまま、長さのみ4倍に拡大）
       const SS=4;
       const snakeLock=(baseX,baseZ,bendX,bendZ,hue)=>{
-        vox(0.05*SS,0.1*SS,0.05*SS, hue, baseX,0.98,baseZ, g);
-        vox(0.045*SS,0.09*SS,0.045*SS, hue, baseX+bendX*0.6,1.14,baseZ+bendZ*0.6, g);
-        vox(0.06*SS,0.05*SS,0.07*SS, hue, baseX+bendX, 1.28, baseZ+bendZ, g); // 鎌首をもたげた頭
-        vox(0.02*SS,0.02*SS,0.05*SS, 0xff3030, baseX+bendX, 1.275, baseZ+bendZ+0.05, g); // 舌
+        vox(0.05,0.1*SS,0.05, hue, baseX,0.98,baseZ, g);
+        vox(0.045,0.09*SS,0.045, hue, baseX+bendX*0.6,1.14,baseZ+bendZ*0.6, g);
+        vox(0.06,0.05,0.07, hue, baseX+bendX, 1.28, baseZ+bendZ, g); // 鎌首をもたげた頭
+        vox(0.02,0.02,0.05, 0xff3030, baseX+bendX, 1.275, baseZ+bendZ+0.05, g); // 舌
       };
       snakeLock(-0.15,0.03, -0.1,0.16, 0x389838);
       snakeLock( 0.15,0.03,  0.1,0.16, 0x40a040);
