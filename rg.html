@@ -467,7 +467,7 @@ body { font-family:'Courier New',monospace; color:#c8b89a; user-select:none; -we
 <div id="fade-overlay"></div>
 <div id="floor-announce"></div>
 <div id="title-screen">
-  <div id="title-logo">Wanderer's Dungeon<span class="title-ver">ver 0.9.88</span></div>
+  <div id="title-logo">Wanderer's Dungeon<span class="title-ver">ver 0.9.91</span></div>
   <div id="title-buttons">
     <button id="title-continue" class="title-btn slot-btn">
       <div class="slot-head">
@@ -2090,7 +2090,7 @@ const MONSTER_DB={
     }
   },
   medusa:{
-    name:'メデューサ',hp:15,atk:8,def:6,exp:20,aiType:'normal',
+    name:'メデューサ',hp:15,atk:8,def:6,exp:20,aiType:'normal',scaleMul:1.5,
     buildMesh(g){
       // 蛇の下半身（とぐろ状）
       vox(0.32,0.14,0.32, 0x306030, 0,0.1,0, g);
@@ -2100,12 +2100,20 @@ const MONSTER_DB={
       vox(0.32,0.32,0.22, 0x9080a0, 0,0.58,0, g);
       // 頭
       vox(0.26,0.26,0.24, 0xc0a8b0, 0,0.86,0, g);
-      // 蛇の髪（頭の周りに複数の小さな蛇）
-      vox(0.06,0.16,0.06, 0x40a040, -0.14,1.0,0.05, g);
-      vox(0.06,0.16,0.06, 0x40a040,  0.14,1.0,0.05, g);
-      vox(0.06,0.14,0.06, 0x389838, -0.05,1.02,-0.1, g);
-      vox(0.06,0.14,0.06, 0x389838,  0.05,1.02,-0.1, g);
-      vox(0.05,0.12,0.05, 0x50b050, 0,1.04,0.14, g);
+      // 蛇の髪：各房を「胴体→首→頭→舌」の細い節をずらして繋げ、
+      // うねった蛇らしいシルエットと鎌首をもたげた頭部を表現する（太さは元のまま、長さのみ4倍に拡大）
+      const SS=4;
+      const snakeLock=(baseX,baseZ,bendX,bendZ,hue)=>{
+        vox(0.05,0.1*SS,0.05, hue, baseX,0.98,baseZ, g);
+        vox(0.045,0.09*SS,0.045, hue, baseX+bendX*0.6,1.14,baseZ+bendZ*0.6, g);
+        vox(0.06,0.05,0.07, hue, baseX+bendX, 1.28, baseZ+bendZ, g); // 鎌首をもたげた頭
+        vox(0.02,0.02,0.05, 0xff3030, baseX+bendX, 1.275, baseZ+bendZ+0.05, g); // 舌
+      };
+      snakeLock(-0.15,0.03, -0.1,0.16, 0x389838);
+      snakeLock( 0.15,0.03,  0.1,0.16, 0x40a040);
+      snakeLock(-0.07,-0.1, -0.16,-0.08, 0x349034);
+      snakeLock( 0.07,-0.1,  0.16,-0.08, 0x3c9c3c);
+      snakeLock( 0,   0.13,  0.05,0.2, 0x48ac48);
       // 目（黄色く光る、睨みつける）
       vox(0.07,0.07,0.05, 0xf0e020, -0.08,0.87,0.14, g);
       vox(0.07,0.07,0.05, 0xf0e020,  0.08,0.87,0.14, g);
@@ -2643,7 +2651,8 @@ function spawnObject(type,gx,gy,arg,count){
     const db=MONSTER_DB[monType];
     const g=new THREE.Group();
     db.buildMesh(g);
-    g.scale.set(ENEMY_SCALE,ENEMY_SCALE,ENEMY_SCALE);
+    const spawnScale=ENEMY_SCALE*(db.scaleMul||1);
+    g.scale.set(spawnScale,spawnScale,spawnScale);
     g.position.set(wx,0,wz);
     scene.add(g);objectMeshes.push(g);
     const roomIdx=rooms.findIndex(r=>gx>=r.x&&gx<r.x+r.w&&gy>=r.y&&gy<r.y+r.h);
@@ -3857,10 +3866,11 @@ function updateAnims(dt){
   const nowSec=performance.now()/1000;
   enemies.forEach(e=>{
     if(e.hp<=0)return;
+    const eScale=ENEMY_SCALE*((MONSTER_DB[e.monType]&&MONSTER_DB[e.monType].scaleMul)||1);
     if(e.sleep>0){
       // 睡眠中：自機を向かず、動かず静止（頭上のzzZは別途描画）
       e.mesh.position.y=0;
-      e.mesh.scale.set(ENEMY_SCALE,ENEMY_SCALE,ENEMY_SCALE);
+      e.mesh.scale.set(eScale,eScale,eScale);
     } else if(e.confused>0){
       // 混乱中：自機の方を向かず、直前に移動した向きのまま（向きはenemyTurn側で設定済み）
       const phase=nowSec*5+e.x*1.3+e.y*0.7;
@@ -3868,7 +3878,7 @@ function updateAnims(dt){
       e.mesh.position.y=jump;
       const stretch=1+Math.cos(phase)*0.12;
       const squash=1-Math.cos(phase)*0.10;
-      e.mesh.scale.set(ENEMY_SCALE*squash, ENEMY_SCALE*stretch, ENEMY_SCALE*squash);
+      e.mesh.scale.set(eScale*squash, eScale*stretch, eScale*squash);
     } else if(e.aware){
       // プレイヤー方向を向く
       const dx=state.x*CELL-e.mesh.position.x;
@@ -3881,17 +3891,17 @@ function updateAnims(dt){
       // スクワッシュ＆ストレッチ（潰れと伸び）
       const stretch=1+Math.cos(phase)*0.12;
       const squash=1-Math.cos(phase)*0.10;
-      e.mesh.scale.set(ENEMY_SCALE*squash, ENEMY_SCALE*stretch, ENEMY_SCALE*squash);
+      e.mesh.scale.set(eScale*squash, eScale*stretch, eScale*squash);
     } else if(e.wandering){
       // 徘徊個体：未発見でも歩いているので軽く揺れる
       const phase=nowSec*3+e.x*1.3+e.y*0.7;
       e.mesh.position.y=Math.abs(Math.sin(phase))*0.12;
-      e.mesh.scale.set(ENEMY_SCALE,ENEMY_SCALE,ENEMY_SCALE);
+      e.mesh.scale.set(eScale,eScale,eScale);
     } else {
       // 未発見：静止
       e.mesh.rotation.y=0;
       e.mesh.position.y=0;
-      e.mesh.scale.set(ENEMY_SCALE,ENEMY_SCALE,ENEMY_SCALE);
+      e.mesh.scale.set(eScale,eScale,eScale);
     }
   });
 }
@@ -4451,11 +4461,12 @@ function enemyTurn(){
       enemyLunge(e);shakeCamera();
       triggerFlash('rgba(255,60,60,');
       spawnDamageNum(state.x*CELL,1.5,state.y*CELL,`${dmg}`,'#ffffff');
-      showAction(`${dmg}ダメージを受けた！`,800);
-      // メデューサ：一定確率で自機を混乱状態にする（睨まれた）
+      // メデューサ：通常のダメージに加え、一定確率で自機を混乱状態にする（睨まれた）
       if(e.monType==='medusa'&&Math.random()<0.3){
         state.confuse=8;
-        showAction('メデューサと目が合った！混乱した！',1000);
+        showAction(`${dmg}ダメージを受けた！メデューサと目が合った！混乱した！`,1400);
+      } else {
+        showAction(`${dmg}ダメージを受けた！`,800);
       }
       // 盾のトゲ（鏡の盾）：受けたダメージの一部を敵に返す
       const shEff=equippedArmor?ITEM_DB[equippedArmor.key].effect:null;
