@@ -11,6 +11,10 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    env:
+      # secretsコンテキストはstepのif条件式では直接参照できないため、
+      # 一度envに写してから if: env.HAS_SIGNING_SECRETS == 'true' で判定する
+      HAS_SIGNING_SECRETS: ${{ secrets.ANDROID_KEYSTORE_BASE64 != '' }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -38,11 +42,11 @@ jobs:
         run: chmod +x android-app/android/gradlew
 
       - name: Decode release signing keystore
-        if: ${{ secrets.ANDROID_KEYSTORE_BASE64 != '' }}
+        if: ${{ env.HAS_SIGNING_SECRETS == 'true' }}
         run: echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 -d > android-app/android/app/upload-keystore.jks
 
       - name: Build signed release AAB + APK
-        if: ${{ secrets.ANDROID_KEYSTORE_BASE64 != '' }}
+        if: ${{ env.HAS_SIGNING_SECRETS == 'true' }}
         working-directory: android-app/android
         env:
           ANDROID_KEYSTORE_PATH: app/upload-keystore.jks
@@ -52,26 +56,26 @@ jobs:
         run: ./gradlew bundleRelease assembleRelease
 
       - name: Build debug APK (signing secrets not yet configured)
-        if: ${{ secrets.ANDROID_KEYSTORE_BASE64 == '' }}
+        if: ${{ env.HAS_SIGNING_SECRETS != 'true' }}
         working-directory: android-app/android
         run: ./gradlew assembleDebug
 
       - name: Upload release AAB (for Play Store submission)
-        if: ${{ secrets.ANDROID_KEYSTORE_BASE64 != '' }}
+        if: ${{ env.HAS_SIGNING_SECRETS == 'true' }}
         uses: actions/upload-artifact@v4
         with:
           name: wanderers-dungeon-release-aab
           path: android-app/android/app/build/outputs/bundle/release/*.aab
 
       - name: Upload release APK (for installing on a device to test)
-        if: ${{ secrets.ANDROID_KEYSTORE_BASE64 != '' }}
+        if: ${{ env.HAS_SIGNING_SECRETS == 'true' }}
         uses: actions/upload-artifact@v4
         with:
           name: wanderers-dungeon-release-apk
           path: android-app/android/app/build/outputs/apk/release/*.apk
 
       - name: Upload debug APK
-        if: ${{ secrets.ANDROID_KEYSTORE_BASE64 == '' }}
+        if: ${{ env.HAS_SIGNING_SECRETS != 'true' }}
         uses: actions/upload-artifact@v4
         with:
           name: wanderers-dungeon-debug-apk
