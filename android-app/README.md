@@ -11,6 +11,10 @@
 - `www/vendor/three.min.js` — three.js 0.158.0（オフライン動作のためローカル同梱）
 - `android/` — Capacitorが生成したネイティブAndroidプロジェクト
 - `store-assets/play-store-icon-512.png` — Play Store掲載用アイコン（512x512）
+- `store-assets/feature-graphic.png` — Play Store掲載用フィーチャーグラフィック（1024x500）
+- `store-assets/screenshots/` — Play Store掲載用スクリーンショット（412x824、縦横比2:1以内）
+- `store-assets/store-listing-ja.md` — ストア掲載文の下書き（アプリ名・説明文など）
+- ルートの `privacy-policy.html` — プライバシーポリシー（GitHub Pagesで公開）
 
 ## rg.htmlを更新したら
 
