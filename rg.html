@@ -455,11 +455,15 @@ body.spectator-mode #spectator-exit { display:block; }
 }
 body.spectator-mode #spectator-badge { display:block; }
 #spectator-caption {
-  position:fixed; left:50%; bottom:100px; transform:translateX(-50%);
-  max-width:88vw; padding:10px 18px; background:rgba(10,8,4,0.75);
-  color:#fff2d8; font-size:14px; font-weight:500; border-radius:10px;
-  text-align:center; z-index:200; pointer-events:none; line-height:1.4;
-  font-family:'Courier New',monospace; opacity:0; transition:opacity 0.15s ease;
+  /* ミニマップ（#game-area中央に描画）のすぐ下に来るよう#game-area内に絶対配置。
+     bottom基準だと文章が長い時に上へ伸びてミニマップと重なるため、top基準にする */
+  position:absolute; left:50%; top:78%; transform:translateX(-50%);
+  max-width:92%; padding:12px 20px; background:rgba(10,8,4,0.78);
+  color:#fff8ea; font-size:19px; font-weight:600; border-radius:12px;
+  text-align:center; z-index:12; pointer-events:none; line-height:1.5;
+  font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Hiragino Kaku Gothic ProN','Yu Gothic',sans-serif;
+  letter-spacing:0.2px; text-shadow:0 1px 3px rgba(0,0,0,0.7);
+  opacity:0; transition:opacity 0.15s ease;
   display:none;
 }
 body.spectator-mode #spectator-caption.show { display:block; opacity:1; }
@@ -510,7 +514,7 @@ body.spectator-mode #spectator-caption.show { display:block; opacity:1; }
 <div id="fade-overlay"></div>
 <div id="floor-announce"></div>
 <div id="title-screen">
-  <div id="title-logo">Wanderer's Dungeon<span class="title-ver">ver 0.10.3</span></div>
+  <div id="title-logo">Wanderer's Dungeon<span class="title-ver">ver 0.10.4</span></div>
   <div id="title-buttons">
     <button id="title-continue" class="title-btn slot-btn">
       <div class="slot-head">
@@ -532,8 +536,8 @@ body.spectator-mode #spectator-caption.show { display:block; opacity:1; }
 </div>
 <button id="spectator-exit">観戦をやめる</button>
 <div id="spectator-badge">AI観戦モード</div>
-<div id="spectator-caption"></div>
 <div id="game-area">
+  <div id="spectator-caption"></div>
   <div id="ui">
     <div id="topbar">
       <div id="topbar-left">
