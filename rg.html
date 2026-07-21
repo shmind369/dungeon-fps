@@ -419,7 +419,36 @@ body { font-family:'Courier New',monospace; color:#c8b89a; user-select:none; -we
 }
 .title-btn:active { background:#3a2c18; }
 .title-btn:disabled { opacity:0.32; color:#5a4e38; cursor:default; }
+#title-spectator { border-color:#4a7a9a; color:#a0d0f0; }
+#title-spectator:active { background:#1c3040; }
 #title-footer { color:#5a4e38; font-size:10px; letter-spacing:1px; }
+
+/* AI観戦モード：操作系ボタンをすべて無効化し、右上に終了ボタンと観戦中の表示を出す
+   （確認・選択系モーダルはAI自身がクリックして進めるため、プレイヤーの
+   誤操作を防ぐ目的でここも操作不可にしておく） */
+body.spectator-mode #ctrl-area,
+body.spectator-mode #dialogue-box,
+body.spectator-mode #inv-modal,
+body.spectator-mode #action-modal,
+body.spectator-mode #underfoot-modal,
+body.spectator-mode #confirm-modal,
+body.spectator-mode #dungeon-select-modal {
+  pointer-events:none;
+}
+#spectator-exit {
+  position:fixed; top:10px; right:10px; z-index:200; display:none;
+  background:#1c1610; border:2px solid #6a5430; color:#e8d4a0;
+  font-size:11px; letter-spacing:2px; padding:8px 12px; border-radius:8px;
+  font-family:'Courier New',monospace; cursor:pointer;
+}
+body.spectator-mode #spectator-exit { display:block; }
+#spectator-badge {
+  position:fixed; top:10px; left:10px; z-index:200; display:none;
+  background:rgba(20,16,10,0.8); border:1px solid #4a7a9a; color:#a0d0f0;
+  font-size:11px; letter-spacing:2px; padding:6px 10px; border-radius:8px;
+  font-family:'Courier New',monospace;
+}
+body.spectator-mode #spectator-badge { display:block; }
 
 /* セーブスロット表示 */
 .slot-btn { text-align:left; padding:0; overflow:hidden; }
@@ -467,7 +496,7 @@ body { font-family:'Courier New',monospace; color:#c8b89a; user-select:none; -we
 <div id="fade-overlay"></div>
 <div id="floor-announce"></div>
 <div id="title-screen">
-  <div id="title-logo">Wanderer's Dungeon<span class="title-ver">ver 0.9.91</span></div>
+  <div id="title-logo">Wanderer's Dungeon<span class="title-ver">ver 0.10.0</span></div>
   <div id="title-buttons">
     <button id="title-continue" class="title-btn slot-btn">
       <div class="slot-head">
@@ -483,9 +512,12 @@ body { font-family:'Courier New',monospace; color:#c8b89a; user-select:none; -we
       <div class="slot-empty" id="slot-empty">（セーブデータなし）</div>
     </button>
     <button id="title-newgame" class="title-btn">はじめから</button>
+    <button id="title-spectator" class="title-btn">AI観戦モード</button>
   </div>
   <div id="title-footer">Three.js Voxel Roguelike</div>
 </div>
+<button id="spectator-exit">観戦をやめる</button>
+<div id="spectator-badge">AI観戦モード</div>
 <div id="game-area">
   <div id="ui">
     <div id="topbar">
@@ -2987,6 +3019,7 @@ function serializeSave(){
 }
 
 function saveGame(){
+  if(spectatorMode)return false; // AI観戦モードのプレイ内容でプレイヤーのセーブを上書きしない
   try{
     localStorage.setItem(SAVE_KEY, JSON.stringify(serializeSave()));
     return true;
@@ -3161,6 +3194,7 @@ function restoreFloor(floorData){
 // カメラ
 const _v=new THREE.Vector3();
 let firstPersonMode=false; // 試験的な一人称視点モード（ステータスバー下のボタンで切り替え）
+let spectatorMode=false; // AI観戦モード：プレイヤー操作を無効化し、AIが自動でプレイする
 let debugShowAllEnemies=true; // テスト用：ミニマップに未探索・非表示の敵も含め全敵を表示するデバッグフラグ
 const FP_EYE_HEIGHT=1.3;
 // 手前のマスが見やすいよう、視線をわずかに下向きにする（カメラの高さ自体は変えない）
@@ -5895,6 +5929,127 @@ function suspendToTitle(){
   dialogueBox.classList.remove('show');
   showTitleScreen();
 }
+
+// ============================================================
+// AI観戦モード：プレイヤー操作なしでAIが自動的にプレイし続ける
+// ============================================================
+let spectatorTimer=null;
+const AI_DIR_MAP={'0,-1':0,'1,-1':1,'1,0':2,'1,1':3,'0,1':4,'-1,1':5,'-1,0':6,'-1,-1':7};
+
+// ダイアログ・確認・選択系のモーダルが出ていれば、AI自身が代わりに答えて閉じる
+function aiDismissBlockingUI(){
+  if(dialogueBox.classList.contains('show')){ hideDialogue(); return true; }
+  if(confirmModal.classList.contains('show')){ document.getElementById('confirm-yes').click(); return true; }
+  if(dungeonSelectModal.classList.contains('show')){
+    document.getElementById(Math.random()<0.5?'dungeon-select-beginner':'dungeon-select-normal').click();
+    return true;
+  }
+  if(invModal.classList.contains('show')){ closeInventory(); return true; }
+  if(actionModal.classList.contains('show')){ closeActionMenu(); return true; }
+  return false;
+}
+
+// (tx,ty)方向へのbfsPathの次の一歩へ自機を進める。目標が隣接する敵のマスなら
+// moveForward自身の「隣接マスに敵がいれば攻撃する」処理がそのまま働く
+function aiStepToward(tx,ty){
+  if(state.x===tx&&state.y===ty)return true;
+  const path=bfsPath(state.x,state.y,tx,ty);
+  if(!path||path.length<2)return false;
+  const dx=path[1].x-state.x, dy=path[1].y-state.y;
+  const dir=AI_DIR_MAP[`${dx},${dy}`];
+  if(dir===undefined)return false;
+  state.dir=dir; state.angle=ANGLE_OF[dir]; state.targetAngle=state.angle;
+  moveForward(false);
+  return true;
+}
+
+// 装備中より優れた武器・防具を持っていれば自動装備する
+function aiAutoEquip(){
+  const betterWeapon=inventory.find(it=>{
+    const db=ITEM_DB[it.key];
+    return db.type==='weapon'&&!it.equipped&&(!equippedWeapon||(db.atk||0)>(ITEM_DB[equippedWeapon.key].atk||0));
+  });
+  if(betterWeapon){ selectedItem=betterWeapon; doAction('use'); return true; }
+  const betterArmor=inventory.find(it=>{
+    const db=ITEM_DB[it.key];
+    return (db.type==='armor'||db.type==='shield')&&!it.equipped&&(!equippedArmor||(db.def||0)>(ITEM_DB[equippedArmor.key].def||0));
+  });
+  if(betterArmor){ selectedItem=betterArmor; doAction('use'); return true; }
+  return false;
+}
+
+// 床にある中で優先度の高いアイテム（未所持より強い装備・回復系など）を1つ選ぶ
+function aiPickFloorTarget(){
+  for(const f of floorItems){
+    if(f.key==='gold')return f;
+    const db=ITEM_DB[f.key];
+    if(!db)continue;
+    if(db.type==='weapon'&&(!equippedWeapon||(db.atk||0)>(ITEM_DB[equippedWeapon.key].atk||0)))return f;
+    if((db.type==='armor'||db.type==='shield')&&(!equippedArmor||(db.def||0)>(ITEM_DB[equippedArmor.key].def||0)))return f;
+    if(db.type==='potion'||db.type==='food'||db.type==='scroll'||db.type==='staff'||db.type==='arrow')return f;
+  }
+  return null;
+}
+
+function aiTick(){
+  if(!spectatorMode)return;
+  if(isPlayerDown||state.hp<=0)return; // 死亡演出中は何もしない
+  if(aiDismissBlockingUI())return;
+
+  if(state.inEntrance){
+    aiStepToward(entranceInfo.doorX, entranceInfo.doorY);
+    return;
+  }
+
+  // HPが低ければ回復薬を優先使用
+  if(state.hp<=Math.ceil(state.maxHp*0.4)){
+    const heal=inventory.find(it=>{
+      const db=ITEM_DB[it.key];
+      return db.type==='potion'&&db.effect&&db.effect.heal;
+    });
+    if(heal){ selectedItem=heal; doAction('use'); return; }
+  }
+
+  // 気づかれている・隣接している敵がいれば攻撃/接近する
+  const target=enemies.find(e=>e.hp>0&&(e.aware||(Math.max(Math.abs(e.x-state.x),Math.abs(e.y-state.y))<=1)));
+  if(target){ aiStepToward(target.x,target.y); return; }
+
+  // より良い装備があれば装備する
+  if(aiAutoEquip())return;
+
+  // 有用な床アイテムがあれば拾いに行く
+  const item=aiPickFloorTarget();
+  if(item){ aiStepToward(item.x,item.y); return; }
+
+  // それ以外は階段へ向かう
+  if(stairsPos){ aiStepToward(stairsPos.x,stairsPos.y); return; }
+
+  // 何もなければ待機
+  doWait();
+}
+
+function startSpectatorMode(){
+  spectatorMode=true;
+  document.body.classList.add('spectator-mode');
+  resetFullGameState();
+  initEntrance();
+  updateCamera();
+  hideTitleScreen();
+  beginAnimation();
+  clearInterval(spectatorTimer);
+  spectatorTimer=setInterval(aiTick,400);
+}
+
+function stopSpectatorMode(){
+  spectatorMode=false;
+  document.body.classList.remove('spectator-mode');
+  clearInterval(spectatorTimer);
+  spectatorTimer=null;
+  suspendToTitle();
+}
+
+document.getElementById('title-spectator').onclick=()=>{ startSpectatorMode(); };
+document.getElementById('spectator-exit').onclick=()=>{ stopSpectatorMode(); };
 
 titleContinueBtn.onclick=()=>{
   if(!hasSaveData())return;
