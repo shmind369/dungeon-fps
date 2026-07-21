@@ -467,7 +467,7 @@ body { font-family:'Courier New',monospace; color:#c8b89a; user-select:none; -we
 <div id="fade-overlay"></div>
 <div id="floor-announce"></div>
 <div id="title-screen">
-  <div id="title-logo">Wanderer's Dungeon<span class="title-ver">ver 0.9.87</span></div>
+  <div id="title-logo">Wanderer's Dungeon<span class="title-ver">ver 0.9.88</span></div>
   <div id="title-buttons">
     <button id="title-continue" class="title-btn slot-btn">
       <div class="slot-head">
@@ -695,9 +695,9 @@ const RETURN_FLOORS=[]; // 帰還スポットは一旦廃止
 const FLOOR_MONSTER_POOL={
   1:['slime','bat'],2:['slime','bat'],
   3:['zombie','mage','goblin','skeleton_archer'],4:['zombie','mage','goblin','skeleton_archer'],
-  5:['knight','chimera'],6:['knight','chimera'],
-  7:['golem','wizard','devilape'],8:['golem','wizard','devilape'],
-  9:['golem','wizard','devilape'],10:['dragon']
+  5:['knight','chimera','medusa'],6:['knight','chimera','medusa'],
+  7:['golem','wizard','devilape','cyclops'],8:['golem','wizard','devilape','cyclops'],
+  9:['golem','wizard','devilape','cyclops'],10:['dragon']
 };
 // 初級ダンジョン（全5F、練習用）専用の階層別モンスター出現プール
 const BEGINNER_FLOOR_MONSTER_POOL={
@@ -2089,6 +2089,28 @@ const MONSTER_DB={
       vox(0.09,0.09,0.05, 0xff8000,  0.12,0.85,0.18, g);
     }
   },
+  medusa:{
+    name:'メデューサ',hp:15,atk:8,def:6,exp:20,aiType:'normal',
+    buildMesh(g){
+      // 蛇の下半身（とぐろ状）
+      vox(0.32,0.14,0.32, 0x306030, 0,0.1,0, g);
+      vox(0.24,0.14,0.24, 0x386838, 0,0.22,0, g);
+      vox(0.16,0.16,0.16, 0x407040, 0,0.35,0, g);
+      // 胴（人間の上半身）
+      vox(0.32,0.32,0.22, 0x9080a0, 0,0.58,0, g);
+      // 頭
+      vox(0.26,0.26,0.24, 0xc0a8b0, 0,0.86,0, g);
+      // 蛇の髪（頭の周りに複数の小さな蛇）
+      vox(0.06,0.16,0.06, 0x40a040, -0.14,1.0,0.05, g);
+      vox(0.06,0.16,0.06, 0x40a040,  0.14,1.0,0.05, g);
+      vox(0.06,0.14,0.06, 0x389838, -0.05,1.02,-0.1, g);
+      vox(0.06,0.14,0.06, 0x389838,  0.05,1.02,-0.1, g);
+      vox(0.05,0.12,0.05, 0x50b050, 0,1.04,0.14, g);
+      // 目（黄色く光る、睨みつける）
+      vox(0.07,0.07,0.05, 0xf0e020, -0.08,0.87,0.14, g);
+      vox(0.07,0.07,0.05, 0xf0e020,  0.08,0.87,0.14, g);
+    }
+  },
   golem:{
     name:'ゴーレム',hp:35,atk:25,def:15,exp:60,aiType:'dull',
     buildMesh(g){
@@ -2148,6 +2170,30 @@ const MONSTER_DB={
       // 目
       vox(0.1,0.1,0.05, 0xff2000, -0.12,0.98,0.19, g);
       vox(0.1,0.1,0.05, 0xff2000,  0.12,0.98,0.19, g);
+    }
+  },
+  cyclops:{
+    name:'サイクロプス',hp:40,atk:20,def:6,exp:50,aiType:'normal',
+    buildMesh(g){
+      // 足（太い）
+      vox(0.26,0.4,0.26, 0x9a7050, -0.16,0.2,0, g);
+      vox(0.26,0.4,0.26, 0x9a7050,  0.16,0.2,0, g);
+      // 胴（巨大）
+      vox(0.75,0.5,0.42, 0xb08858, 0,0.66,0, g);
+      // 頭
+      vox(0.44,0.4,0.4, 0xc09868, 0,1.1,0, g);
+      // 単眼（額の中央）
+      vox(0.16,0.16,0.06, 0xffffff, 0,1.14,0.2, g);
+      vox(0.09,0.09,0.05, 0xff3000, 0,1.14,0.24, g);
+      // 腕（太い）
+      vox(0.24,0.56,0.24, 0x9a7050, -0.56,0.6,0, g);
+      vox(0.24,0.56,0.24, 0x9a7050,  0.56,0.6,0, g);
+      // 拳
+      vox(0.28,0.26,0.26, 0x8a6040, -0.58,0.28,0, g);
+      vox(0.28,0.26,0.26, 0x8a6040,  0.58,0.28,0, g);
+      // 棍棒（右手）
+      vox(0.1,0.6,0.1, 0x604828, 0.68,0.55,0.1, g);
+      vox(0.2,0.2,0.2, 0x503820, 0.7,0.85,0.1, g);
     }
   },
   dragon:{
@@ -4406,6 +4452,11 @@ function enemyTurn(){
       triggerFlash('rgba(255,60,60,');
       spawnDamageNum(state.x*CELL,1.5,state.y*CELL,`${dmg}`,'#ffffff');
       showAction(`${dmg}ダメージを受けた！`,800);
+      // メデューサ：一定確率で自機を混乱状態にする（睨まれた）
+      if(e.monType==='medusa'&&Math.random()<0.3){
+        state.confuse=8;
+        showAction('メデューサと目が合った！混乱した！',1000);
+      }
       // 盾のトゲ（鏡の盾）：受けたダメージの一部を敵に返す
       const shEff=equippedArmor?ITEM_DB[equippedArmor.key].effect:null;
       if(shEff&&shEff.thorns){
