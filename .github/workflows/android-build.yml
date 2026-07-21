@@ -49,7 +49,10 @@ jobs:
         if: ${{ env.HAS_SIGNING_SECRETS == 'true' }}
         working-directory: android-app/android
         env:
-          ANDROID_KEYSTORE_PATH: app/upload-keystore.jks
+          # build.gradle内のfile(ksFile)は、呼び出し時のディレクトリではなく
+          # そのbuild.gradleが置かれているapp/モジュール自身のディレクトリを
+          # 基準に相対パスを解決するため、ここは"app/"を付けずファイル名のみにする
+          ANDROID_KEYSTORE_PATH: upload-keystore.jks
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
