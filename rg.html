@@ -454,6 +454,15 @@ body.spectator-mode #spectator-exit { display:block; }
   font-family:'Courier New',monospace;
 }
 body.spectator-mode #spectator-badge { display:block; }
+#spectator-caption {
+  position:fixed; left:50%; bottom:100px; transform:translateX(-50%);
+  max-width:88vw; padding:10px 18px; background:rgba(10,8,4,0.75);
+  color:#fff2d8; font-size:14px; font-weight:500; border-radius:10px;
+  text-align:center; z-index:200; pointer-events:none; line-height:1.4;
+  font-family:'Courier New',monospace; opacity:0; transition:opacity 0.15s ease;
+  display:none;
+}
+body.spectator-mode #spectator-caption.show { display:block; opacity:1; }
 
 /* セーブスロット表示 */
 .slot-btn { text-align:left; padding:0; overflow:hidden; }
@@ -501,7 +510,7 @@ body.spectator-mode #spectator-badge { display:block; }
 <div id="fade-overlay"></div>
 <div id="floor-announce"></div>
 <div id="title-screen">
-  <div id="title-logo">Wanderer's Dungeon<span class="title-ver">ver 0.10.2</span></div>
+  <div id="title-logo">Wanderer's Dungeon<span class="title-ver">ver 0.10.3</span></div>
   <div id="title-buttons">
     <button id="title-continue" class="title-btn slot-btn">
       <div class="slot-head">
@@ -523,6 +532,7 @@ body.spectator-mode #spectator-badge { display:block; }
 </div>
 <button id="spectator-exit">観戦をやめる</button>
 <div id="spectator-badge">AI観戦モード</div>
+<div id="spectator-caption"></div>
 <div id="game-area">
   <div id="ui">
     <div id="topbar">
@@ -3430,14 +3440,14 @@ function checkPlayerDeath(){
     showAction('復活の薬が発動！生き返った！',3000);
     triggerFlash('rgba(255,255,100,');
     updateUI();
-    if(spectatorMode) aiSpeak('A revival potion saved the day!');
+    if(spectatorMode) aiSpeak(aiPhrase('revive'));
     return false;
   }
   showAction('力尽きた...💀',3000);
   triggerFlash('rgba(180,0,0,');
   animLocked=true;
   isPlayerDown=true;
-  if(spectatorMode) aiSpeak('Defeated! Heading back to the entrance.');
+  if(spectatorMode) aiSpeak(aiPhrase('death'));
   // 自機がその場で倒れる演出 → 暗転 → エントランスへ
   playDeathSequence();
   return true;
@@ -5228,7 +5238,7 @@ function damageEnemy(en, dmg, awardExp=true){
     if(awardExp){
       gainExp(en.exp||5);
       showAction(`${name}を倒した！`,1200);
-      if(spectatorMode) aiSpeak(`Defeated ${aiMonsterName(en.monType)}!`);
+      if(spectatorMode) aiSpeak(aiPhrase('kill',aiMonsterName(en.monType)));
     }
   }
 }
@@ -5250,7 +5260,7 @@ function levelUp(){
   showAction(`Lv${state.lv}にあがった！`,2000);
   sfxLevelUp();
   showLevelUpAnnounce();
-  if(spectatorMode) aiSpeak(`Level up! Now level ${state.lv}.`);
+  if(spectatorMode) aiSpeak(aiPhrase('levelup',state.lv));
   // レベルアップ時は余剰経験値で連続レベルアップ（最大レベルまで）
   if(state.lv<MAX_LEVEL && state.exp>=state.nextExp) levelUp();
 }
@@ -5956,13 +5966,62 @@ const MONSTER_EN_NAMES={
 };
 function aiMonsterName(monType){ return MONSTER_EN_NAMES[monType]||'a monster'; }
 
+// 同じ場面で毎回同じ言い回しにならないよう、カテゴリごとに言い換えの候補を持たせる
+const AI_PHRASE_POOLS={
+  gotoDoor:['Heading to the dungeon entrance.','Walking toward the entrance door.','Making way to the entrance.'],
+  chooseBeginner:['Choosing the Beginner Dungeon.','Picking the Beginner Dungeon this time.'],
+  chooseNormal:['Choosing the Intermediate Dungeon. This will be tougher!','Picking the Intermediate Dungeon — should be a challenge!'],
+  floor:(n)=>[`Now on floor ${n}.`,`Descending to floor ${n}.`,`Floor ${n} now.`],
+  heal:['Health is low, drinking a potion!','HP is low — time for a potion!','Low on health, healing up now.'],
+  engage:(name)=>[`${name} spotted! Engaging in battle.`,`Here comes ${name}!`,`${name} appears — attacking now!`,`Taking on ${name}.`],
+  equip:['Found better gear — equipping it now!','Upgrading equipment!','New gear equipped!'],
+  pickupGold:['Grabbing some gold.','Picking up some coins.','More gold!'],
+  pickupItem:['Picking up an item on the floor.','Grabbing a useful item.','Something useful here.'],
+  stairs:['Heading to the stairs to go deeper.','Time to descend to the next floor.','Moving on to the stairs.'],
+  kill:(name)=>[`Defeated ${name}!`,`${name} goes down!`,`Victory over ${name}!`],
+  levelup:(lv)=>[`Level up! Now level ${lv}.`,`Leveled up to ${lv}!`],
+  death:['Defeated! Heading back to the entrance.','Fallen in battle. Back to the entrance we go.'],
+  revive:['A revival potion saved the day!','Saved by a revival potion!'],
+};
+const aiPhraseLastIdx={};
+function aiPhrase(poolKey,...args){
+  let pool=AI_PHRASE_POOLS[poolKey];
+  if(typeof pool==='function')pool=pool(...args);
+  if(!pool||!pool.length)return '';
+  if(pool.length===1)return pool[0];
+  let idx;
+  do{ idx=Math.floor(Math.random()*pool.length); }while(idx===aiPhraseLastIdx[poolKey]);
+  aiPhraseLastIdx[poolKey]=idx;
+  return pool[idx];
+}
+
 let commentaryEnabled=true;
+const spectatorCaptionEl=document.getElementById('spectator-caption');
+let captionHideTimer=null;
+function showCaption(text){
+  if(!spectatorCaptionEl)return;
+  spectatorCaptionEl.textContent=text;
+  spectatorCaptionEl.classList.add('show');
+  clearTimeout(captionHideTimer);
+  // 音声合成が使えない環境では一定時間で自動的にテロップを消す
+  if(!('speechSynthesis' in window)){
+    captionHideTimer=setTimeout(hideCaption,2200);
+  }
+}
+function hideCaption(){
+  if(!spectatorCaptionEl)return;
+  spectatorCaptionEl.classList.remove('show');
+}
 function aiSpeak(text){
   if(!spectatorMode||!commentaryEnabled)return;
+  showCaption(text);
   if(!('speechSynthesis' in window))return;
   try{
+    window.speechSynthesis.cancel(); // 発話の詰まりを防ぎ、テロップと音声を常に最新の状況に同期させる
     const u=new SpeechSynthesisUtterance(text);
     u.lang='en-US'; u.rate=1.05; u.volume=1.0;
+    u.onend=hideCaption;
+    u.onerror=hideCaption;
     window.speechSynthesis.speak(u);
   }catch(e){}
 }
@@ -5981,7 +6040,7 @@ function aiDismissBlockingUI(){
   if(dungeonSelectModal.classList.contains('show')){
     const pickBeginner=Math.random()<0.5;
     document.getElementById(pickBeginner?'dungeon-select-beginner':'dungeon-select-normal').click();
-    aiSpeak(pickBeginner?'Choosing the Beginner Dungeon.':'Choosing the Intermediate Dungeon. This will be tougher!');
+    aiSpeak(pickBeginner?aiPhrase('chooseBeginner'):aiPhrase('chooseNormal'));
     return true;
   }
   if(invModal.classList.contains('show')){ closeInventory(); return true; }
@@ -6039,7 +6098,7 @@ function aiTick(){
 
   if(state.inEntrance){
     aiLastAnnouncedFloor=null;
-    aiComment('goto-door','Heading to the dungeon entrance.');
+    aiComment('goto-door',aiPhrase('gotoDoor'));
     aiStepToward(entranceInfo.doorX, entranceInfo.doorY);
     return;
   }
@@ -6047,7 +6106,7 @@ function aiTick(){
   // フロアが変わったら実況する
   if(aiLastAnnouncedFloor!==state.floor){
     aiLastAnnouncedFloor=state.floor;
-    aiSpeak(`Now on floor ${state.floor}.`);
+    aiSpeak(aiPhrase('floor',state.floor));
   }
 
   // HPが低ければ回復薬を優先使用
@@ -6057,7 +6116,7 @@ function aiTick(){
       return db.type==='potion'&&db.effect&&db.effect.heal;
     });
     if(heal){
-      aiComment('heal','Health is low, drinking a potion!');
+      aiComment('heal',aiPhrase('heal'));
       selectedItem=heal; doAction('use'); return;
     }
   }
@@ -6065,24 +6124,24 @@ function aiTick(){
   // 気づかれている・隣接している敵がいれば攻撃/接近する
   const target=enemies.find(e=>e.hp>0&&(e.aware||(Math.max(Math.abs(e.x-state.x),Math.abs(e.y-state.y))<=1)));
   if(target){
-    aiComment(`fight:${target.x}:${target.y}:${target.monType}`,`${aiMonsterName(target.monType)} spotted! Engaging in battle.`);
+    aiComment(`fight:${target.x}:${target.y}:${target.monType}`,aiPhrase('engage',aiMonsterName(target.monType)));
     aiStepToward(target.x,target.y); return;
   }
 
   // より良い装備があれば装備する
   const equipKey=aiAutoEquip();
-  if(equipKey){ aiComment(`equip:${equipKey}`,'Found better gear — equipping it now!'); return; }
+  if(equipKey){ aiComment(`equip:${equipKey}`,aiPhrase('equip')); return; }
 
   // 有用な床アイテムがあれば拾いに行く
   const item=aiPickFloorTarget();
   if(item){
-    aiComment(`pickup:${item.x}:${item.y}`, item.key==='gold'?'Grabbing some gold.':'Picking up an item on the floor.');
+    aiComment(`pickup:${item.x}:${item.y}`, item.key==='gold'?aiPhrase('pickupGold'):aiPhrase('pickupItem'));
     aiStepToward(item.x,item.y); return;
   }
 
   // それ以外は階段へ向かう
   if(stairsPos){
-    aiComment(`stairs:${state.floor}`,'Heading to the stairs to go deeper.');
+    aiComment(`stairs:${state.floor}`,aiPhrase('stairs'));
     aiStepToward(stairsPos.x,stairsPos.y); return;
   }
 
@@ -6115,6 +6174,7 @@ function stopSpectatorMode(){
   spectatorMode=false;
   document.body.classList.remove('spectator-mode');
   if('speechSynthesis' in window) window.speechSynthesis.cancel();
+  hideCaption();
   debugShowAllEnemies=_prevDebugShowAllEnemies;
   updateEnemyDebugToggleDisplay();
   clearInterval(spectatorTimer);
