@@ -432,8 +432,13 @@ body.spectator-mode #inv-modal,
 body.spectator-mode #action-modal,
 body.spectator-mode #underfoot-modal,
 body.spectator-mode #confirm-modal,
-body.spectator-mode #dungeon-select-modal {
+body.spectator-mode #dungeon-select-modal,
+body.spectator-mode #enemy-debug-toggle {
   pointer-events:none;
+}
+/* 視点切替（一人称/三人称）だけは観戦中もプレイヤーが自由に操作できるようにする */
+body.spectator-mode #camera-toggle {
+  pointer-events:auto;
 }
 #spectator-exit {
   position:fixed; top:10px; right:10px; z-index:200; display:none;
@@ -496,7 +501,7 @@ body.spectator-mode #spectator-badge { display:block; }
 <div id="fade-overlay"></div>
 <div id="floor-announce"></div>
 <div id="title-screen">
-  <div id="title-logo">Wanderer's Dungeon<span class="title-ver">ver 0.10.0</span></div>
+  <div id="title-logo">Wanderer's Dungeon<span class="title-ver">ver 0.10.1</span></div>
   <div id="title-buttons">
     <button id="title-continue" class="title-btn slot-btn">
       <div class="slot-head">
@@ -6028,9 +6033,14 @@ function aiTick(){
   doWait();
 }
 
+let _prevDebugShowAllEnemies=true;
 function startSpectatorMode(){
   spectatorMode=true;
   document.body.classList.add('spectator-mode');
+  // 観戦中は敵ミニマップ全表示（テスト用デバッグ表示）をオフにする
+  _prevDebugShowAllEnemies=debugShowAllEnemies;
+  debugShowAllEnemies=false;
+  updateEnemyDebugToggleDisplay();
   resetFullGameState();
   initEntrance();
   updateCamera();
@@ -6043,6 +6053,8 @@ function startSpectatorMode(){
 function stopSpectatorMode(){
   spectatorMode=false;
   document.body.classList.remove('spectator-mode');
+  debugShowAllEnemies=_prevDebugShowAllEnemies;
+  updateEnemyDebugToggleDisplay();
   clearInterval(spectatorTimer);
   spectatorTimer=null;
   suspendToTitle();
