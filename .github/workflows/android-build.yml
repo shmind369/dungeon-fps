@@ -1,0 +1,82 @@
+name: Android Build
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'android-app/**'
+      - '.github/workflows/android-build.yml'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    env:
+      # secretsコンテキストはstepのif条件式では直接参照できないため、
+      # 一度envに写してから if: env.HAS_SIGNING_SECRETS == 'true' で判定する
+      HAS_SIGNING_SECRETS: ${{ secrets.ANDROID_KEYSTORE_BASE64 != '' }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install npm dependencies
+        working-directory: android-app
+        run: npm ci
+
+      - name: Sync Capacitor web assets into the Android project
+        working-directory: android-app
+        run: npx cap sync android
+
+      - name: Grant execute permission for gradlew
+        run: chmod +x android-app/android/gradlew
+
+      - name: Decode release signing keystore
+        if: ${{ env.HAS_SIGNING_SECRETS == 'true' }}
+        run: echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 -d > android-app/android/app/upload-keystore.jks
+
+      - name: Build signed release AAB + APK
+        if: ${{ env.HAS_SIGNING_SECRETS == 'true' }}
+        working-directory: android-app/android
+        env:
+          ANDROID_KEYSTORE_PATH: app/upload-keystore.jks
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: ./gradlew bundleRelease assembleRelease
+
+      - name: Build debug APK (signing secrets not yet configured)
+        if: ${{ env.HAS_SIGNING_SECRETS != 'true' }}
+        working-directory: android-app/android
+        run: ./gradlew assembleDebug
+
+      - name: Upload release AAB (for Play Store submission)
+        if: ${{ env.HAS_SIGNING_SECRETS == 'true' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: wanderers-dungeon-release-aab
+          path: android-app/android/app/build/outputs/bundle/release/*.aab
+
+      - name: Upload release APK (for installing on a device to test)
+        if: ${{ env.HAS_SIGNING_SECRETS == 'true' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: wanderers-dungeon-release-apk
+          path: android-app/android/app/build/outputs/apk/release/*.apk
+
+      - name: Upload debug APK
+        if: ${{ env.HAS_SIGNING_SECRETS != 'true' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: wanderers-dungeon-debug-apk
+          path: android-app/android/app/build/outputs/apk/debug/*.apk
