@@ -1,0 +1,9 @@
+{
+  "appId": "com.shmind369.wanderersdungeon",
+  "appName": "Wanderer's Dungeon",
+  "webDir": "www",
+  "backgroundColor": "#0a0a0f",
+  "ios": {
+    "backgroundColor": "#0a0a0f"
+  }
+}
