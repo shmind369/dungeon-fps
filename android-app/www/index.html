@@ -143,19 +143,6 @@ body { font-family:'Courier New',monospace; color:#c8b89a; user-select:none; -we
   padding:3px 8px; z-index:11; pointer-events:none;
 }
 
-/* 敵ミニマップ全表示トグル（テスト用、ターン数表示の下） */
-#enemy-debug-toggle {
-  position:absolute; right:8px;
-  background:rgba(20,20,24,0.6); border:1px solid #4a3a20; border-radius:4px;
-  color:#8a7a58; font-size:10px; letter-spacing:1px;
-  padding:3px 8px; z-index:11; pointer-events:auto; cursor:pointer;
-  user-select:none; -webkit-user-select:none; -webkit-tap-highlight-color:transparent;
-}
-#enemy-debug-toggle.on {
-  background:rgba(20,60,36,0.85); border:1px solid #40e080; color:#60ff90;
-  text-shadow:0 0 4px rgba(96,255,144,0.5);
-}
-
 /* 8方向パッド（ボタンサイズはJS側で画面幅に応じて--dp-sizeを計算し、正方形を保ったまま
    できるだけ大きく表示する。狭い機種でも操作パネルからはみ出さないよう自動で縮む） */
 #dpad {
@@ -432,8 +419,7 @@ body.spectator-mode #inv-modal,
 body.spectator-mode #action-modal,
 body.spectator-mode #underfoot-modal,
 body.spectator-mode #confirm-modal,
-body.spectator-mode #dungeon-select-modal,
-body.spectator-mode #enemy-debug-toggle {
+body.spectator-mode #dungeon-select-modal {
   pointer-events:none;
 }
 /* 視点切替（一人称/三人称）だけは観戦中もプレイヤーが自由に操作できるようにする */
@@ -454,6 +440,17 @@ body.spectator-mode #spectator-exit { display:block; }
   font-family:'Courier New',monospace;
 }
 body.spectator-mode #spectator-badge { display:block; }
+#spectator-voice-toggle {
+  position:fixed; top:52px; right:10px; z-index:200; display:none;
+  background:rgba(20,16,10,0.8); border:1px solid #4a7a9a; color:#a0d0f0;
+  font-size:11px; letter-spacing:1px; padding:6px 10px; border-radius:8px;
+  font-family:'Courier New',monospace; cursor:pointer;
+  user-select:none; -webkit-user-select:none; -webkit-tap-highlight-color:transparent;
+}
+body.spectator-mode #spectator-voice-toggle { display:block; }
+#spectator-voice-toggle.muted {
+  border-color:#7a5a30; color:#c0a060;
+}
 #spectator-caption {
   /* ミニマップ（#game-area中央に描画）のすぐ下に来るよう#game-area内に絶対配置。
      bottom基準だと文章が長い時に上へ伸びてミニマップと重なるため、top基準にする */
@@ -514,7 +511,7 @@ body.spectator-mode #spectator-caption.show { display:block; opacity:1; }
 <div id="fade-overlay"></div>
 <div id="floor-announce"></div>
 <div id="title-screen">
-  <div id="title-logo">Wanderer's Dungeon<span class="title-ver">ver 0.10.4</span></div>
+  <div id="title-logo">Wanderer's Dungeon<span class="title-ver">ver 0.10.5</span></div>
   <div id="title-buttons">
     <button id="title-continue" class="title-btn slot-btn">
       <div class="slot-head">
@@ -536,6 +533,7 @@ body.spectator-mode #spectator-caption.show { display:block; opacity:1; }
 </div>
 <button id="spectator-exit">観戦をやめる</button>
 <div id="spectator-badge">AI観戦モード</div>
+<div id="spectator-voice-toggle">🔊 音声 ON</div>
 <div id="game-area">
   <div id="spectator-caption"></div>
   <div id="ui">
@@ -557,7 +555,6 @@ body.spectator-mode #spectator-caption.show { display:block; opacity:1; }
   <div id="action-label"></div>
   <div id="dash-indicator">▶ ダッシュモード中</div>
   <div id="turn-counter">Turn 0</div>
-  <div id="enemy-debug-toggle">敵ミニマップ全表示: ON</div>
   <div id="guide">方向パッドで移動・攻撃</div>
   <canvas id="overlay"></canvas>
   <div id="dialogue-box">
@@ -3214,7 +3211,6 @@ function restoreFloor(floorData){
 const _v=new THREE.Vector3();
 let firstPersonMode=false; // 試験的な一人称視点モード（ステータスバー下のボタンで切り替え）
 let spectatorMode=false; // AI観戦モード：プレイヤー操作を無効化し、AIが自動でプレイする
-let debugShowAllEnemies=true; // テスト用：ミニマップに未探索・非表示の敵も含め全敵を表示するデバッグフラグ
 const FP_EYE_HEIGHT=1.3;
 // 手前のマスが見やすいよう、視線をわずかに下向きにする（カメラの高さ自体は変えない）
 const FP_TILT_DOWN=Math.tan(15*Math.PI/180);
@@ -5582,23 +5578,7 @@ function updateTurnCounterDisplay(){
     top=topbarH+6+dashEl.getBoundingClientRect().height+6;
   }
   el.style.top=top+'px';
-  updateEnemyDebugToggleDisplay();
 }
-
-// 敵ミニマップ全表示トグルボタン（テスト用、ターン数表示の下に配置）
-function updateEnemyDebugToggleDisplay(){
-  const el=document.getElementById('enemy-debug-toggle');
-  const counterEl=document.getElementById('turn-counter');
-  if(!el||!counterEl)return;
-  const counterTop=parseFloat(counterEl.style.top)||0;
-  el.style.top=(counterTop+counterEl.getBoundingClientRect().height+6)+'px';
-  el.textContent='敵ミニマップ全表示: '+(debugShowAllEnemies?'ON':'OFF');
-  el.classList.toggle('on',debugShowAllEnemies);
-}
-document.getElementById('enemy-debug-toggle').addEventListener('click',()=>{
-  debugShowAllEnemies=!debugShowAllEnemies;
-  updateEnemyDebugToggleDisplay();
-});
 
 // その場で待機（1ターン経過。歩行と同様にHP回復・満腹度減少を行う）
 function doWait(){
@@ -5804,9 +5784,8 @@ function drawMinimap(){
   if(returnPos&&explored[returnPos.y][returnPos.x]){octx.fillStyle='#4080ff';octx.fillRect(ox+returnPos.x*S,oy+returnPos.y*S,S,S);}
   // アイテム（探索済みのみ）
   floorItems.forEach(i=>{if(explored[i.y][i.x]){octx.fillStyle='#70d8f0';octx.fillRect(ox+i.x*S,oy+i.y*S,S-1,S-1);}});
-  // 敵（探索済み、かつ自機と同じ部屋または隣接1マスなど実際に見えている場合のみ。
-  // debugShowAllEnemiesがONの間はテスト用に未探索・非表示の敵も含め全て表示する）
-  enemies.forEach(e=>{if(e.hp>0&&(debugShowAllEnemies||(explored[e.y][e.x]&&e.mesh.visible))){octx.fillStyle='#e04040';octx.fillRect(ox+e.x*S,oy+e.y*S,S,S);}});
+  // 敵（探索済み、かつ自機と同じ部屋または隣接1マスなど実際に見えている場合のみ表示）
+  enemies.forEach(e=>{if(e.hp>0&&explored[e.y][e.x]&&e.mesh.visible){octx.fillStyle='#e04040';octx.fillRect(ox+e.x*S,oy+e.y*S,S,S);}});
   // 自分（主観モード中のみ、現在向いている方向がわかる▲マーカーにする）
   if(firstPersonMode){
     const cx=ox+state.x*S+S/2, cy=oy+state.y*S+S/2, r=S*0.96;
@@ -6017,9 +5996,9 @@ function hideCaption(){
   spectatorCaptionEl.classList.remove('show');
 }
 function aiSpeak(text){
-  if(!spectatorMode||!commentaryEnabled)return;
+  if(!spectatorMode)return;
   showCaption(text);
-  if(!('speechSynthesis' in window))return;
+  if(!commentaryEnabled||!('speechSynthesis' in window))return;
   try{
     window.speechSynthesis.cancel(); // 発話の詰まりを防ぎ、テロップと音声を常に最新の状況に同期させる
     const u=new SpeechSynthesisUtterance(text);
@@ -6028,6 +6007,21 @@ function aiSpeak(text){
     u.onerror=hideCaption;
     window.speechSynthesis.speak(u);
   }catch(e){}
+}
+// AI観戦モードの音声実況ON/OFFボタン（テロップは音声OFF中も表示され続ける）
+const spectatorVoiceToggleEl=document.getElementById('spectator-voice-toggle');
+function updateVoiceToggleDisplay(){
+  if(!spectatorVoiceToggleEl)return;
+  spectatorVoiceToggleEl.textContent=commentaryEnabled?'🔊 音声 ON':'🔇 音声 OFF';
+  spectatorVoiceToggleEl.classList.toggle('muted',!commentaryEnabled);
+}
+if(spectatorVoiceToggleEl){
+  spectatorVoiceToggleEl.addEventListener('click',()=>{
+    commentaryEnabled=!commentaryEnabled;
+    if(!commentaryEnabled&&'speechSynthesis' in window) window.speechSynthesis.cancel();
+    updateVoiceToggleDisplay();
+  });
+  updateVoiceToggleDisplay();
 }
 // 同じ状況で喋り続けないよう、直前と同じキーの間は読み上げをスキップする
 let aiLastSituation=null;
@@ -6153,14 +6147,9 @@ function aiTick(){
   doWait();
 }
 
-let _prevDebugShowAllEnemies=true;
 function startSpectatorMode(){
   spectatorMode=true;
   document.body.classList.add('spectator-mode');
-  // 観戦中は敵ミニマップ全表示（テスト用デバッグ表示）をオフにする
-  _prevDebugShowAllEnemies=debugShowAllEnemies;
-  debugShowAllEnemies=false;
-  updateEnemyDebugToggleDisplay();
   resetFullGameState();
   initEntrance();
   updateCamera();
@@ -6179,8 +6168,6 @@ function stopSpectatorMode(){
   document.body.classList.remove('spectator-mode');
   if('speechSynthesis' in window) window.speechSynthesis.cancel();
   hideCaption();
-  debugShowAllEnemies=_prevDebugShowAllEnemies;
-  updateEnemyDebugToggleDisplay();
   clearInterval(spectatorTimer);
   spectatorTimer=null;
   suspendToTitle();
