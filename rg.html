@@ -245,6 +245,20 @@ body { font-family:'Courier New',monospace; color:#c8b89a; user-select:none; -we
 }
 #dungeon-select-modal.show { display:flex; }
 
+#save-slot-modal {
+  position:fixed; inset:0; z-index:101;
+  background:rgba(0,0,0,0.6);
+  display:none; align-items:center; justify-content:center;
+}
+#save-slot-modal.show { display:flex; }
+#save-slot-list { display:flex; flex-direction:column; gap:10px; }
+#save-slot-list .slot-btn {
+  width:100%; background:#000; border:1px solid #f8f8f8; border-radius:3px;
+  font-family:'Courier New',monospace; cursor:pointer;
+}
+#save-slot-list .slot-btn:active { background:#222; }
+#save-slot-list .slot-btn:disabled { opacity:0.35; cursor:default; }
+
 #inv-panel {
   width:510px; max-width:660px; max-height:840px;
   background:#000; border:3px solid #f8f8f8; border-radius:3px;
@@ -310,7 +324,7 @@ body { font-family:'Courier New',monospace; color:#c8b89a; user-select:none; -we
   box-shadow:0 0 0 1px #000818, 0 4px 10px rgba(0,0,0,0.5);
   padding:24px; display:flex; flex-direction:column; gap:12px;
 }
-#action-title, #underfoot-title, #dungeon-select-title {
+#action-title, #underfoot-title, #dungeon-select-title, #save-slot-title {
   color:#fff; font-size:23px; text-align:center;
   padding-bottom:15px; border-bottom:1px solid #f8f8f8; margin-bottom:6px;
 }
@@ -513,19 +527,7 @@ body.spectator-mode #spectator-caption.show { display:block; opacity:1; }
 <div id="title-screen">
   <div id="title-logo">Wanderer's Dungeon<span class="title-ver">ver 0.10.6</span></div>
   <div id="title-buttons">
-    <button id="title-continue" class="title-btn slot-btn">
-      <div class="slot-head">
-        <span class="slot-name">つづきから</span>
-        <span class="slot-date" id="slot-date"></span>
-      </div>
-      <div class="slot-body" id="slot-body">
-        <div class="slot-row"><span class="slot-k">現在地</span><span class="slot-v" id="slot-loc">—</span></div>
-        <div class="slot-row"><span class="slot-k">Lv</span><span class="slot-v" id="slot-lv">—</span></div>
-        <div class="slot-row"><span class="slot-k">所持金</span><span class="slot-v" id="slot-gold">—</span></div>
-        <div class="slot-row"><span class="slot-k">プレイ時間</span><span class="slot-v" id="slot-time">—</span></div>
-      </div>
-      <div class="slot-empty" id="slot-empty">（セーブデータなし）</div>
-    </button>
+    <button id="title-continue" class="title-btn">つづきから</button>
     <button id="title-newgame" class="title-btn">はじめから</button>
     <button id="title-spectator" class="title-btn">AI観戦モード</button>
   </div>
@@ -662,6 +664,15 @@ body.spectator-mode #spectator-caption.show { display:block; opacity:1; }
     <button class="act-btn" id="dungeon-select-normal">中級【全10F】</button>
     <button class="act-btn" id="dungeon-select-advanced">上級【全10F】</button>
     <button class="act-btn" id="dungeon-select-cancel">やめる</button>
+  </div>
+</div>
+
+<!-- セーブスロット選択モーダル（つづきから/はじめから共用） -->
+<div id="save-slot-modal">
+  <div class="action-panel-box">
+    <div id="save-slot-title">スロットを選択</div>
+    <div id="save-slot-list"></div>
+    <button class="act-btn" id="save-slot-cancel">やめる</button>
   </div>
 </div>
 </div><!-- /#viewport-root -->
@@ -3084,9 +3095,30 @@ function initFloor(floor){
 }
 
 // ============================================================
-// 中断・セーブ機能（localStorage、1枠のみ）
+// 中断・セーブ機能（localStorageで最大3スロットを管理）
 // ============================================================
-const SAVE_KEY='dungeon3d_save_v1';
+const SAVE_KEY_BASE='dungeon3d_save_v1';
+const SAVE_SLOT_COUNT=3;
+function saveKeyForSlot(slot){ return `${SAVE_KEY_BASE}_slot${slot}`; }
+// プレイ中にオートセーブする対象スロット。タイトルで「つづきから／はじめから」を選んだ際に切り替わる
+let currentSlot=1;
+// タイトル画面で実際にスロットを選んでプレイを開始したか。falseの間はbeforeunload等での
+// オートセーブを行わない（プレイ開始前に閉じただけで空の状態がスロット1に書き込まれるのを防ぐ）
+let sessionStarted=false;
+
+// スロット制導入前（v1の単一セーブ）のデータが残っていれば、スロット1として引き継ぐ
+(function migrateLegacySave(){
+  try{
+    const legacy=localStorage.getItem(SAVE_KEY_BASE);
+    if(legacy===null)return;
+    if(localStorage.getItem(saveKeyForSlot(1))===null){
+      localStorage.setItem(saveKeyForSlot(1), legacy);
+    }
+    localStorage.removeItem(SAVE_KEY_BASE);
+  }catch(e){
+    console.error('旧セーブデータの引き継ぎに失敗しました', e);
+  }
+})();
 
 function serializeSave(){
   const data={
@@ -3123,8 +3155,9 @@ function serializeSave(){
 
 function saveGame(){
   if(spectatorMode)return false; // AI観戦モードのプレイ内容でプレイヤーのセーブを上書きしない
+  if(!sessionStarted)return false; // タイトルでスロットを選ぶ前は保存対象がないため何もしない
   try{
-    localStorage.setItem(SAVE_KEY, JSON.stringify(serializeSave()));
+    localStorage.setItem(saveKeyForSlot(currentSlot), JSON.stringify(serializeSave()));
     return true;
   }catch(e){
     console.error('セーブに失敗しました', e);
@@ -3141,17 +3174,37 @@ function saveGameThrottled(){
   saveGame();
 }
 
-function hasSaveData(){
-  try{ return !!localStorage.getItem(SAVE_KEY); }catch(e){ return false; }
+// 読み込んだデータが復元処理に使える最低限の形をしているか検証する（壊れたデータでの復元失敗を防ぐ）
+function isValidSaveData(data){
+  return !!data && typeof data==='object'
+    && data.state && typeof data.state==='object' && typeof data.state.hp==='number'
+    && Array.isArray(data.inventory);
 }
 
-function loadSaveData(){
+function hasSaveData(slot){
+  try{ return !!localStorage.getItem(saveKeyForSlot(slot)); }catch(e){ return false; }
+}
+
+function hasAnySaveData(){
+  for(let i=1;i<=SAVE_SLOT_COUNT;i++){ if(hasSaveData(i))return true; }
+  return false;
+}
+
+function loadSaveData(slot){
+  const key=saveKeyForSlot(slot);
   try{
-    const raw=localStorage.getItem(SAVE_KEY);
+    const raw=localStorage.getItem(key);
     if(!raw)return null;
-    return JSON.parse(raw);
+    const data=JSON.parse(raw);
+    if(!isValidSaveData(data)){
+      console.error(`スロット${slot}のセーブデータの形式が不正なため破棄します`);
+      try{ localStorage.removeItem(key); }catch(e2){}
+      return null;
+    }
+    return data;
   }catch(e){
     console.error('セーブデータの読み込みに失敗しました', e);
+    try{ localStorage.removeItem(key); }catch(e2){}
     return null;
   }
 }
@@ -5989,7 +6042,7 @@ const titleNewGameBtn=document.getElementById('title-newgame');
 
 function hideTitleScreen(){ titleScreen.classList.add('hide'); }
 function showTitleScreen(){
-  renderSaveSlot();
+  titleContinueBtn.disabled=!hasAnySaveData();
   titleScreen.classList.remove('hide');
 }
 
@@ -6017,23 +6070,82 @@ function saveLocationLabel(st){
   return `迷宮 地下${st.floor}階`;
 }
 
-// タイトルのセーブスロット欄を描画
-function renderSaveSlot(){
-  const btn=titleContinueBtn;
-  const data=hasSaveData()?loadSaveData():null;
-  if(!data||!data.state){
-    btn.classList.add('empty');
-    btn.disabled=true;
-    return;
+// セーブスロット選択モーダル（「つづきから」「はじめから」共用。modeで挙動を切り替える）
+const saveSlotModal=document.getElementById('save-slot-modal');
+const saveSlotList=document.getElementById('save-slot-list');
+const saveSlotTitle=document.getElementById('save-slot-title');
+
+function closeSaveSlotModal(){ saveSlotModal.classList.remove('show'); }
+
+function openSaveSlotModal(mode){
+  saveSlotTitle.textContent=mode==='continue'?'つづきから：スロットを選択':'はじめから：スロットを選択';
+  saveSlotList.innerHTML='';
+  for(let slot=1; slot<=SAVE_SLOT_COUNT; slot++){
+    const data=hasSaveData(slot)?loadSaveData(slot):null;
+    const btn=document.createElement('button');
+    btn.className='slot-btn'+(data?'':' empty');
+    if(data){
+      const st=data.state;
+      btn.innerHTML=`
+        <div class="slot-head">
+          <span class="slot-name">スロット${slot}</span>
+          <span class="slot-date">${formatSavedAt(data.savedAt)}</span>
+        </div>
+        <div class="slot-body">
+          <div class="slot-row"><span class="slot-k">現在地</span><span class="slot-v">${saveLocationLabel(st)}</span></div>
+          <div class="slot-row"><span class="slot-k">Lv</span><span class="slot-v">${st.lv!==undefined?st.lv:'—'}</span></div>
+          <div class="slot-row"><span class="slot-k">所持金</span><span class="slot-v">${(st.gold!==undefined?st.gold:0)} G</span></div>
+          <div class="slot-row"><span class="slot-k">プレイ時間</span><span class="slot-v">${formatPlayTime(st.playTimeMs)}</span></div>
+        </div>`;
+    } else {
+      btn.innerHTML=`
+        <div class="slot-head"><span class="slot-name">スロット${slot}</span></div>
+        <div class="slot-empty">（セーブデータなし）</div>`;
+      if(mode==='continue') btn.disabled=true; // 「つづきから」では空スロットは選べない
+    }
+    btn.onclick=()=>{
+      if(mode==='continue'){
+        if(!data)return;
+        closeSaveSlotModal();
+        continueFromSlot(slot, data);
+      } else {
+        const start=()=>{ closeSaveSlotModal(); startNewGameInSlot(slot); };
+        if(data){
+          showConfirm(`スロット${slot}のデータが上書きされます。よろしいですか？`, start);
+        } else {
+          start();
+        }
+      }
+    };
+    saveSlotList.appendChild(btn);
   }
-  btn.classList.remove('empty');
-  btn.disabled=false;
-  const st=data.state;
-  document.getElementById('slot-date').textContent=formatSavedAt(data.savedAt);
-  document.getElementById('slot-loc').textContent=saveLocationLabel(st);
-  document.getElementById('slot-lv').textContent=st.lv!==undefined?st.lv:'—';
-  document.getElementById('slot-gold').textContent=(st.gold!==undefined?st.gold:0)+' G';
-  document.getElementById('slot-time').textContent=formatPlayTime(st.playTimeMs);
+  saveSlotModal.classList.add('show');
+}
+document.getElementById('save-slot-cancel').onclick=closeSaveSlotModal;
+
+function continueFromSlot(slot, data){
+  currentSlot=slot;
+  sessionStarted=true;
+  try{
+    applySave(data);
+  }catch(err){
+    console.error('セーブデータの復元に失敗したため、エントランスから開始します',err);
+    resetFullGameState();
+    initEntrance();
+  }
+  updateCamera();
+  hideTitleScreen();
+  beginAnimation();
+}
+
+function startNewGameInSlot(slot){
+  currentSlot=slot;
+  sessionStarted=true;
+  resetFullGameState();
+  initEntrance();
+  updateCamera();
+  hideTitleScreen();
+  beginAnimation();
 }
 
 // 中断してタイトルへ戻る（進行はオートセーブ済みだが念のため保存してから戻る）
@@ -6293,39 +6405,17 @@ document.getElementById('title-spectator').onclick=()=>{ startSpectatorMode(); }
 document.getElementById('spectator-exit').onclick=()=>{ stopSpectatorMode(); };
 
 titleContinueBtn.onclick=()=>{
-  if(!hasSaveData())return;
-  try{
-    const data=loadSaveData();
-    if(data){ applySave(data); }
-    else { resetFullGameState(); initEntrance(); }
-  }catch(err){
-    console.error('セーブデータの復元に失敗したため、エントランスから開始します',err);
-    resetFullGameState();
-    initEntrance();
-  }
-  updateCamera();
-  hideTitleScreen();
-  beginAnimation();
+  if(!hasAnySaveData())return;
+  openSaveSlotModal('continue');
 };
 
 titleNewGameBtn.onclick=()=>{
-  const startFresh=()=>{
-    resetFullGameState();
-    initEntrance();
-    updateCamera();
-    hideTitleScreen();
-    beginAnimation();
-  };
-  if(hasSaveData()){
-    showConfirm('既存のデータが上書きされます。はじめから始めますか？', startFresh);
-  } else {
-    startFresh();
-  }
+  openSaveSlotModal('newgame');
 };
 
 setTimeout(()=>{
   resizeRenderer();
-  renderSaveSlot();
+  titleContinueBtn.disabled=!hasAnySaveData();
 }, 50);
 </script>
 </body>
