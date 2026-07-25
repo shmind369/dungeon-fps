@@ -511,7 +511,7 @@ body.spectator-mode #spectator-caption.show { display:block; opacity:1; }
 <div id="fade-overlay"></div>
 <div id="floor-announce"></div>
 <div id="title-screen">
-  <div id="title-logo">Wanderer's Dungeon<span class="title-ver">ver 0.10.5</span></div>
+  <div id="title-logo">Wanderer's Dungeon<span class="title-ver">ver 0.10.6</span></div>
   <div id="title-buttons">
     <button id="title-continue" class="title-btn slot-btn">
       <div class="slot-head">
@@ -660,6 +660,7 @@ body.spectator-mode #spectator-caption.show { display:block; opacity:1; }
     <div id="dungeon-select-title">ダンジョンを選択</div>
     <button class="act-btn" id="dungeon-select-beginner">初級【全5F】</button>
     <button class="act-btn" id="dungeon-select-normal">中級【全10F】</button>
+    <button class="act-btn" id="dungeon-select-advanced">上級【全10F】</button>
     <button class="act-btn" id="dungeon-select-cancel">やめる</button>
   </div>
 </div>
@@ -753,6 +754,14 @@ const BEGINNER_FLOOR_MONSTER_POOL={
   3:['skeleton_archer','goblin'],4:['skeleton_archer','goblin'],
   5:['skeleton_archer','goblin','zombie']
 };
+// 上級ダンジョン（全10F）専用の階層別モンスター出現プール。中級より早い階層から強敵が出現する
+const ADVANCED_FLOOR_MONSTER_POOL={
+  1:['knight','chimera'],2:['knight','chimera'],
+  3:['medusa','golem','wizard'],4:['medusa','golem','wizard'],
+  5:['devilape','cyclops','deathknight'],6:['devilape','cyclops','deathknight'],
+  7:['deathknight','lich','cyclops'],8:['deathknight','lich','cyclops'],
+  9:['deathknight','lich','cyclops'],10:['demonlord']
+};
 // 初級ダンジョンの階層別「部屋数」「出現モンスター数」レンジ（[最小,最大]）。
 // 中級より部屋数・敵数を絞って難易度を下げる
 const BEGINNER_ROOM_COUNT={1:[3,4],2:[4,5],3:[5,6],4:[6,7],5:[6,7]};
@@ -775,7 +784,7 @@ const state={x:0,y:0,dir:0,angle:-Math.PI/2,targetAngle:-Math.PI/2,actionTimer:0
   hp:15,maxHp:15,str:0,lv:1,exp:0,nextExp:10,stepCount:0,
   food:100,maxFood:100,foodStep:0,gold:0,
   haste:0,charge:false,invis:0,confuse:0,inEntrance:false,playTimeMs:0,globalTurnCount:0,
-  dungeonType:'normal'}; // 'normal'=中級【全10F】 / 'beginner'=初級【全5F】
+  dungeonType:'normal'}; // 'normal'=中級【全10F】 / 'beginner'=初級【全5F】 / 'advanced'=上級【全10F】
 let MAP=[],rooms=[],stairsPos=null,returnPos=null,floorItems=[],explored=[];
 // 自機がいない間に配送予約されたモンスター（floor番号 -> 未出現数）。
 // 未訪問フロアはシミュレートされないため、実際の生成はそのフロアへ次に入った時に行う
@@ -870,6 +879,12 @@ const BEGINNER_FLOOR_ITEM_KEYS=FLOOR_ITEM_KEYS.filter(k=>{
   if(t==='weapon'||t==='shield'||t==='armor') return BEGINNER_ALLOWED_EQUIPMENT.includes(k);
   return true;
 });
+// 上級ダンジョンでは、通常のプールに加えてこれまで入手手段がなかった最上位装備も出現させる
+const ADVANCED_EXTRA_EQUIPMENT=['greatsw','murasama','reflectsh','mirrorsh','holysh','heavysh'];
+const ADVANCED_FLOOR_ITEM_KEYS=FLOOR_ITEM_KEYS.concat(ADVANCED_EXTRA_EQUIPMENT);
+// ダンジョン種別ごとのアイテム・モンスター出現プールの対応表（既定は中級のプール）
+const DUNGEON_ITEM_POOLS={beginner:BEGINNER_FLOOR_ITEM_KEYS, advanced:ADVANCED_FLOOR_ITEM_KEYS};
+const DUNGEON_MONSTER_POOLS={beginner:BEGINNER_FLOOR_MONSTER_POOL, advanced:ADVANCED_FLOOR_MONSTER_POOL};
 
 // インベントリ（最大20）
 const MAX_INV=20;
@@ -2281,6 +2296,77 @@ const MONSTER_DB={
       vox(0.08,0.3,0.08, 0xd08000, -0.18,1.52,0.25, g);
       vox(0.08,0.3,0.08, 0xd08000,  0.18,1.52,0.25, g);
     }
+  },
+  // === 上級ダンジョン専用モンスター ===
+  deathknight:{
+    name:'デスナイト',hp:45,atk:26,def:20,exp:70,aiType:'normal',
+    buildMesh(g){
+      // 足（黒鉄の甲冑）
+      vox(0.22,0.34,0.22, 0x1a1a22, -0.13,0.17,0, g);
+      vox(0.22,0.34,0.22, 0x1a1a22,  0.13,0.17,0, g);
+      // 胴
+      vox(0.6,0.46,0.32, 0x24242e, 0,0.54,0, g);
+      // 頭（兜、角付き）
+      vox(0.4,0.4,0.36, 0x2a2a34, 0,0.96,0, g);
+      vox(0.08,0.22,0.08, 0x101014, -0.16,1.2,0, g);
+      vox(0.08,0.22,0.08, 0x101014,  0.16,1.2,0, g);
+      // 目（禍々しい赤）
+      vox(0.08,0.06,0.05, 0xff1010, -0.1,0.98,0.2, g);
+      vox(0.08,0.06,0.05, 0xff1010,  0.1,0.98,0.2, g);
+      // 大剣
+      vox(0.09,0.9,0.09, 0x505060, 0.46,0.7,0, g);
+      vox(0.32,0.08,0.08, 0x303038, 0.46,0.98,0, g); // 鍔
+      // マント
+      vox(0.5,0.5,0.06, 0x141018, 0,0.5,-0.2, g);
+    }
+  },
+  lich:{
+    name:'リッチ',hp:35,atk:24,def:12,exp:85,aiType:'mage',
+    buildMesh(g){
+      // 足（骨）
+      vox(0.13,0.26,0.13, 0xd8d0b8, -0.09,0.13,0, g);
+      vox(0.13,0.26,0.13, 0xd8d0b8,  0.09,0.13,0, g);
+      // 漆黒のローブ
+      vox(0.5,0.44,0.28, 0x201028, 0,0.5,0, g);
+      // 頭蓋骨
+      vox(0.3,0.3,0.28, 0xe8e0c8, 0,0.9,0, g);
+      // フード
+      vox(0.4,0.14,0.38, 0x180818, 0,1.06,0, g);
+      vox(0.2,0.36,0.2, 0x180818, 0,1.28,0, g);
+      // 目（紫の光）
+      vox(0.06,0.06,0.04, 0xb040ff, -0.08,0.92,0.14, g);
+      vox(0.06,0.06,0.04, 0xb040ff,  0.08,0.92,0.14, g);
+      // 杖と浮遊する魔法石
+      vox(0.06,0.75,0.06, 0x302040, 0.4,0.62,0, g);
+      vox(0.14,0.14,0.14, 0xa020ff, 0.4,1.04,0, g);
+    }
+  },
+  demonlord:{
+    name:'魔王',hp:90,atk:30,def:22,exp:250,aiType:'normal',scaleMul:1.6,
+    buildMesh(g){
+      // 足
+      vox(0.3,0.42,0.3, 0x300010, -0.18,0.21,0, g);
+      vox(0.3,0.42,0.3, 0x300010,  0.18,0.21,0, g);
+      // 胴（巨躯）
+      vox(0.78,0.55,0.44, 0x400018, 0,0.66,0, g);
+      // 頭
+      vox(0.42,0.4,0.4, 0x500020, 0,1.1,0, g);
+      // 角（大）
+      vox(0.1,0.36,0.1, 0x1a0008, -0.16,1.4,0, g);
+      vox(0.1,0.36,0.1, 0x1a0008,  0.16,1.4,0, g);
+      // 翼
+      vox(0.6,0.1,0.4, 0x200010, -0.7,0.85,-0.1, g);
+      vox(0.6,0.1,0.4, 0x200010,  0.7,0.85,-0.1, g);
+      // 腕
+      vox(0.26,0.56,0.26, 0x380014, -0.56,0.6,0, g);
+      vox(0.26,0.56,0.26, 0x380014,  0.56,0.6,0, g);
+      // 目（禍々しく光る）
+      vox(0.1,0.1,0.05, 0xff0040, -0.12,1.14,0.19, g);
+      vox(0.1,0.1,0.05, 0xff0040,  0.12,1.14,0.19, g);
+      // 大鎌
+      vox(0.08,0.9,0.08, 0x181018, 0.62,0.6,0.1, g);
+      vox(0.4,0.06,0.3, 0x0c0810, 0.62,1.05,0.1, g);
+    }
   }
 };
 
@@ -2609,7 +2695,7 @@ function spawnObject(type,gx,gy,arg,count){
     mesh.userData={gx,gy};
     const lt=new THREE.PointLight(0x4080ff,2,4);lt.position.set(wx,1,wz);scene.add(lt);
   } else if(type==='item'){
-    const itemPool=state.dungeonType==='beginner'?BEGINNER_FLOOR_ITEM_KEYS:FLOOR_ITEM_KEYS;
+    const itemPool=DUNGEON_ITEM_POOLS[state.dungeonType]||FLOOR_ITEM_KEYS;
     const key=arg||itemPool[Math.floor(Math.random()*itemPool.length)];
     const db=ITEM_DB[key];
     const g=new THREE.Group();
@@ -2931,13 +3017,14 @@ function initFloor(floor){
   }
 
   // 階層別モンスタースポーン
-  const monTypes=(state.dungeonType==='beginner'?BEGINNER_FLOOR_MONSTER_POOL:FLOOR_MONSTER_POOL)[floor]||['slime'];
+  const monTypes=(DUNGEON_MONSTER_POOLS[state.dungeonType]||FLOOR_MONSTER_POOL)[floor]||['slime'];
 
   if(floor===10){
-    // 10F：ドラゴン1体のみ、部屋中央に配置
+    // 10F：ボス1体のみ、部屋中央に配置（上級ダンジョンは魔王、それ以外はドラゴン）
+    const bossType=state.dungeonType==='advanced'?'demonlord':'dragon';
     const bossRoom=rooms[0];
     const bp=rndInRoom(bossRoom);
-    spawnObject('enemy',bp.x,bp.y,'dragon');
+    spawnObject('enemy',bp.x,bp.y,bossType);
   } else {
     // 初級ダンジョンは階層ごとに少なめの敵数、中級は1〜9Fで7〜8体を均等にスポーン
     let targetCount;
@@ -4802,7 +4889,7 @@ document.getElementById('confirm-no').onclick=()=>{
   if(cb)cb();
 };
 
-// ダンジョン入口：初級/中級を選ぶモーダル
+// ダンジョン入口：初級/中級/上級を選ぶモーダル
 const dungeonSelectModal=document.getElementById('dungeon-select-modal');
 function showDungeonSelect(){ dungeonSelectModal.classList.add('show'); }
 function closeDungeonSelect(){ dungeonSelectModal.classList.remove('show'); }
@@ -4821,6 +4908,13 @@ document.getElementById('dungeon-select-beginner').onclick=()=>{
   state.dungeonType='beginner';
   fadeTransition(()=>{ initFloor(1); }, '地下 1 階');
   startBGM();
+};
+document.getElementById('dungeon-select-advanced').onclick=()=>{
+  closeDungeonSelect();
+  sfxStairs();
+  pendingFloorSpawns={};
+  state.dungeonType='advanced';
+  fadeTransition(()=>{ initFloor(1); }, '地下 1 階');
 };
 document.getElementById('dungeon-select-cancel').onclick=closeDungeonSelect;
 
@@ -5225,6 +5319,25 @@ function damageEnemy(en, dmg, awardExp=true){
       sfxItem();
       if(spectatorMode) aiSpeak('The Dragon is defeated! Game clear!');
       // クリア演出のあと、アイテム・お金は持ち帰ってエントランスへ（Lv・ステータスはリセット）
+      animLocked=true;
+      setTimeout(()=>{
+        fadeTransition(()=>{
+          resetPlayerStatsForEntrance();
+          initEntrance();
+          animLocked=false;
+        }, '✧ GAME CLEAR ✧');
+      }, 2600);
+      return;
+    }
+    // ゲームクリア（魔王撃破・上級ダンジョン）：討伐報酬として妖刀ムラマサを入手させる
+    if(en.monType==='demonlord'){
+      if(inventory.length<MAX_INV) inventory.push(makeItem('murasama'));
+      else spawnObject('item',en.x,en.y,'murasama');
+      showAction('👹 魔王を倒した！上級ダンジョンクリア！！ 妖刀ムラマサを手に入れた！',4000);
+      setLog('GAME CLEAR！');
+      triggerFlash('rgba(180,0,255,');
+      sfxItem();
+      if(spectatorMode) aiSpeak('The Demon Lord is defeated! Game clear!');
       animLocked=true;
       setTimeout(()=>{
         fadeTransition(()=>{
@@ -5946,6 +6059,7 @@ const MONSTER_EN_NAMES={
   slime:'a Slime', bat:'a Bat', goblin:'a Goblin', skeleton_archer:'a Skeleton Archer',
   zombie:'a Zombie', mage:'a Mage', knight:'a Knight', chimera:'a Chimera', medusa:'a Medusa',
   golem:'a Golem', wizard:'a Wizard', devilape:'a Devil Ape', cyclops:'a Cyclops', dragon:'the Dragon',
+  deathknight:'a Death Knight', lich:'a Lich', demonlord:'the Demon Lord',
 };
 function aiMonsterName(monType){ return MONSTER_EN_NAMES[monType]||'a monster'; }
 
@@ -5954,6 +6068,7 @@ const AI_PHRASE_POOLS={
   gotoDoor:['Heading to the dungeon entrance.','Walking toward the entrance door.','Making way to the entrance.'],
   chooseBeginner:['Choosing the Beginner Dungeon.','Picking the Beginner Dungeon this time.'],
   chooseNormal:['Choosing the Intermediate Dungeon. This will be tougher!','Picking the Intermediate Dungeon — should be a challenge!'],
+  chooseAdvanced:['Choosing the Advanced Dungeon. This is the real challenge!','Picking the Advanced Dungeon — time to face the Demon Lord!'],
   floor:(n)=>[`Now on floor ${n}.`,`Descending to floor ${n}.`,`Floor ${n} now.`],
   heal:['Health is low, drinking a potion!','HP is low — time for a potion!','Low on health, healing up now.'],
   engage:(name)=>[`${name} spotted! Engaging in battle.`,`Here comes ${name}!`,`${name} appears — attacking now!`,`Taking on ${name}.`],
@@ -6036,9 +6151,10 @@ function aiDismissBlockingUI(){
   if(dialogueBox.classList.contains('show')){ hideDialogue(); return true; }
   if(confirmModal.classList.contains('show')){ document.getElementById('confirm-yes').click(); return true; }
   if(dungeonSelectModal.classList.contains('show')){
-    const pickBeginner=Math.random()<0.5;
-    document.getElementById(pickBeginner?'dungeon-select-beginner':'dungeon-select-normal').click();
-    aiSpeak(pickBeginner?aiPhrase('chooseBeginner'):aiPhrase('chooseNormal'));
+    const pick=['beginner','normal','advanced'][Math.floor(Math.random()*3)];
+    document.getElementById(`dungeon-select-${pick}`).click();
+    const phraseKey={beginner:'chooseBeginner',normal:'chooseNormal',advanced:'chooseAdvanced'}[pick];
+    aiSpeak(aiPhrase(phraseKey));
     return true;
   }
   if(invModal.classList.contains('show')){ closeInventory(); return true; }
