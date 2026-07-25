@@ -879,8 +879,8 @@ const BEGINNER_FLOOR_ITEM_KEYS=FLOOR_ITEM_KEYS.filter(k=>{
   if(t==='weapon'||t==='shield'||t==='armor') return BEGINNER_ALLOWED_EQUIPMENT.includes(k);
   return true;
 });
-// 上級ダンジョンでは、通常のプールに加えてこれまで入手手段がなかった最上位装備も出現させる
-const ADVANCED_EXTRA_EQUIPMENT=['greatsw','murasama','reflectsh','mirrorsh','holysh','heavysh'];
+// 上級ダンジョンでは、通常のプールに加えてこれまで入手手段がなかった上位の盾も出現させる（武器の種類は増やさない）
+const ADVANCED_EXTRA_EQUIPMENT=['reflectsh','mirrorsh','holysh','heavysh'];
 const ADVANCED_FLOOR_ITEM_KEYS=FLOOR_ITEM_KEYS.concat(ADVANCED_EXTRA_EQUIPMENT);
 // ダンジョン種別ごとのアイテム・モンスター出現プールの対応表（既定は中級のプール）
 const DUNGEON_ITEM_POOLS={beginner:BEGINNER_FLOOR_ITEM_KEYS, advanced:ADVANCED_FLOOR_ITEM_KEYS};
@@ -5329,11 +5329,11 @@ function damageEnemy(en, dmg, awardExp=true){
       }, 2600);
       return;
     }
-    // ゲームクリア（魔王撃破・上級ダンジョン）：討伐報酬として妖刀ムラマサを入手させる
+    // ゲームクリア（魔王撃破・上級ダンジョン）：討伐報酬として聖なる盾を入手させる
     if(en.monType==='demonlord'){
-      if(inventory.length<MAX_INV) inventory.push(makeItem('murasama'));
-      else spawnObject('item',en.x,en.y,'murasama');
-      showAction('👹 魔王を倒した！上級ダンジョンクリア！！ 妖刀ムラマサを手に入れた！',4000);
+      if(inventory.length<MAX_INV) inventory.push(makeItem('holysh'));
+      else spawnObject('item',en.x,en.y,'holysh');
+      showAction('👹 魔王を倒した！上級ダンジョンクリア！！ 聖なる盾を手に入れた！',4000);
       setLog('GAME CLEAR！');
       triggerFlash('rgba(180,0,255,');
       sfxItem();
