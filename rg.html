@@ -525,7 +525,7 @@ body.spectator-mode #spectator-caption.show { display:block; opacity:1; }
 <div id="fade-overlay"></div>
 <div id="floor-announce"></div>
 <div id="title-screen">
-  <div id="title-logo">Wanderer's Dungeon<span class="title-ver">ver 0.10.6</span></div>
+  <div id="title-logo">Wanderer's Dungeon<span class="title-ver">ver 1.0</span></div>
   <div id="title-buttons">
     <button id="title-continue" class="title-btn">つづきから</button>
     <button id="title-newgame" class="title-btn">はじめから</button>
@@ -754,21 +754,21 @@ const RETURN_FLOORS=[]; // 帰還スポットは一旦廃止
 // 階層別モンスター出現プール
 const FLOOR_MONSTER_POOL={
   1:['slime','bat'],2:['slime','bat'],
-  3:['zombie','mage','goblin','skeleton_archer'],4:['zombie','mage','goblin','skeleton_archer'],
+  3:['mage','goblin','skeleton_archer'],4:['mage','goblin','skeleton_archer'],
   5:['knight','chimera','medusa'],6:['knight','chimera','medusa'],
-  7:['golem','wizard','devilape','cyclops'],8:['golem','wizard','devilape','cyclops'],
-  9:['golem','wizard','devilape','cyclops'],10:['dragon']
+  7:['wizard','devilape','cyclops'],8:['wizard','devilape','cyclops'],
+  9:['wizard','devilape','cyclops'],10:['dragon']
 };
 // 初級ダンジョン（全5F、練習用）専用の階層別モンスター出現プール
 const BEGINNER_FLOOR_MONSTER_POOL={
   1:['slime'],2:['slime','bat'],
   3:['skeleton_archer','goblin'],4:['skeleton_archer','goblin'],
-  5:['skeleton_archer','goblin','zombie']
+  5:['skeleton_archer','goblin']
 };
 // 上級ダンジョン（全10F）専用の階層別モンスター出現プール。中級より早い階層から強敵が出現する
 const ADVANCED_FLOOR_MONSTER_POOL={
   1:['skeleton_archer','bat'],2:['skeleton_archer','bat'],
-  3:['medusa','golem','wizard'],4:['medusa','golem','wizard'],
+  3:['medusa','wizard'],4:['medusa','wizard'],
   5:['devilape','cyclops','deathknight'],6:['devilape','cyclops','deathknight'],
   7:['deathknight','lich','cyclops'],8:['deathknight','lich','cyclops'],
   9:['deathknight','lich','cyclops'],10:['demonlord']
@@ -5139,6 +5139,7 @@ function doAction(act){
         removeFromInv(it);
         showAction(`${db.name}を倉庫に預けた`,1200);
         closeActionMenu(); renderInventory(); updateUI();
+        endPlayerAction();
         return;
       }
     }
@@ -5146,6 +5147,7 @@ function doAction(act){
     removeFromInv(it);
     showAction(`${db.name}を置いた`);
     closeActionMenu(); renderInventory(); updateUI();
+    endPlayerAction();
 
   } else {
     closeActionMenu();
@@ -5161,6 +5163,26 @@ function removeFromInv(it){
 // ============================================================
 // 投げる
 // ============================================================
+// 投げた/放った物の着地点を確定する。既にアイテムや階段があれば周囲の空きマスへずらし、
+// 置き場がなければロストさせる（命中・外れを問わず、必ずこの処理を通して床に落とす）
+function resolveThrowLanding(x,y){
+  let finalX=x, finalY=y, lost=false;
+  const occupied=floorItems.find(f=>f.x===x&&f.y===y)||
+                 (stairsPos&&stairsPos.x===x&&stairsPos.y===y)||
+                 (returnPos&&returnPos.x===x&&returnPos.y===y);
+  if(occupied){
+    const dirs=[[0,-1],[1,0],[0,1],[-1,0],[1,-1],[1,1],[-1,1],[-1,-1]].sort(()=>Math.random()-0.5);
+    let foundSpot=false;
+    for(const [ox,oy] of dirs){
+      if(isWalkable(x+ox,y+oy)&&!floorItems.find(f=>f.x===x+ox&&f.y===y+oy)){
+        finalX=x+ox; finalY=y+oy; foundSpot=true; break;
+      }
+    }
+    if(!foundSpot) lost=true;
+  }
+  return {finalX,finalY,lost};
+}
+
 function throwItem(it){
   // 投擲アニメーション中に次の行動を受け付けてしまうと、着弾時のenemyTurn()と
   // 別の行動によるenemyTurn()が重複して敵が2回連続で攻撃したように見えるため、
@@ -5184,7 +5206,8 @@ function throwItem(it){
   const willHit = hitEnemy ? Math.random()<7/8 : false;
 
   if(hitEnemy && willHit){
-    // モンスター命中
+    // モンスター命中：効果を適用したのち、当たった場所にそのまま落ちる
+    const {finalX,finalY,lost}=resolveThrowLanding(hitEnemy.x,hitEnemy.y);
     removeFromInv(it);
     renderInventory();updateUI();
     spawnThrowTrail(state.x*CELL,state.y*CELL,hitEnemy.x*CELL,hitEnemy.y*CELL,db,()=>{
@@ -5203,6 +5226,7 @@ function throwItem(it){
         spawnDamageNum(hitEnemy.mesh.position.x,2.0,hitEnemy.mesh.position.z,`${dmg}`,'#ffffff');
         damageEnemy(hitEnemy, dmg);
       }
+      if(!lost) spawnObject('item',finalX,finalY,it.key);
       animLocked=false;
       enemyTurn();
     });
@@ -5212,23 +5236,7 @@ function throwItem(it){
       showAction(`${db.name}は外れた！`,1000);
       landX=hitEnemy.x; landY=hitEnemy.y; // モンスターの足元
     }
-    // 着地点にアイテム/階段があれば隣にずらす
-    let finalX=landX, finalY=landY;
-    let lost=false;
-    const occupied=floorItems.find(f=>f.x===landX&&f.y===landY)||
-                   (stairsPos&&stairsPos.x===landX&&stairsPos.y===landY)||
-                   (returnPos&&returnPos.x===landX&&returnPos.y===landY);
-    if(occupied){
-      const dirs=[[0,-1],[1,0],[0,1],[-1,0],[1,-1],[1,1],[-1,1],[-1,-1]].sort(()=>Math.random()-0.5);
-      let foundSpot=false;
-      for(const [ox,oy] of dirs){
-        if(isWalkable(landX+ox,landY+oy)&&!floorItems.find(f=>f.x===landX+ox&&f.y===landY+oy)){
-          finalX=landX+ox; finalY=landY+oy; foundSpot=true; break;
-        }
-      }
-      // 周囲も全て埋まっていて置き場がない場合は、重ねて置かずロストさせる
-      if(!foundSpot) lost=true;
-    }
+    const {finalX,finalY,lost}=resolveThrowLanding(landX,landY);
     removeFromInv(it);
     renderInventory();updateUI();
     spawnThrowTrail(state.x*CELL,state.y*CELL,finalX*CELL,finalY*CELL,db,()=>{
@@ -5277,6 +5285,8 @@ function shootArrow(){
   updateUI();
 
   if(hitEnemy && willHit){
+    // 命中：ダメージを与えたのち、当たった場所にそのまま落ちる
+    const {finalX,finalY,lost}=resolveThrowLanding(hitEnemy.x,hitEnemy.y);
     spawnThrowTrail(state.x*CELL,state.y*CELL,hitEnemy.x*CELL,hitEnemy.y*CELL,db,()=>{
       // 命中すれば眠っていても目を覚まし、自機に気づく（遠距離からの命中でも
       // 即座に見失って再び眠ってしまわないよう、最後に見た位置を記憶させる）
@@ -5287,6 +5297,7 @@ function shootArrow(){
       spawnDamageNum(hitEnemy.mesh.position.x,2.0,hitEnemy.mesh.position.z,`${dmg}`,'#ffffff');
       sfxAttack();
       damageEnemy(hitEnemy, dmg);
+      if(!lost) spawnObject('item',finalX,finalY,it.key,1);
       animLocked=false;
       enemyTurn();
     });
@@ -5296,23 +5307,7 @@ function shootArrow(){
       showAction('矢は外れた！',1000);
       landX=hitEnemy.x; landY=hitEnemy.y;
     }
-    // 着地点にアイテム/階段があれば隣にずらす
-    let finalX=landX, finalY=landY;
-    let lost=false;
-    const occupied=floorItems.find(f=>f.x===landX&&f.y===landY)||
-                   (stairsPos&&stairsPos.x===landX&&stairsPos.y===landY)||
-                   (returnPos&&returnPos.x===landX&&returnPos.y===landY);
-    if(occupied){
-      const dirs=[[0,-1],[1,0],[0,1],[-1,0],[1,-1],[1,1],[-1,1],[-1,-1]].sort(()=>Math.random()-0.5);
-      let foundSpot=false;
-      for(const [ox,oy] of dirs){
-        if(isWalkable(landX+ox,landY+oy)&&!floorItems.find(f=>f.x===landX+ox&&f.y===landY+oy)){
-          finalX=landX+ox; finalY=landY+oy; foundSpot=true; break;
-        }
-      }
-      // 周囲も全て埋まっていて置き場がない場合は、重ねて置かずロストさせる
-      if(!foundSpot) lost=true;
-    }
+    const {finalX,finalY,lost}=resolveThrowLanding(landX,landY);
     spawnThrowTrail(state.x*CELL,state.y*CELL,finalX*CELL,finalY*CELL,db,()=>{
       if(lost){
         showAction('矢は床に落ちて使い物にならなくなった',1500);
@@ -5656,9 +5651,21 @@ const MOVE_INTERVAL=210;      // 通常の移動連打間隔(ms)
 const DASH_INTERVAL=95;       // ダッシュ中の移動連打間隔(ms)
 const WAIT_INTERVAL=Math.round(DASH_INTERVAL/1.2); // 待機の連打間隔(ms)。ターン消化速度を1.2倍に
 
+// 確認ダイアログ等の操作を止める系モーダルが開いているか（開いている間は移動キー押しっぱなしでも先に進ませない）
+function isBlockingModalOpen(){
+  return confirmModal.classList.contains('show') ||
+    dungeonSelectModal.classList.contains('show') ||
+    dialogueBox.classList.contains('show') ||
+    invModal.classList.contains('show') ||
+    actionModal.classList.contains('show') ||
+    underfootModal.classList.contains('show') ||
+    saveSlotModal.classList.contains('show');
+}
+
 function dpadPress(dir){
   if(dir===-1)return;
   if(animLocked||isPlayerDown)return;
+  if(isBlockingModalOpen())return;
   // 睡眠中は行動できない（ターンだけ進む）
   if(playerSleepTurns>0){
     playerSleepTurns--;
