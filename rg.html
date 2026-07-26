@@ -421,6 +421,8 @@ body { font-family:'Courier New',monospace; color:#c8b89a; user-select:none; -we
 .title-btn:active { background:#3a2c18; }
 .title-btn:disabled { opacity:0.32; color:#5a4e38; cursor:default; }
 #title-spectator { border-color:#4a7a9a; color:#a0d0f0; }
+#title-debug { border-color:#5a5a5a; color:#a0a0a0; }
+#title-debug.debug-on { border-color:#d04040; color:#ff9090; }
 #title-spectator:active { background:#1c3040; }
 #title-footer { color:#5a4e38; font-size:10px; letter-spacing:1px; }
 
@@ -530,6 +532,7 @@ body.spectator-mode #spectator-caption.show { display:block; opacity:1; }
     <button id="title-continue" class="title-btn">つづきから</button>
     <button id="title-newgame" class="title-btn">はじめから</button>
     <button id="title-spectator" class="title-btn">AI観戦モード</button>
+    <button id="title-debug" class="title-btn">デバッグモード：OFF</button>
   </div>
   <div id="title-footer">Three.js Voxel Roguelike</div>
 </div>
@@ -3569,9 +3572,20 @@ function sleepPlayer(n){ playerSleepTurns=n; }
 // ダッシュモード（オンの間、移動が高速になり床アイテムを拾わない）
 let dashMode=false;
 
+// デバッグモード（タイトル画面のトグルでON/OFF。ONの間はHPが0になっても死亡・ゲームオーバーにならず、
+// その場で自動的にHPが全回復する。通常プレイには一切影響しない）
+let debugMode=false;
+
 // プレイヤー死亡チェック（復活の薬があれば自動発動）
 function checkPlayerDeath(){
   if(state.hp>0)return false;
+  // デバッグモード：死亡・ゲームオーバーにせず、その場でHPを全回復して復活させる
+  if(debugMode){
+    state.hp=state.maxHp;
+    showAction('【デバッグモード】HPを全回復した',1500);
+    updateUI();
+    return false;
+  }
   // 復活の薬を持っていれば消費して全回復
   const reviveIdx=inventory.findIndex(it=>ITEM_DB[it.key].effect&&ITEM_DB[it.key].effect.revive);
   if(reviveIdx>=0){
@@ -6412,6 +6426,13 @@ function stopSpectatorMode(){
 
 document.getElementById('title-spectator').onclick=()=>{ startSpectatorMode(); };
 document.getElementById('spectator-exit').onclick=()=>{ stopSpectatorMode(); };
+
+const titleDebugBtn=document.getElementById('title-debug');
+titleDebugBtn.onclick=()=>{
+  debugMode=!debugMode;
+  titleDebugBtn.textContent=debugMode?'デバッグモード：ON':'デバッグモード：OFF';
+  titleDebugBtn.classList.toggle('debug-on',debugMode);
+};
 
 titleContinueBtn.onclick=()=>{
   if(!hasAnySaveData())return;
