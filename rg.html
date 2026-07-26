@@ -837,7 +837,7 @@ const DIR_DY=[-1,-1,0,1,1,1,0,-1];
 const state={x:0,y:0,dir:0,angle:-Math.PI/2,targetAngle:-Math.PI/2,actionTimer:0,floor:1,
   hp:15,maxHp:15,str:0,lv:1,exp:0,nextExp:10,stepCount:0,
   food:100,maxFood:100,foodStep:0,gold:0,
-  haste:0,charge:false,invis:0,confuse:0,inEntrance:false,playTimeMs:0,globalTurnCount:0,
+  haste:0,invis:0,confuse:0,inEntrance:false,playTimeMs:0,globalTurnCount:0,
   dungeonType:'normal'}; // 'normal'=中級【全10F】 / 'beginner'=初級【全5F】 / 'advanced'=上級【全10F】
 let MAP=[],rooms=[],stairsPos=null,returnPos=null,floorItems=[],explored=[];
 // 自機がいない間に配送予約されたモンスター（floor番号 -> 未出現数）。
@@ -881,7 +881,6 @@ const ITEM_DB={
   powerp:   {name:'ちからの薬',  type:'potion', icon:'🧪', color:'#c0c0c0', effect:{buff:'atk'}},
   lifep:    {name:'命の薬',      type:'potion', icon:'🧪', color:'#c0c0c0', effect:{buff:'maxhp'}},
   speedp:   {name:'すばやさの薬',type:'potion', icon:'🧪', color:'#c0c0c0', effect:{status:'haste'}},
-  chargep:  {name:'ちからため薬',type:'potion', icon:'🧪', color:'#c0c0c0', effect:{status:'charge'}},
   invisp:   {name:'透明の薬',    type:'potion', icon:'🧪', color:'#c0c0c0', effect:{status:'invis'}},
   poisonp:  {name:'毒の薬',      type:'potion', icon:'🧪', color:'#c0c0c0', effect:{damage:10}},
   confusep: {name:'混乱の薬',    type:'potion', icon:'🧪', color:'#c0c0c0', effect:{status:'confuse'}},
@@ -908,9 +907,7 @@ const ITEM_DB={
   st_confuse:{name:'混乱の杖',    type:'staff', icon:'🪄', color:'#c0c0c0', effect:{wand:'confuse'}},
   st_swap:   {name:'場所替えの杖',type:'staff', icon:'🪄', color:'#c0c0c0', effect:{wand:'swap'}},
   st_knock:  {name:'吹き飛ばしの杖',type:'staff', icon:'🪄', color:'#c0c0c0', effect:{wand:'knockback'}},
-  st_weak:   {name:'弱体の杖',    type:'staff', icon:'🪄', color:'#c0c0c0', effect:{wand:'weaken'}},
   st_seal:   {name:'封印の杖',    type:'staff', icon:'🪄', color:'#c0c0c0', effect:{wand:'seal'}},
-  st_pull:   {name:'引き寄せの杖',type:'staff', icon:'🪄', color:'#c0c0c0', effect:{wand:'pull'}},
   bread:    {name:'パン',        type:'food', icon:'🍞', color:'#c0c0c0', effect:{food:50}},
   bigbread: {name:'大きいパン',  type:'food', icon:'🍞', color:'#c0c0c0', effect:{food:90}},
   badbread: {name:'くさったパン',type:'food', icon:'🍞', color:'#c0c0c0', effect:{food:20,damage:8}},
@@ -920,9 +917,9 @@ const ITEM_DB={
 const ITEM_KEYS=Object.keys(ITEM_DB);
 // 床に落ちるアイテム候補（装備は控えめ、消費を多め）
 const FLOOR_ITEM_KEYS=['herb','herb','hiherb','bread','bread','bigbread','badbread',
-  'powerp','lifep','speedp','chargep','invisp','poisonp','confusep','sleepp','curep','revivep',
+  'powerp','lifep','speedp','invisp','poisonp','confusep','sleepp','curep','revivep',
   'iron','copper','club','woodsh','bronzesh','ironsh','flame','ice','poison','steel','flamesh','poisonsh','steelsh',
-  'st_atk','st_fire','st_sleep','st_confuse','st_swap','st_knock','st_weak','st_seal','st_pull',
+  'st_atk','st_fire','st_sleep','st_confuse','st_swap','st_knock','st_seal',
   'sc_enchant','sc_enchant_shield','sc_fire','sc_teleport','sc_return','sc_pitfall','sc_confuse','sc_sleep','sc_luck','sc_nuke','sc_map','sc_seal',
   'arrow_wood','arrow_wood','arrow_wood'];
 // 初級ダンジョンでは武器・盾のドロップをこん棒・銅の剣・木の盾・青銅の盾のみに絞る
@@ -1946,30 +1943,10 @@ function applyWandEffect(eff,e,wdx,wdz){
       showAction('敵を吹き飛ばした！',1000);
       break;
     }
-    case 'weaken':
-      e.atkDown=(e.atkDown||0)+Math.ceil((MONSTER_DB[e.monType]?.atk||e.atk)*0.3);
-      showAction('敵の攻撃力が下がった！',1000);
-      break;
     case 'seal': {
       e.sealed=10;
       const sealName=MONSTER_DB[e.monType]?MONSTER_DB[e.monType].name:'敵';
       showAction(`${sealName}の特殊攻撃を封じた！`,1200);
-      break;
-    }
-    case 'pull': {
-      // 自機の目の前のマスまで引き寄せる（対象は直線上にいるので、自機との距離-1マス分進める）
-      const dxp=Math.sign(state.x-e.x), dzp=Math.sign(state.y-e.y);
-      const dist=Math.max(Math.abs(state.x-e.x), Math.abs(state.y-e.y));
-      let nx=e.x, ny=e.y;
-      for(let s=0;s<dist-1;s++){
-        const tx=e.x+dxp*(s+1), ty=e.y+dzp*(s+1);
-        if(!isWalkable(tx,ty))break;
-        nx=tx;ny=ty;
-      }
-      e.x=nx; e.y=ny;
-      e.mesh.position.set(e.x*CELL,0,e.y*CELL);
-      e.pullStun=true; // 引き寄せた直後のターンは攻撃してこない
-      showAction('敵を引き寄せた！',1000);
       break;
     }
   }
@@ -3305,7 +3282,7 @@ function resetFullGameState(){
     x:0,y:0,dir:0,angle:-Math.PI/2,targetAngle:-Math.PI/2,actionTimer:0,floor:1,
     hp:15,maxHp:15,str:0,lv:1,exp:0,nextExp:10,stepCount:0,
     food:100,maxFood:100,foodStep:0,gold:0,
-    haste:0,charge:false,invis:0,confuse:0,inEntrance:false,playTimeMs:0,globalTurnCount:0,
+    haste:0,invis:0,confuse:0,inEntrance:false,playTimeMs:0,globalTurnCount:0,
     dungeonType:'normal'
   });
   inventory.length=0;
@@ -3602,7 +3579,6 @@ function applyPotionToPlayer(eff, name){
   else if(eff.buff==='atk'){ state.str=(state.str||0)+1; showAction(`${n}を飲んだ。ちからが上がった！`); }
   else if(eff.buff==='maxhp'){ state.maxHp+=10; state.hp+=10; showAction(`${n}を飲んだ。最大HPが増えた！`); }
   else if(eff.status==='haste'){ state.haste=15; state._hasteToggle=false; showAction(`${n}を飲んだ。素早くなった！`); }
-  else if(eff.status==='charge'){ state.charge=true; showAction(`${n}を飲んだ。力をためた！次の一撃が2倍`); }
   else if(eff.status==='invis'){ state.invis=15; showAction(`${n}を飲んだ。透明になった！`); }
   else if(eff.status==='confuse'){ state.confuse=8; showAction(`${n}を飲んだ。混乱した！`); }
   else if(eff.status==='sleep'){ showAction(`${n}を飲んだ。眠ってしまった…`); sleepPlayer(5); }
@@ -3774,7 +3750,7 @@ function resetPlayerStatsForEntrance(){
   state.lv=1; state.exp=0; state.nextExp=10;
   state.hp=15; state.maxHp=15; state.str=0;
   state.food=100; state.maxFood=100; state.foodStep=0; state.stepCount=0;
-  state.haste=0; state.charge=false; state.invis=0; state.confuse=0;
+  state.haste=0; state.invis=0; state.confuse=0;
   playerSleepTurns=0;
   // 金貨・持ち物（inventory）・装備・倉庫はそのまま維持
 }
@@ -4597,8 +4573,6 @@ function enemyTurn(){
     if(e.hp<=0)return;
     // 敵が睡眠中はスキップ
     if(e.sleep>0){ e.sleep--; return; }
-    // 引き寄せられた直後のターンは行動しない
-    if(e.pullStun){ e.pullStun=false; return; }
     // 透明中のプレイヤーには気づかない。その場で眠るのではなく適当に徘徊させる
     if(state.invis>0){ e.aware=false; wanderStep(e); return; }
     // 気づき判定：視界範囲内かつ壁に遮られていなければプレイヤーを発見する
@@ -4912,8 +4886,6 @@ function moveForward(dash=false){
         }
         // ダメージ計算
         let dmg=calcDamage(totalAtk(), target.def||0);
-        // ちからため：次の一撃2倍
-        if(state.charge){ dmg*=2; state.charge=false; showAction('渾身の一撃！',800); }
         // 龍特効
         if(wpEff&&wpEff.slayer&&target.monType===wpEff.slayer){ dmg*=2; showAction('特効！',800); }
         target.hp-=dmg;
@@ -5836,11 +5808,21 @@ function doWait(){
 function doAttackButton(){
   if(animLocked||isPlayerDown)return;
   if(playerSleepTurns>0){ doWait(); return; }
-  const dx=DIR_DX[state.dir], dy=DIR_DY[state.dir];
+  // 混乱中：向いている方向とは関係なく、実際に攻撃が飛ぶ方向が50%の確率で定まらなくなる
+  // （見た目の向きは変えず、攻撃の判定方向だけがランダムになる）
+  let atkDir=state.dir;
+  if(state.confuse>0 && Math.random()<0.5){
+    atkDir=Math.floor(Math.random()*8);
+    showAction('足がもつれた…',700);
+  }
+  const dx=DIR_DX[atkDir], dy=DIR_DY[atkDir];
   const nx=state.x+dx, ny=state.y+dy;
   if(hasEnemy(nx,ny)){
-    // 前方に敵がいる → moveForwardの攻撃処理に委ねる
+    // 前方に敵がいる → moveForwardの攻撃処理に委ねる（向きは攻撃後に元へ戻す）
+    const savedDir=state.dir;
+    state.dir=atkDir;
     moveForward(false);
+    state.dir=savedDir;
   } else {
     // 空振り（攻撃モーション＋音。敵ターンはアニメ終了後に進む。テキストは出さない）
     sfxSwing();
