@@ -251,7 +251,7 @@ body { font-family:'Courier New',monospace; color:#c8b89a; user-select:none; -we
   display:none; align-items:center; justify-content:center;
 }
 #save-slot-modal.show { display:flex; }
-#save-slot-modal-inner { display:flex; flex-direction:column; align-items:center; gap:14px; max-width:90%; }
+#save-slot-modal-inner { position:relative; max-width:90%; }
 #save-slot-list { display:flex; flex-direction:column; gap:10px; }
 #save-slot-list .slot-btn {
   width:100%; background:#000; border:1px solid #f8f8f8; border-radius:3px;
@@ -275,7 +275,8 @@ body { font-family:'Courier New',monospace; color:#c8b89a; user-select:none; -we
 #save-slot-delete-label { position:relative; z-index:1; }
 #save-slot-delete-warning {
   display:none; color:#ff8080; text-align:center;
-  width:420px; max-width:100%;
+  position:absolute; left:50%; top:100%; transform:translateX(-50%);
+  margin-top:14px; width:420px; max-width:100%;
 }
 #save-slot-delete-warning.show { display:block; }
 #save-slot-delete-warning-label { font-size:16px; font-weight:bold; letter-spacing:1px; margin-bottom:4px; }
