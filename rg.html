@@ -264,18 +264,18 @@ body { font-family:'Courier New',monospace; color:#c8b89a; user-select:none; -we
 #save-slot-action-summary {
   background:#000; border:1px solid #f8f8f8; border-radius:3px;
 }
-#save-slot-delete-btn.arming { color:#ff6060; border-color:#ff6060; }
-#save-slot-delete-gauge-wrap { display:none; flex-direction:column; gap:8px; }
-#save-slot-delete-gauge-wrap.show { display:flex; }
-#save-slot-delete-gauge-track {
-  width:100%; height:16px; background:#000; border:1px solid #ff6060; border-radius:8px; overflow:hidden;
+/* 削除ボタン：持ち物ゲージと同様に、ボタン自体の背景が長押し時間に応じて左から赤く溜まっていく */
+#save-slot-delete-btn { position:relative; overflow:hidden; }
+#save-slot-delete-btn.arming { border-color:#ff6060; }
+#save-slot-delete-fill {
+  position:absolute; left:0; top:0; bottom:0; width:0%;
+  background:#ff4040;
 }
-#save-slot-delete-gauge-fill {
-  height:100%; width:0%; background:#ff4040; transition:width 0.05s linear;
-}
+#save-slot-delete-label { position:relative; z-index:1; }
 #save-slot-delete-warning {
-  color:#ff8080; font-size:14px; text-align:center; letter-spacing:0.5px;
+  display:none; color:#ff8080; font-size:14px; text-align:center; letter-spacing:0.5px;
 }
+#save-slot-delete-warning.show { display:block; }
 
 #inv-panel {
   width:510px; max-width:660px; max-height:840px;
@@ -697,12 +697,12 @@ body.spectator-mode #spectator-caption.show { display:block; opacity:1; }
       <div id="save-slot-action-summary"></div>
       <div class="act-btn-row">
         <button class="act-btn" id="save-slot-start-btn">始める</button>
-        <button class="act-btn" id="save-slot-delete-btn">削除</button>
+        <button class="act-btn" id="save-slot-delete-btn">
+          <span id="save-slot-delete-fill"></span>
+          <span id="save-slot-delete-label">削除</span>
+        </button>
       </div>
-      <div id="save-slot-delete-gauge-wrap">
-        <div id="save-slot-delete-gauge-track"><div id="save-slot-delete-gauge-fill"></div></div>
-        <div id="save-slot-delete-warning">（注意＊ゲージが溜まり次第このセーブスロットが削除されます。）</div>
-      </div>
+      <div id="save-slot-delete-warning">（注意＊ゲージが溜まり次第このセーブスロットが削除されます。）</div>
       <button class="act-btn" id="save-slot-action-back">戻る</button>
     </div>
     <button class="act-btn" id="save-slot-cancel">やめる</button>
@@ -6145,8 +6145,8 @@ const saveSlotActionView=document.getElementById('save-slot-action-view');
 const saveSlotActionSummary=document.getElementById('save-slot-action-summary');
 const saveSlotStartBtn=document.getElementById('save-slot-start-btn');
 const saveSlotDeleteBtn=document.getElementById('save-slot-delete-btn');
-const saveSlotDeleteGaugeWrap=document.getElementById('save-slot-delete-gauge-wrap');
-const saveSlotDeleteGaugeFill=document.getElementById('save-slot-delete-gauge-fill');
+const saveSlotDeleteFill=document.getElementById('save-slot-delete-fill');
+const saveSlotDeleteWarning=document.getElementById('save-slot-delete-warning');
 const saveSlotActionBackBtn=document.getElementById('save-slot-action-back');
 
 let currentSaveSlotMode='continue';
@@ -6225,7 +6225,7 @@ function showSlotActionView(slot, data){
   const stepDeleteHold=(now)=>{
     const elapsed=now-deleteStartTime;
     const pct=Math.min(elapsed/DELETE_HOLD_MS,1);
-    saveSlotDeleteGaugeFill.style.width=(pct*100)+'%';
+    saveSlotDeleteFill.style.width=(pct*100)+'%';
     if(pct>=1){
       deleteRafId=null;
       deleteSaveSlot(slot);
@@ -6241,16 +6241,16 @@ function showSlotActionView(slot, data){
     e.preventDefault();
     if(deleteRafId)return;
     saveSlotDeleteBtn.classList.add('arming');
-    saveSlotDeleteGaugeWrap.classList.add('show');
-    saveSlotDeleteGaugeFill.style.width='0%';
+    saveSlotDeleteWarning.classList.add('show');
+    saveSlotDeleteFill.style.width='0%';
     deleteStartTime=performance.now();
     deleteRafId=requestAnimationFrame(stepDeleteHold);
   };
   deleteHoldCancelFn=()=>{
     if(deleteRafId){ cancelAnimationFrame(deleteRafId); deleteRafId=null; }
     saveSlotDeleteBtn.classList.remove('arming');
-    saveSlotDeleteGaugeWrap.classList.remove('show');
-    saveSlotDeleteGaugeFill.style.width='0%';
+    saveSlotDeleteWarning.classList.remove('show');
+    saveSlotDeleteFill.style.width='0%';
   };
   saveSlotDeleteBtn.ontouchstart=beginDeleteHold;
   saveSlotDeleteBtn.onmousedown=beginDeleteHold;
