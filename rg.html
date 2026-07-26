@@ -251,6 +251,7 @@ body { font-family:'Courier New',monospace; color:#c8b89a; user-select:none; -we
   display:none; align-items:center; justify-content:center;
 }
 #save-slot-modal.show { display:flex; }
+#save-slot-modal-inner { display:flex; flex-direction:column; align-items:center; gap:14px; max-width:90%; }
 #save-slot-list { display:flex; flex-direction:column; gap:10px; }
 #save-slot-list .slot-btn {
   width:100%; background:#000; border:1px solid #f8f8f8; border-radius:3px;
@@ -274,6 +275,7 @@ body { font-family:'Courier New',monospace; color:#c8b89a; user-select:none; -we
 #save-slot-delete-label { position:relative; z-index:1; }
 #save-slot-delete-warning {
   display:none; color:#ff8080; font-size:14px; text-align:center; letter-spacing:0.5px;
+  width:420px; max-width:100%;
 }
 #save-slot-delete-warning.show { display:block; }
 
@@ -690,22 +692,24 @@ body.spectator-mode #spectator-caption.show { display:block; opacity:1; }
 
 <!-- セーブスロット選択モーダル（つづきから/はじめから共用） -->
 <div id="save-slot-modal">
-  <div class="action-panel-box">
-    <div id="save-slot-title">スロットを選択</div>
-    <div id="save-slot-list"></div>
-    <div id="save-slot-action-view">
-      <div id="save-slot-action-summary"></div>
-      <div class="act-btn-row">
-        <button class="act-btn" id="save-slot-start-btn">始める</button>
-        <button class="act-btn" id="save-slot-delete-btn">
-          <span id="save-slot-delete-fill"></span>
-          <span id="save-slot-delete-label">削除</span>
-        </button>
+  <div id="save-slot-modal-inner">
+    <div class="action-panel-box">
+      <div id="save-slot-title">スロットを選択</div>
+      <div id="save-slot-list"></div>
+      <div id="save-slot-action-view">
+        <div id="save-slot-action-summary"></div>
+        <div class="act-btn-row">
+          <button class="act-btn" id="save-slot-start-btn">始める</button>
+          <button class="act-btn" id="save-slot-delete-btn">
+            <span id="save-slot-delete-fill"></span>
+            <span id="save-slot-delete-label">削除</span>
+          </button>
+        </div>
+        <button class="act-btn" id="save-slot-action-back">戻る</button>
       </div>
-      <div id="save-slot-delete-warning">（注意＊ゲージが溜まり次第このセーブスロットが削除されます。）</div>
-      <button class="act-btn" id="save-slot-action-back">戻る</button>
+      <button class="act-btn" id="save-slot-cancel">やめる</button>
     </div>
-    <button class="act-btn" id="save-slot-cancel">やめる</button>
+    <div id="save-slot-delete-warning">（注意＊ゲージが溜まり次第このセーブスロットが削除されます。）</div>
   </div>
 </div>
 </div><!-- /#viewport-root -->
