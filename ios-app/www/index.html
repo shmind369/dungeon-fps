@@ -274,10 +274,12 @@ body { font-family:'Courier New',monospace; color:#c8b89a; user-select:none; -we
 }
 #save-slot-delete-label { position:relative; z-index:1; }
 #save-slot-delete-warning {
-  display:none; color:#ff8080; font-size:14px; text-align:center; letter-spacing:0.5px;
+  display:none; color:#ff8080; text-align:center;
   width:420px; max-width:100%;
 }
 #save-slot-delete-warning.show { display:block; }
+#save-slot-delete-warning-label { font-size:16px; font-weight:bold; letter-spacing:1px; margin-bottom:4px; }
+#save-slot-delete-warning-body { font-size:13px; letter-spacing:0.3px; white-space:nowrap; }
 
 #inv-panel {
   width:510px; max-width:660px; max-height:840px;
@@ -709,7 +711,10 @@ body.spectator-mode #spectator-caption.show { display:block; opacity:1; }
       </div>
       <button class="act-btn" id="save-slot-cancel">やめる</button>
     </div>
-    <div id="save-slot-delete-warning">（注意＊ゲージが溜まり次第このセーブスロットが削除されます。）</div>
+    <div id="save-slot-delete-warning">
+      <div id="save-slot-delete-warning-label">注意</div>
+      <div id="save-slot-delete-warning-body">＊ゲージが溜まり次第このセーブスロットが削除されます。</div>
+    </div>
   </div>
 </div>
 </div><!-- /#viewport-root -->
