@@ -258,6 +258,24 @@ body { font-family:'Courier New',monospace; color:#c8b89a; user-select:none; -we
 }
 #save-slot-list .slot-btn:active { background:#222; }
 #save-slot-list .slot-btn:disabled { opacity:0.35; cursor:default; }
+#save-slot-action-view { display:none; flex-direction:column; gap:12px; }
+#save-slot-action-view.show { display:flex; }
+#save-slot-list.hide-for-action { display:none; }
+#save-slot-action-summary {
+  background:#000; border:1px solid #f8f8f8; border-radius:3px;
+}
+#save-slot-delete-btn.arming { color:#ff6060; border-color:#ff6060; }
+#save-slot-delete-gauge-wrap { display:none; flex-direction:column; gap:8px; }
+#save-slot-delete-gauge-wrap.show { display:flex; }
+#save-slot-delete-gauge-track {
+  width:100%; height:16px; background:#000; border:1px solid #ff6060; border-radius:8px; overflow:hidden;
+}
+#save-slot-delete-gauge-fill {
+  height:100%; width:0%; background:#ff4040; transition:width 0.05s linear;
+}
+#save-slot-delete-warning {
+  color:#ff8080; font-size:14px; text-align:center; letter-spacing:0.5px;
+}
 
 #inv-panel {
   width:510px; max-width:660px; max-height:840px;
@@ -675,6 +693,18 @@ body.spectator-mode #spectator-caption.show { display:block; opacity:1; }
   <div class="action-panel-box">
     <div id="save-slot-title">スロットを選択</div>
     <div id="save-slot-list"></div>
+    <div id="save-slot-action-view">
+      <div id="save-slot-action-summary"></div>
+      <div class="act-btn-row">
+        <button class="act-btn" id="save-slot-start-btn">始める</button>
+        <button class="act-btn" id="save-slot-delete-btn">削除</button>
+      </div>
+      <div id="save-slot-delete-gauge-wrap">
+        <div id="save-slot-delete-gauge-track"><div id="save-slot-delete-gauge-fill"></div></div>
+        <div id="save-slot-delete-warning">（注意＊ゲージが溜まり次第このセーブスロットが削除されます。）</div>
+      </div>
+      <button class="act-btn" id="save-slot-action-back">戻る</button>
+    </div>
     <button class="act-btn" id="save-slot-cancel">やめる</button>
   </div>
 </div>
@@ -3191,6 +3221,15 @@ function hasSaveData(slot){
 function hasAnySaveData(){
   for(let i=1;i<=SAVE_SLOT_COUNT;i++){ if(hasSaveData(i))return true; }
   return false;
+}
+
+function hasEmptySlot(){
+  for(let i=1;i<=SAVE_SLOT_COUNT;i++){ if(!hasSaveData(i))return true; }
+  return false;
+}
+
+function deleteSaveSlot(slot){
+  try{ localStorage.removeItem(saveKeyForSlot(slot)); }catch(e){ console.error('セーブデータの削除に失敗しました', e); }
 }
 
 function loadSaveData(slot){
@@ -6064,8 +6103,12 @@ const titleContinueBtn=document.getElementById('title-continue');
 const titleNewGameBtn=document.getElementById('title-newgame');
 
 function hideTitleScreen(){ titleScreen.classList.add('hide'); }
-function showTitleScreen(){
+function refreshTitleSlotButtons(){
   titleContinueBtn.disabled=!hasAnySaveData();
+  titleNewGameBtn.disabled=!hasEmptySlot();
+}
+function showTitleScreen(){
+  refreshTitleSlotButtons();
   titleScreen.classList.remove('hide');
 }
 
@@ -6097,29 +6140,52 @@ function saveLocationLabel(st){
 const saveSlotModal=document.getElementById('save-slot-modal');
 const saveSlotList=document.getElementById('save-slot-list');
 const saveSlotTitle=document.getElementById('save-slot-title');
+const saveSlotCancelBtn=document.getElementById('save-slot-cancel');
+const saveSlotActionView=document.getElementById('save-slot-action-view');
+const saveSlotActionSummary=document.getElementById('save-slot-action-summary');
+const saveSlotStartBtn=document.getElementById('save-slot-start-btn');
+const saveSlotDeleteBtn=document.getElementById('save-slot-delete-btn');
+const saveSlotDeleteGaugeWrap=document.getElementById('save-slot-delete-gauge-wrap');
+const saveSlotDeleteGaugeFill=document.getElementById('save-slot-delete-gauge-fill');
+const saveSlotActionBackBtn=document.getElementById('save-slot-action-back');
 
-function closeSaveSlotModal(){ saveSlotModal.classList.remove('show'); }
+let currentSaveSlotMode='continue';
+let deleteHoldCancelFn=null;
+
+function closeSaveSlotModal(){
+  saveSlotModal.classList.remove('show');
+  cancelDeleteHold();
+  hideSlotActionView();
+}
+
+function slotSummaryHtml(slot, data){
+  const st=data.state;
+  return `
+    <div class="slot-head">
+      <span class="slot-name">スロット${slot}</span>
+      <span class="slot-date">${formatSavedAt(data.savedAt)}</span>
+    </div>
+    <div class="slot-body">
+      <div class="slot-row"><span class="slot-k">現在地</span><span class="slot-v">${saveLocationLabel(st)}</span></div>
+      <div class="slot-row"><span class="slot-k">Lv</span><span class="slot-v">${st.lv!==undefined?st.lv:'—'}</span></div>
+      <div class="slot-row"><span class="slot-k">所持金</span><span class="slot-v">${(st.gold!==undefined?st.gold:0)} G</span></div>
+      <div class="slot-row"><span class="slot-k">プレイ時間</span><span class="slot-v">${formatPlayTime(st.playTimeMs)}</span></div>
+    </div>`;
+}
 
 function openSaveSlotModal(mode){
+  currentSaveSlotMode=mode;
+  hideSlotActionView();
   saveSlotTitle.textContent=mode==='continue'?'つづきから：スロットを選択':'はじめから：スロットを選択';
   saveSlotList.innerHTML='';
   for(let slot=1; slot<=SAVE_SLOT_COUNT; slot++){
     const data=hasSaveData(slot)?loadSaveData(slot):null;
+    // 「はじめから」では既存データのあるスロットは表示せず、空きスロットのみ選べるようにする
+    if(mode==='newgame'&&data) continue;
     const btn=document.createElement('button');
     btn.className='slot-btn'+(data?'':' empty');
     if(data){
-      const st=data.state;
-      btn.innerHTML=`
-        <div class="slot-head">
-          <span class="slot-name">スロット${slot}</span>
-          <span class="slot-date">${formatSavedAt(data.savedAt)}</span>
-        </div>
-        <div class="slot-body">
-          <div class="slot-row"><span class="slot-k">現在地</span><span class="slot-v">${saveLocationLabel(st)}</span></div>
-          <div class="slot-row"><span class="slot-k">Lv</span><span class="slot-v">${st.lv!==undefined?st.lv:'—'}</span></div>
-          <div class="slot-row"><span class="slot-k">所持金</span><span class="slot-v">${(st.gold!==undefined?st.gold:0)} G</span></div>
-          <div class="slot-row"><span class="slot-k">プレイ時間</span><span class="slot-v">${formatPlayTime(st.playTimeMs)}</span></div>
-        </div>`;
+      btn.innerHTML=slotSummaryHtml(slot,data);
     } else {
       btn.innerHTML=`
         <div class="slot-head"><span class="slot-name">スロット${slot}</span></div>
@@ -6129,22 +6195,81 @@ function openSaveSlotModal(mode){
     btn.onclick=()=>{
       if(mode==='continue'){
         if(!data)return;
-        closeSaveSlotModal();
-        continueFromSlot(slot, data);
+        showSlotActionView(slot, data);
       } else {
-        const start=()=>{ closeSaveSlotModal(); startNewGameInSlot(slot); };
-        if(data){
-          showConfirm(`スロット${slot}のデータが上書きされます。よろしいですか？`, start);
-        } else {
-          start();
-        }
+        closeSaveSlotModal();
+        startNewGameInSlot(slot);
       }
     };
     saveSlotList.appendChild(btn);
   }
   saveSlotModal.classList.add('show');
 }
-document.getElementById('save-slot-cancel').onclick=closeSaveSlotModal;
+saveSlotCancelBtn.onclick=closeSaveSlotModal;
+
+// 「つづきから」でスロットを選んだ後：「始める」「削除」を選ばせるサブビュー
+function showSlotActionView(slot, data){
+  cancelDeleteHold();
+  saveSlotActionSummary.innerHTML=slotSummaryHtml(slot,data);
+  saveSlotList.classList.add('hide-for-action');
+  saveSlotCancelBtn.style.display='none';
+  saveSlotActionView.classList.add('show');
+
+  saveSlotStartBtn.onclick=()=>{
+    closeSaveSlotModal();
+    continueFromSlot(slot, data);
+  };
+
+  const DELETE_HOLD_MS=1500;
+  let deleteRafId=null, deleteStartTime=0;
+  const stepDeleteHold=(now)=>{
+    const elapsed=now-deleteStartTime;
+    const pct=Math.min(elapsed/DELETE_HOLD_MS,1);
+    saveSlotDeleteGaugeFill.style.width=(pct*100)+'%';
+    if(pct>=1){
+      deleteRafId=null;
+      deleteSaveSlot(slot);
+      cancelDeleteHold();
+      hideSlotActionView();
+      refreshTitleSlotButtons();
+      openSaveSlotModal(currentSaveSlotMode);
+      return;
+    }
+    deleteRafId=requestAnimationFrame(stepDeleteHold);
+  };
+  const beginDeleteHold=(e)=>{
+    e.preventDefault();
+    if(deleteRafId)return;
+    saveSlotDeleteBtn.classList.add('arming');
+    saveSlotDeleteGaugeWrap.classList.add('show');
+    saveSlotDeleteGaugeFill.style.width='0%';
+    deleteStartTime=performance.now();
+    deleteRafId=requestAnimationFrame(stepDeleteHold);
+  };
+  deleteHoldCancelFn=()=>{
+    if(deleteRafId){ cancelAnimationFrame(deleteRafId); deleteRafId=null; }
+    saveSlotDeleteBtn.classList.remove('arming');
+    saveSlotDeleteGaugeWrap.classList.remove('show');
+    saveSlotDeleteGaugeFill.style.width='0%';
+  };
+  saveSlotDeleteBtn.ontouchstart=beginDeleteHold;
+  saveSlotDeleteBtn.onmousedown=beginDeleteHold;
+  const endHold=(e)=>{ e.preventDefault(); cancelDeleteHold(); };
+  saveSlotDeleteBtn.ontouchend=endHold;
+  saveSlotDeleteBtn.ontouchcancel=endHold;
+  saveSlotDeleteBtn.onmouseup=endHold;
+  saveSlotDeleteBtn.onmouseleave=endHold;
+}
+function cancelDeleteHold(){ if(deleteHoldCancelFn) deleteHoldCancelFn(); }
+function hideSlotActionView(){
+  cancelDeleteHold();
+  saveSlotActionView.classList.remove('show');
+  saveSlotList.classList.remove('hide-for-action');
+  saveSlotCancelBtn.style.display='';
+}
+saveSlotActionBackBtn.onclick=()=>{
+  hideSlotActionView();
+};
 
 function continueFromSlot(slot, data){
   currentSlot=slot;
@@ -6440,12 +6565,13 @@ titleContinueBtn.onclick=()=>{
 };
 
 titleNewGameBtn.onclick=()=>{
+  if(!hasEmptySlot())return;
   openSaveSlotModal('newgame');
 };
 
 setTimeout(()=>{
   resizeRenderer();
-  titleContinueBtn.disabled=!hasAnySaveData();
+  refreshTitleSlotButtons();
 }, 50);
 </script>
 </body>
