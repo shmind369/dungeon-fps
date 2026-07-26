@@ -5206,8 +5206,7 @@ function throwItem(it){
   const willHit = hitEnemy ? Math.random()<7/8 : false;
 
   if(hitEnemy && willHit){
-    // モンスター命中：効果を適用したのち、当たった場所にそのまま落ちる
-    const {finalX,finalY,lost}=resolveThrowLanding(hitEnemy.x,hitEnemy.y);
+    // モンスター命中：軌道は常に直線（命中位置＝直線上の敵の位置）。着地マスの調整は飛行後に行う
     removeFromInv(it);
     renderInventory();updateUI();
     spawnThrowTrail(state.x*CELL,state.y*CELL,hitEnemy.x*CELL,hitEnemy.y*CELL,db,()=>{
@@ -5226,20 +5225,22 @@ function throwItem(it){
         spawnDamageNum(hitEnemy.mesh.position.x,2.0,hitEnemy.mesh.position.z,`${dmg}`,'#ffffff');
         damageEnemy(hitEnemy, dmg);
       }
+      const {finalX,finalY,lost}=resolveThrowLanding(hitEnemy.x,hitEnemy.y);
       if(!lost) spawnObject('item',finalX,finalY,it.key);
       animLocked=false;
       enemyTurn();
     });
   } else {
-    // 外れ or 何もない：外れた場合はモンスターの足元に落ちる
+    // 外れ or 何もない：外れた場合はモンスターの足元まで直進する。軌道は常にlandX,landY（直線上の到達点）で固定し、
+    // 着地マスが埋まっていた場合の隣接マスへのずらしは飛行が終わってから行う（軌道には影響させない）
     if(hitEnemy && !willHit){
       showAction(`${db.name}は外れた！`,1000);
       landX=hitEnemy.x; landY=hitEnemy.y; // モンスターの足元
     }
-    const {finalX,finalY,lost}=resolveThrowLanding(landX,landY);
     removeFromInv(it);
     renderInventory();updateUI();
-    spawnThrowTrail(state.x*CELL,state.y*CELL,finalX*CELL,finalY*CELL,db,()=>{
+    spawnThrowTrail(state.x*CELL,state.y*CELL,landX*CELL,landY*CELL,db,()=>{
+      const {finalX,finalY,lost}=resolveThrowLanding(landX,landY);
       if(lost){
         showAction('投げたアイテムは床に落ちて使いものにならなくなった…',1500);
       } else {
@@ -5285,8 +5286,7 @@ function shootArrow(){
   updateUI();
 
   if(hitEnemy && willHit){
-    // 命中：ダメージを与えたのち、当たった場所にそのまま落ちる
-    const {finalX,finalY,lost}=resolveThrowLanding(hitEnemy.x,hitEnemy.y);
+    // 命中：軌道は常に直線（命中位置＝直線上の敵の位置）。着地マスの調整は飛行後に行う
     spawnThrowTrail(state.x*CELL,state.y*CELL,hitEnemy.x*CELL,hitEnemy.y*CELL,db,()=>{
       // 命中すれば眠っていても目を覚まし、自機に気づく（遠距離からの命中でも
       // 即座に見失って再び眠ってしまわないよう、最後に見た位置を記憶させる）
@@ -5297,18 +5297,20 @@ function shootArrow(){
       spawnDamageNum(hitEnemy.mesh.position.x,2.0,hitEnemy.mesh.position.z,`${dmg}`,'#ffffff');
       sfxAttack();
       damageEnemy(hitEnemy, dmg);
+      const {finalX,finalY,lost}=resolveThrowLanding(hitEnemy.x,hitEnemy.y);
       if(!lost) spawnObject('item',finalX,finalY,it.key,1);
       animLocked=false;
       enemyTurn();
     });
   } else {
-    // 外れ or 何もない：外れた場合はモンスターの足元に落ちる
+    // 外れ or 何もない：外れた場合はモンスターの足元まで直進する。軌道は常にlandX,landY（直線上の到達点）で固定し、
+    // 着地マスが埋まっていた場合の隣接マスへのずらしは飛行が終わってから行う（軌道には影響させない）
     if(hitEnemy && !willHit){
       showAction('矢は外れた！',1000);
       landX=hitEnemy.x; landY=hitEnemy.y;
     }
-    const {finalX,finalY,lost}=resolveThrowLanding(landX,landY);
-    spawnThrowTrail(state.x*CELL,state.y*CELL,finalX*CELL,finalY*CELL,db,()=>{
+    spawnThrowTrail(state.x*CELL,state.y*CELL,landX*CELL,landY*CELL,db,()=>{
+      const {finalX,finalY,lost}=resolveThrowLanding(landX,landY);
       if(lost){
         showAction('矢は床に落ちて使い物にならなくなった',1500);
       } else {
