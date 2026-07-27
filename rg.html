@@ -4881,6 +4881,7 @@ function moveForward(dash=false){
           sfxAttack();
           playerLunge(tdx,tdz);
           playerAttackSwing();
+          tickConfuseTurn(); // 攻撃が外れても1ターン扱いとして混乱の残りターンを消費する
           updatePlayerPos();updateUI();
           return;
         }
@@ -4923,6 +4924,7 @@ function moveForward(dash=false){
         }
         if(target.hp<=0) damageEnemy(target,0);
       }
+      tickConfuseTurn(); // 攻撃も1ターン扱いとして混乱の残りターンを消費する
       updatePlayerPos();updateUI();
       return;
     } else if(ok(nx,ny)&&!hasEnemy(nx,ny)){
@@ -5514,6 +5516,20 @@ function stepHeal(){
   updateUI();
 }
 
+// 混乱の残りターンだけを消費する（歩数カウント・満腹度には影響しない。攻撃など
+// 「その場で完結する行動」でも移動と同様に1ターン扱いにするために使う）
+function tickConfuseTurn(){
+  if(state.confuse>0){state.confuse--;if(state.confuse===0)showAction('混乱が治った');}
+}
+
+// 混乱時の方向ランダム化で使う。直前と同じ方向が連続して選ばれないよう、
+// 除外方向を除いた7方向から選ぶ（完全な均等ではないが偏りを抑える）
+function randomDirExcluding(excludeDir){
+  let d;
+  do{ d=Math.floor(Math.random()*8); }while(d===excludeDir);
+  return d;
+}
+
 // 方向パッドのアイコン（白抜きの矢印。中身が空洞の線画スタイル）
 function arrowIconSVG(deg){
   return `<svg class="dp-arrow-icon" style="transform:rotate(${deg}deg)" viewBox="0 0 24 24" fill="none"><path d="M12 2 L19 10 L14.5 10 L14.5 22 L9.5 22 L9.5 10 L5 10 Z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></svg>`;
@@ -5808,26 +5824,28 @@ function doWait(){
 function doAttackButton(){
   if(animLocked||isPlayerDown)return;
   if(playerSleepTurns>0){ doWait(); return; }
-  // 混乱中：向いている方向とは関係なく、実際に攻撃が飛ぶ方向が50%の確率で定まらなくなる
-  // （見た目の向きは変えず、攻撃の判定方向だけがランダムになる）
+  // 混乱中：向いている方向とは関係なく、実際に攻撃が飛ぶ方向が50%の確率で定まらなくなる。
+  // 直前と同じ方向が連続で選ばれないようにして偏りを抑える。方向が決まったら、
+  // 通常時と同様にその方向へ向き直ってから攻撃モーションを行う（向きと攻撃方向を一致させる）
   let atkDir=state.dir;
   if(state.confuse>0 && Math.random()<0.5){
-    atkDir=Math.floor(Math.random()*8);
+    atkDir=randomDirExcluding(state.dir);
     showAction('足がもつれた…',700);
   }
+  state.dir=atkDir;
+  state.angle=ANGLE_OF[atkDir];
+  state.targetAngle=state.angle;
   const dx=DIR_DX[atkDir], dy=DIR_DY[atkDir];
   const nx=state.x+dx, ny=state.y+dy;
   if(hasEnemy(nx,ny)){
-    // 前方に敵がいる → moveForwardの攻撃処理に委ねる（向きは攻撃後に元へ戻す）
-    const savedDir=state.dir;
-    state.dir=atkDir;
+    // 前方に敵がいる → moveForwardの攻撃処理に委ねる（混乱ターンの消費もそちらで行う）
     moveForward(false);
-    state.dir=savedDir;
   } else {
     // 空振り（攻撃モーション＋音。敵ターンはアニメ終了後に進む。テキストは出さない）
     sfxSwing();
     playerLunge(dx,dy);
     playerAttackSwing();
+    tickConfuseTurn(); // 攻撃も1ターン扱いとして混乱の残りターンを消費する
   }
 }
 
