@@ -812,9 +812,9 @@ const BEGINNER_FLOOR_MONSTER_POOL={
 const ADVANCED_FLOOR_MONSTER_POOL={
   1:['skeleton_archer','bat'],2:['skeleton_archer','bat'],
   3:['medusa','wizard'],4:['medusa','wizard'],
-  5:['devilape','cyclops','deathknight'],6:['devilape','cyclops','deathknight'],
-  7:['deathknight','lich','cyclops'],8:['deathknight','lich','cyclops'],
-  9:['deathknight','lich','cyclops'],10:['demonlord']
+  5:['devilape','cyclops'],6:['devilape','cyclops'],
+  7:['lich','cyclops'],8:['lich','cyclops'],
+  9:['lich','cyclops'],10:['demonlord']
 };
 // 初級ダンジョンの階層別「部屋数」「出現モンスター数」レンジ（[最小,最大]）。
 // 中級より部屋数・敵数を絞って難易度を下げる
@@ -837,7 +837,7 @@ const DIR_DY=[-1,-1,0,1,1,1,0,-1];
 const state={x:0,y:0,dir:0,angle:-Math.PI/2,targetAngle:-Math.PI/2,actionTimer:0,floor:1,
   hp:15,maxHp:15,str:0,lv:1,exp:0,nextExp:10,stepCount:0,
   food:100,maxFood:100,foodStep:0,gold:0,
-  haste:0,invis:0,confuse:0,inEntrance:false,playTimeMs:0,globalTurnCount:0,
+  haste:0,confuse:0,inEntrance:false,playTimeMs:0,globalTurnCount:0,
   dungeonType:'normal'}; // 'normal'=中級【全10F】 / 'beginner'=初級【全5F】 / 'advanced'=上級【全10F】
 let MAP=[],rooms=[],stairsPos=null,returnPos=null,floorItems=[],explored=[];
 // 自機がいない間に配送予約されたモンスター（floor番号 -> 未出現数）。
@@ -881,7 +881,6 @@ const ITEM_DB={
   powerp:   {name:'ちからの薬',  type:'potion', icon:'🧪', color:'#c0c0c0', effect:{buff:'atk'}},
   lifep:    {name:'命の薬',      type:'potion', icon:'🧪', color:'#c0c0c0', effect:{buff:'maxhp'}},
   speedp:   {name:'すばやさの薬',type:'potion', icon:'🧪', color:'#c0c0c0', effect:{status:'haste'}},
-  invisp:   {name:'透明の薬',    type:'potion', icon:'🧪', color:'#c0c0c0', effect:{status:'invis'}},
   poisonp:  {name:'毒の薬',      type:'potion', icon:'🧪', color:'#c0c0c0', effect:{damage:10}},
   confusep: {name:'混乱の薬',    type:'potion', icon:'🧪', color:'#c0c0c0', effect:{status:'confuse'}},
   sleepp:   {name:'睡眠の薬',    type:'potion', icon:'🧪', color:'#c0c0c0', effect:{status:'sleep'}},
@@ -893,7 +892,6 @@ const ITEM_DB={
   sc_fire:    {name:'炎の巻物',      type:'scroll', icon:'📜', color:'#c0c0c0', effect:{scroll:'fireAll', power:14}},
   sc_teleport:{name:'ワープの巻物',type:'scroll', icon:'📜', color:'#c0c0c0', effect:{scroll:'teleport'}},
   sc_return:  {name:'帰還の巻物',    type:'scroll', icon:'📜', color:'#c0c0c0', effect:{scroll:'return'}},
-  sc_pitfall: {name:'落とし穴の巻物',type:'scroll', icon:'📜', color:'#c0c0c0', effect:{scroll:'pitfall'}},
   sc_confuse: {name:'混乱の巻物',    type:'scroll', icon:'📜', color:'#c0c0c0', effect:{scroll:'confuseAll'}},
   sc_sleep:   {name:'睡眠の巻物',    type:'scroll', icon:'📜', color:'#c0c0c0', effect:{scroll:'sleepAll'}},
   sc_luck:    {name:'幸運の巻物',    type:'scroll', icon:'📜', color:'#c0c0c0', effect:{scroll:'luck'}},
@@ -917,10 +915,10 @@ const ITEM_DB={
 const ITEM_KEYS=Object.keys(ITEM_DB);
 // 床に落ちるアイテム候補（装備は控えめ、消費を多め）
 const FLOOR_ITEM_KEYS=['herb','herb','hiherb','bread','bread','bigbread','badbread',
-  'powerp','lifep','speedp','invisp','poisonp','confusep','sleepp','curep','revivep',
+  'powerp','lifep','speedp','poisonp','confusep','sleepp','curep','revivep',
   'iron','copper','club','woodsh','bronzesh','ironsh','flame','ice','poison','steel','flamesh','poisonsh','steelsh',
   'st_atk','st_fire','st_sleep','st_confuse','st_swap','st_knock','st_seal',
-  'sc_enchant','sc_enchant_shield','sc_fire','sc_teleport','sc_return','sc_pitfall','sc_confuse','sc_sleep','sc_luck','sc_nuke','sc_map','sc_seal',
+  'sc_enchant','sc_enchant_shield','sc_fire','sc_teleport','sc_return','sc_confuse','sc_sleep','sc_luck','sc_nuke','sc_map','sc_seal',
   'arrow_wood','arrow_wood','arrow_wood'];
 // 初級ダンジョンでは武器・盾のドロップをこん棒・銅の剣・木の盾・青銅の盾のみに絞る
 // （それ以外の武器・防具種別は除外し、薬・食料・杖・巻物・矢はそのまま残す）
@@ -1443,8 +1441,7 @@ function setPlayerOpacity(opacity){
 }
 
 function updatePlayerVisibility(){
-  // 透明中は半透明、それ以外は不透明
-  setPlayerOpacity(state.invis>0?0.4:1.0);
+  setPlayerOpacity(1.0);
   updateObjectVisibility();
 }
 
@@ -1779,10 +1776,6 @@ function useScroll(it){
         resetPlayerStatsForEntrance();
         initEntrance();
       }, 'エントランス');
-      break;
-    case 'pitfall':
-      if(state.floor>=10){ showAction('これ以上は落ちられない…',1200); break; }
-      state.floor++; showAction('床が抜けて落下した！',1500); setLog(`${state.floor}F`); initFloor(state.floor);
       break;
     case 'confuseAll':
       if(visEnemies.length===0){ showAction('何も起きなかった…',1000); break; }
@@ -3282,7 +3275,7 @@ function resetFullGameState(){
     x:0,y:0,dir:0,angle:-Math.PI/2,targetAngle:-Math.PI/2,actionTimer:0,floor:1,
     hp:15,maxHp:15,str:0,lv:1,exp:0,nextExp:10,stepCount:0,
     food:100,maxFood:100,foodStep:0,gold:0,
-    haste:0,invis:0,confuse:0,inEntrance:false,playTimeMs:0,globalTurnCount:0,
+    haste:0,confuse:0,inEntrance:false,playTimeMs:0,globalTurnCount:0,
     dungeonType:'normal'
   });
   inventory.length=0;
@@ -3455,10 +3448,10 @@ function hideDialogue(){
 dialogueBox.addEventListener('click',hideDialogue);
 dialogueBox.addEventListener('touchstart',e=>{e.preventDefault();hideDialogue();},{passive:false});
 
-// 会話中のNPCから自機が離れたら自動でウィンドウを閉じる
+// 会話中のNPCから自機が離れたら自動でウィンドウを閉じる（斜め隣接も含めた8方向の隣接判定）
 function checkDialogueDistance(){
   if(!activeDialogueNPC)return;
-  const d=Math.abs(state.x-activeDialogueNPC.x)+Math.abs(state.y-activeDialogueNPC.y);
+  const d=Math.max(Math.abs(state.x-activeDialogueNPC.x),Math.abs(state.y-activeDialogueNPC.y));
   if(d>1) hideDialogue();
 }
 
@@ -3579,7 +3572,6 @@ function applyPotionToPlayer(eff, name){
   else if(eff.buff==='atk'){ state.str=(state.str||0)+1; showAction(`${n}を飲んだ。ちからが上がった！`); }
   else if(eff.buff==='maxhp'){ state.maxHp+=10; state.hp+=10; showAction(`${n}を飲んだ。最大HPが増えた！`); }
   else if(eff.status==='haste'){ state.haste=15; state._hasteToggle=false; showAction(`${n}を飲んだ。素早くなった！`); }
-  else if(eff.status==='invis'){ state.invis=15; showAction(`${n}を飲んだ。透明になった！`); }
   else if(eff.status==='confuse'){ state.confuse=8; showAction(`${n}を飲んだ。混乱した！`); }
   else if(eff.status==='sleep'){ showAction(`${n}を飲んだ。眠ってしまった…`); sleepPlayer(5); }
   else if(eff.cure){ state.confuse=0; showAction(`${n}を飲んだ。状態異常が治った！`); }
@@ -3750,7 +3742,7 @@ function resetPlayerStatsForEntrance(){
   state.lv=1; state.exp=0; state.nextExp=10;
   state.hp=15; state.maxHp=15; state.str=0;
   state.food=100; state.maxFood=100; state.foodStep=0; state.stepCount=0;
-  state.haste=0; state.invis=0; state.confuse=0;
+  state.haste=0; state.confuse=0;
   playerSleepTurns=0;
   // 金貨・持ち物（inventory）・装備・倉庫はそのまま維持
 }
@@ -3985,8 +3977,7 @@ function drawSleepMarks(){
     octx.restore();
   }
   // 眠っている敵（睡眠状態 or まだ気づいていない＝寝ている。徘徊個体は起きて歩いているので対象外）
-  // ただし自機が透明化中は、透明ゆえに気づいていないだけなので「寝ている」表示は出さない
-  enemies.forEach(e=>{ if(e.hp>0&&(e.sleep>0||(!e.aware&&!e.wandering&&state.invis<=0))&&e.mesh.visible) drawZ(e.mesh.position.x,2.2,e.mesh.position.z); });
+  enemies.forEach(e=>{ if(e.hp>0&&(e.sleep>0||(!e.aware&&!e.wandering))&&e.mesh.visible) drawZ(e.mesh.position.x,2.2,e.mesh.position.z); });
   // 眠っているプレイヤー
   if(playerSleepTurns>0) drawZ(playerGroup.position.x,2.6,playerGroup.position.z);
 }
@@ -4573,8 +4564,6 @@ function enemyTurn(){
     if(e.hp<=0)return;
     // 敵が睡眠中はスキップ
     if(e.sleep>0){ e.sleep--; return; }
-    // 透明中のプレイヤーには気づかない。その場で眠るのではなく適当に徘徊させる
-    if(state.invis>0){ e.aware=false; wanderStep(e); return; }
     // 気づき判定：視界範囲内かつ壁に遮られていなければプレイヤーを発見する
     // （ゾンビ・ゴーレム等の鈍い敵は隣接時のみ、それ以外は6〜8マス程度の視界を持つ）
     const sightRange=e.type==='dull'?1:7;
@@ -5262,8 +5251,7 @@ function throwItem(it){
         spawnDamageNum(hitEnemy.mesh.position.x,2.0,hitEnemy.mesh.position.z,`${dmg}`,'#ffffff');
         damageEnemy(hitEnemy, dmg);
       }
-      const {finalX,finalY,lost}=resolveThrowLanding(hitEnemy.x,hitEnemy.y);
-      if(!lost) spawnObject('item',finalX,finalY,it.key);
+      // 命中した場合はアイテムを消費する（外れた場合のみ床に落ちる）
       animLocked=false;
       enemyTurn();
     });
@@ -5334,8 +5322,7 @@ function shootArrow(){
       spawnDamageNum(hitEnemy.mesh.position.x,2.0,hitEnemy.mesh.position.z,`${dmg}`,'#ffffff');
       sfxAttack();
       damageEnemy(hitEnemy, dmg);
-      const {finalX,finalY,lost}=resolveThrowLanding(hitEnemy.x,hitEnemy.y);
-      if(!lost) spawnObject('item',finalX,finalY,it.key,1);
+      // 命中した場合は矢を消費する（外れた場合のみ床に落ちる）
       animLocked=false;
       enemyTurn();
     });
@@ -5511,7 +5498,6 @@ function stepHeal(){
   }
   // 状態異常・バフのターン経過
   if(state.haste>0)state.haste--;
-  if(state.invis>0){state.invis--;if(state.invis===0)showAction('透明が切れた');}
   if(state.confuse>0){state.confuse--;if(state.confuse===0)showAction('混乱が治った');}
   updateUI();
 }
@@ -5706,9 +5692,10 @@ const WAIT_INTERVAL=Math.round(DASH_INTERVAL/1.2); // 待機の連打間隔(ms)�
 
 // 確認ダイアログ等の操作を止める系モーダルが開いているか（開いている間は移動キー押しっぱなしでも先に進ませない）
 function isBlockingModalOpen(){
+  // 会話ダイアログはここに含めない：NPCから離れる移動でcheckDialogueDistance()が
+  // 自動で閉じられるようにするため、開いている間も移動そのものは受け付ける
   return confirmModal.classList.contains('show') ||
     dungeonSelectModal.classList.contains('show') ||
-    dialogueBox.classList.contains('show') ||
     invModal.classList.contains('show') ||
     actionModal.classList.contains('show') ||
     underfootModal.classList.contains('show') ||
