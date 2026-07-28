@@ -1982,21 +1982,43 @@ function buildItemMesh(g, itemType){
     vox(0.12,0.05,0.12, GRAY,  0,0.45,0, g); // コルク
     vox(0.12,0.1,0.12,  LIGHTGREEN, 0,0.18,0, g); // 液体ハイライト
   } else if(itemType==='scroll'){
-    // 巻物：羊皮紙（横長・両端がクルッと巻かれた形）
-    const PAPER=0xf0e8d0, ROLL=0xd8c8a0, RIBBON=0xc04040;
-    // 中央の紙面（横長・寝かせ気味）
-    vox(0.5,0.28,0.06, PAPER, 0,0.2,0, g);
-    // 左の巻き（円柱風に太く）
-    vox(0.12,0.34,0.14, ROLL, -0.28,0.2,0, g);
-    vox(0.08,0.34,0.1,  0xc0b088, -0.32,0.2,0, g);
-    // 右の巻き
-    vox(0.12,0.34,0.14, ROLL,  0.28,0.2,0, g);
-    vox(0.08,0.34,0.1,  0xc0b088,  0.32,0.2,0, g);
-    // 赤いリボン（中央に横帯）
-    vox(0.54,0.06,0.08, RIBBON, 0,0.2,0.01, g);
-    // 文字っぽい線
-    vox(0.3,0.02,0.02, 0x907040, 0,0.28,0.04, g);
-    vox(0.3,0.02,0.02, 0x907040, 0,0.13,0.04, g);
+    // 巻物：紙が主体。A4コピー用紙のように大きく平らな紙面に文字を書き、
+    // 左右の端だけ紙全体の1〜1.5割ほど軽く一度巻いた程度にする（太い円柱状にはしない）。
+    // 一段大きめに作り、マスに対してわずかに斜めに置く
+    const pg=new THREE.Group();
+    const PAPER=0xd9c496, TEXT=0x8a7355;
+    const THICK=0.02, CY=0.06, H=0.34;
+    const flatW=0.4; // 紙面の平らな中央部分（全体の約7〜8割）
+    const curlR=0.045; // 端の軽い巻き（半径小さめ、太い軸にしない）
+    // 中央の平らな紙面
+    vox(flatW,H,THICK, PAPER, 0,CY,0, pg);
+    // 紙面に文字らしき暗色の帯を並べる（表面にわずかに浮かせる）
+    const tz=THICK/2+0.004;
+    const textRows=[
+      {y:CY+0.11, marks:[[-0.12,0.09],[0.04,0.07]]},
+      {y:CY+0.04, marks:[[-0.14,0.05],[-0.04,0.05],[0.08,0.08]]},
+      {y:CY-0.04, marks:[[-0.12,0.09],[0.05,0.07]]},
+      {y:CY-0.11, marks:[[-0.14,0.05],[-0.02,0.06]]},
+    ];
+    textRows.forEach(row=>{
+      row.marks.forEach(([mx,mw])=>{
+        vox(mw,0.03,0.01, TEXT, mx,row.y,tz, pg);
+      });
+    });
+    // 左右の端を軽く一度だけ巻く（紙面と同じ色の、開いた薄い円弧で「めくれ」を表現）
+    const curlMat=new THREE.MeshLambertMaterial({color:PAPER, side:THREE.DoubleSide});
+    const curlGeo=new THREE.CylinderGeometry(curlR,curlR,H,10,1,true,Math.PI*0.5,Math.PI*1.15);
+    const leftCurl=new THREE.Mesh(curlGeo, curlMat);
+    leftCurl.position.set(-flatW/2-curlR*0.3, CY, -curlR*0.6);
+    pg.add(leftCurl);
+    const rightCurl=new THREE.Mesh(curlGeo, curlMat);
+    rightCurl.rotation.y=Math.PI;
+    rightCurl.position.set(flatW/2+curlR*0.3, CY, -curlR*0.6);
+    pg.add(rightCurl);
+    // ひとまわり大きく、マス目に対して少し斜めに配置する
+    pg.scale.set(1.25,1.25,1.25);
+    pg.rotation.z=-0.22;
+    g.add(pg);
   } else if(itemType==='food'){
     // パン：スフィアを潰して細長い楕円形に（コッペパン風、こんがり茶色）
     const loaf=new THREE.Mesh(
