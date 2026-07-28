@@ -1983,13 +1983,15 @@ function buildItemMesh(g, itemType){
     vox(0.12,0.1,0.12,  LIGHTGREEN, 0,0.18,0, g); // 液体ハイライト
   } else if(itemType==='scroll'){
     // 巻物：紙が主体。A4コピー用紙のように大きく平らな紙面に文字を書き、
-    // 左右の端だけ紙全体の1〜1.5割ほど軽く一度巻いた程度にする（太い円柱状にはしない）
+    // 左右の端だけ紙全体の1〜1.5割ほど軽く一度巻いた程度にする（太い円柱状にはしない）。
+    // 一段大きめに作り、マスに対してわずかに斜めに置く
+    const pg=new THREE.Group();
     const PAPER=0xd9c496, TEXT=0x8a7355;
     const THICK=0.02, CY=0.06, H=0.34;
     const flatW=0.4; // 紙面の平らな中央部分（全体の約7〜8割）
     const curlR=0.045; // 端の軽い巻き（半径小さめ、太い軸にしない）
     // 中央の平らな紙面
-    vox(flatW,H,THICK, PAPER, 0,CY,0, g);
+    vox(flatW,H,THICK, PAPER, 0,CY,0, pg);
     // 紙面に文字らしき暗色の帯を並べる（表面にわずかに浮かせる）
     const tz=THICK/2+0.004;
     const textRows=[
@@ -2000,7 +2002,7 @@ function buildItemMesh(g, itemType){
     ];
     textRows.forEach(row=>{
       row.marks.forEach(([mx,mw])=>{
-        vox(mw,0.03,0.01, TEXT, mx,row.y,tz, g);
+        vox(mw,0.03,0.01, TEXT, mx,row.y,tz, pg);
       });
     });
     // 左右の端を軽く一度だけ巻く（紙面と同じ色の、開いた薄い円弧で「めくれ」を表現）
@@ -2008,11 +2010,15 @@ function buildItemMesh(g, itemType){
     const curlGeo=new THREE.CylinderGeometry(curlR,curlR,H,10,1,true,Math.PI*0.5,Math.PI*1.15);
     const leftCurl=new THREE.Mesh(curlGeo, curlMat);
     leftCurl.position.set(-flatW/2-curlR*0.3, CY, -curlR*0.6);
-    g.add(leftCurl);
+    pg.add(leftCurl);
     const rightCurl=new THREE.Mesh(curlGeo, curlMat);
     rightCurl.rotation.y=Math.PI;
     rightCurl.position.set(flatW/2+curlR*0.3, CY, -curlR*0.6);
-    g.add(rightCurl);
+    pg.add(rightCurl);
+    // ひとまわり大きく、マス目に対して少し斜めに配置する
+    pg.scale.set(1.25,1.25,1.25);
+    pg.rotation.z=-0.22;
+    g.add(pg);
   } else if(itemType==='food'){
     // パン：スフィアを潰して細長い楕円形に（コッペパン風、こんがり茶色）
     const loaf=new THREE.Mesh(
