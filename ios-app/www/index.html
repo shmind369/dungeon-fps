@@ -1044,6 +1044,31 @@ function sfxHit(){
   src.start(now); src.stop(now+0.08);
 }
 
+// 杖の光弾がモンスターに命中した時の軽い爆発音（全杖共通）：低音の短い「ドンッ」＋弾けるノイズ
+function sfxWandHit(){
+  const ctx=getAudioCtx(); if(!ctx)return;
+  const now=ctx.currentTime;
+  const osc=ctx.createOscillator(); osc.type='sine';
+  osc.frequency.setValueAtTime(180,now);
+  osc.frequency.exponentialRampToValueAtTime(45,now+0.16);
+  const oGain=ctx.createGain();
+  oGain.gain.setValueAtTime(0.0001,now);
+  oGain.gain.exponentialRampToValueAtTime(0.5,now+0.008);
+  oGain.gain.exponentialRampToValueAtTime(0.0001,now+0.2);
+  osc.connect(oGain); oGain.connect(ctx.destination);
+  osc.start(now); osc.stop(now+0.22);
+  // 弾ける質感のノイズ（ローパスを下げていき爆発の広がりを表現）
+  const src=ctx.createBufferSource(); src.buffer=getNoiseBuffer(ctx);
+  const lp=ctx.createBiquadFilter(); lp.type='lowpass';
+  lp.frequency.setValueAtTime(3500,now);
+  lp.frequency.exponentialRampToValueAtTime(600,now+0.18);
+  const nGain=ctx.createGain();
+  nGain.gain.setValueAtTime(0.4,now);
+  nGain.gain.exponentialRampToValueAtTime(0.0001,now+0.2);
+  src.connect(lp); lp.connect(nGain); nGain.connect(ctx.destination);
+  src.start(now); src.stop(now+0.22);
+}
+
 // 階段の足音「ザッザッザ」：短いノイズバーストを3回
 function sfxStairs(){
   const ctx=getAudioCtx(); if(!ctx)return;
@@ -1925,7 +1950,7 @@ function fireWandBolt(dx,dz,eff,target){
   lt.position.copy(bolt.position);
   const tx=target?target.x*CELL:state.x*CELL+dx*CELL*6;
   const tz=target?target.y*CELL:state.y*CELL+dz*CELL*6;
-  wandBolts.push({mesh:bolt,dx,dz,targetX:tx,targetY:tz,dist:0,light:lt});
+  wandBolts.push({mesh:bolt,dx,dz,targetX:tx,targetY:tz,dist:0,light:lt,hit:!!target});
 }
 
 const wandBolts=[];
@@ -1941,6 +1966,7 @@ function updateWandBolts(dt){
                             : (b.dz!==0 ? (b.dz>0?b.mesh.position.z>=b.targetY:b.mesh.position.z<=b.targetY) : true));
     if(reached||b.dist>25){
       triggerFlash('rgba(255,220,80,');
+      if(b.hit) sfxWandHit(); // 杖の光弾がモンスターに命中した時の軽い爆発音（全杖共通）
       releasePooledLight(b.light);
       disposeObject3D(b.mesh);
       scene.remove(b.mesh);
