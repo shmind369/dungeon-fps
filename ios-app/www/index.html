@@ -840,6 +840,8 @@ const state={x:0,y:0,dir:0,angle:-Math.PI/2,targetAngle:-Math.PI/2,actionTimer:0
   haste:0,confuse:0,inEntrance:false,playTimeMs:0,globalTurnCount:0,
   dungeonType:'normal'}; // 'normal'=中級【全10F】 / 'beginner'=初級【全5F】 / 'advanced'=上級【全10F】
 let MAP=[],rooms=[],stairsPos=null,returnPos=null,floorItems=[],explored=[];
+// ボス撃破後にフロア中央へ出現する脱出口（青い光の柱）。入るとダンジョンクリアになる
+let exitPortalPos=null,exitPortalAnim=null;
 // 自機がいない間に配送予約されたモンスター（floor番号 -> 未出現数）。
 // 未訪問フロアはシミュレートされないため、実際の生成はそのフロアへ次に入った時に行う
 let pendingFloorSpawns={};
@@ -1749,7 +1751,7 @@ function useScroll(it){
       if(visEnemies.length===0){ showAction('何も起きなかった…',1000); break; }
       visEnemies.forEach(e=>{
         e.hp-=db.effect.power;
-        spawnDamageNum(e.mesh.position.x,2.0,e.mesh.position.z,`🔥${db.effect.power}`,'#ffffff');
+        spawnDamageNum(e.mesh.position.x,2.0,e.mesh.position.z,`火${db.effect.power}`,'#ffffff');
         if(e.hp<=0)damageEnemy(e,0);
       });
       triggerFlash('rgba(255,100,0,');
@@ -1900,7 +1902,7 @@ function applyWandEffect(eff,e,wdx,wdz){
       break;
     case 'fire':
       e.hp-=eff.power;
-      spawnDamageNum(e.mesh.position.x,2.0,e.mesh.position.z,`🔥${eff.power}`,'#ffffff');
+      spawnDamageNum(e.mesh.position.x,2.0,e.mesh.position.z,`火${eff.power}`,'#ffffff');
       if(e.hp<=0)damageEnemy(e,0);
       break;
     case 'sleep':
@@ -2718,6 +2720,30 @@ function spawnObject(type,gx,gy,arg,count){
     mesh.position.set(wx,0.1,wz);
     mesh.userData={gx,gy};
     const lt=new THREE.PointLight(0x4080ff,2,4);lt.position.set(wx,1,wz);scene.add(lt);
+  } else if(type==='exitportal'){
+    // ボス撃破後の脱出口：青い光の柱を床から立てる
+    mesh=new THREE.Group();
+    const core=new THREE.Mesh(
+      new THREE.CylinderGeometry(0.12,0.12,3.2,12),
+      new THREE.MeshBasicMaterial({color:0x90d0ff})
+    );
+    core.position.y=1.6;
+    mesh.add(core);
+    const glow=new THREE.Mesh(
+      new THREE.CylinderGeometry(0.4,0.4,3.2,16),
+      new THREE.MeshBasicMaterial({color:0x2080ff,transparent:true,opacity:0.35,blending:THREE.AdditiveBlending,depthWrite:false})
+    );
+    glow.position.y=1.6;
+    mesh.add(glow);
+    const ring=new THREE.Mesh(
+      new THREE.CylinderGeometry(0.7,0.8,0.15,16),
+      new THREE.MeshLambertMaterial({color:0x2080ff,emissive:0x1040a0})
+    );
+    ring.position.y=0.08;
+    mesh.add(ring);
+    mesh.position.set(wx,0,wz);
+    const plt=new THREE.PointLight(0x4090ff,3,6);plt.position.set(wx,1.4,wz);scene.add(plt);
+    exitPortalAnim={core,glow,light:plt};
   } else if(type==='item'){
     const itemPool=DUNGEON_ITEM_POOLS[state.dungeonType]||FLOOR_ITEM_KEYS;
     const key=arg||itemPool[Math.floor(Math.random()*itemPool.length)];
@@ -2828,7 +2854,7 @@ function spawnObject(type,gx,gy,arg,count){
 function initEntrance(){
   stopBGM();
   state.inEntrance=true;
-  stairsPos=null; returnPos=null;
+  stairsPos=null; returnPos=null; exitPortalPos=null; exitPortalAnim=null;
   floorTurnCount=0; updateTurnCounterDisplay();
   const keep=new Set([playerGroup,playerLight,fillLight,guideLine,...lightPool]);
   const rem=[];scene.children.forEach(c=>{if(!keep.has(c)&&!(c instanceof THREE.AmbientLight))rem.push(c);});
@@ -2951,6 +2977,7 @@ function initFloor(floor){
   state.inEntrance=false;
   state.floor=floor;
   npcList=[];
+  exitPortalPos=null; exitPortalAnim=null;
   floorTurnCount=0; updateTurnCounterDisplay(); // このフロアでのターン数をリセット
   const keep=new Set([playerGroup,playerLight,fillLight,guideLine,...lightPool]);
   const rem=[];scene.children.forEach(c=>{if(!keep.has(c)&&!(c instanceof THREE.AmbientLight))rem.push(c);});
@@ -3614,7 +3641,7 @@ function checkPlayerDeath(){
     if(spectatorMode) aiSpeak(aiPhrase('revive'));
     return false;
   }
-  showAction('力尽きた...💀',3000);
+  showAction('力尽きた...',3000);
   triggerFlash('rgba(180,0,0,');
   animLocked=true;
   isPlayerDown=true;
@@ -3759,7 +3786,7 @@ function checkStepOn(){
     // お金は持ち帰ってエントランスへ）
     if(state.dungeonType==='beginner'&&state.floor>=5){
       showConfirm('初級ダンジョンをクリアしますか？',()=>{
-        showAction('🎉 初級ダンジョンをクリアした！',2400);
+        showAction('初級ダンジョンをクリアした！',2400);
         setLog('CLEAR！');
         sfxItem();
         triggerFlash('rgba(255,215,0,');
@@ -3789,12 +3816,26 @@ function checkStepOn(){
     });
     return;
   }
+  if(exitPortalPos&&state.x===exitPortalPos.x&&state.y===exitPortalPos.y){
+    const isAdvanced=state.dungeonType==='advanced';
+    showConfirm('脱出口に入り、ダンジョンをクリアしますか？',()=>{
+      showAction(isAdvanced?'上級ダンジョンをクリアした！':'中級ダンジョンをクリアした！',2400);
+      setLog('CLEAR！');
+      sfxItem();
+      triggerFlash(isAdvanced?'rgba(180,0,255,':'rgba(255,215,0,');
+      fadeTransition(()=>{
+        resetPlayerStatsForEntrance();
+        initEntrance();
+      }, isAdvanced?'✧ ADVANCED DUNGEON CLEAR ✧':'✧ DUNGEON CLEAR ✧');
+    });
+    return;
+  }
   // ダッシュモード中は床のアイテム・金貨を拾わないが、何の上に乗ったかは名前を表示する
   if(dashMode){
     const it=floorItems.find(i=>i.x===state.x&&i.y===state.y);
     if(it){
       if(it.key==='gold'){
-        showAction(`${it.gold}💰`,900);
+        showAction(`${it.gold} ゴールド`,900);
       } else if(it.key==='arrow_wood'){
         showAction(`${ITEM_DB[it.key].name} x${it.count}`,900);
       } else {
@@ -3808,7 +3849,7 @@ function checkStepOn(){
     if(item.key==='gold'){
       // 金貨を拾う
       state.gold+=item.gold;
-      showAction(`${item.gold}💰 拾った！`,1200);
+      showAction(`${item.gold} ゴールド 拾った！`,1200);
       sfxItem();
       scene.remove(item.mesh);
       if(item.light)releasePooledLight(item.light);
@@ -4348,7 +4389,7 @@ function fireDragonBreath(e,dx,dz,dmg){
   if(shEff&&shEff.resist==='magic') mdmg=Math.max(1,Math.round(mdmg*0.5));
   state.hp=Math.max(0,state.hp-mdmg);
   sfxHit();
-  spawnDamageNum(state.x*CELL,1.5,state.y*CELL,`🔥${mdmg}`,'#ffffff');
+  spawnDamageNum(state.x*CELL,1.5,state.y*CELL,`火${mdmg}`,'#ffffff');
   showAction(`ドラゴンの炎！ ${mdmg}ダメージ`,1000);
   updateUI();
   checkPlayerDeath();
@@ -4887,7 +4928,7 @@ function moveForward(dash=false){
           const extra=Math.round(dmg*0.5);
           target.hp-=extra;
           triggerFlash('rgba(255,100,0,');
-          spawnDamageNum(target.mesh.position.x,2.6,target.mesh.position.z,`🔥${extra}`,'#ffffff');
+          spawnDamageNum(target.mesh.position.x,2.6,target.mesh.position.z,`火${extra}`,'#ffffff');
         } else if(wpEff&&wpEff.onhit==='sleep'&&Math.random()<0.035){
           target.sleep=(target.sleep||0)+5;
           triggerFlash('rgba(120,180,255,');
@@ -5148,7 +5189,7 @@ function doAction(act){
     }
 
   } else if(act==='throw'){
-    if(db.type==='arrow'){ showAction('矢は🏹ボタンで放ってください',1200); closeActionMenu(); return; }
+    if(db.type==='arrow'){ showAction('矢は弓矢ボタンで放ってください',1200); closeActionMenu(); return; }
     closeActionMenu(); closeInventory();
     throwItem(it);
 
@@ -5378,6 +5419,22 @@ function updateThrowBolts(dt){
   }
 }
 
+// ボス撃破後、フロア中央（10Fはボス部屋＝rooms[0]が唯一の部屋なのでその中心）に脱出口を出現させる
+function spawnExitPortal(){
+  const room=rooms[0];
+  exitPortalPos={x:room.cx,y:room.cy};
+  spawnObject('exitportal',exitPortalPos.x,exitPortalPos.y);
+}
+
+// 脱出口の光の柱：ゆっくり回転させつつ、光量を脈動させる
+function updateExitPortal(dt){
+  if(!exitPortalAnim)return;
+  exitPortalAnim.core.rotation.y+=dt*1.5;
+  exitPortalAnim.glow.rotation.y-=dt*0.8;
+  const pulse=0.5+0.5*Math.sin(performance.now()/300);
+  exitPortalAnim.light.intensity=2+pulse*1.5;
+}
+
 // awardExp=falseの場合は自機の功績としてカウントしない（敵の攻撃が別の敵を倒した場合など）
 function damageEnemy(en, dmg, awardExp=true){
   en.hp-=dmg;
@@ -5385,41 +5442,28 @@ function damageEnemy(en, dmg, awardExp=true){
     scene.remove(en.mesh);
     enemies.splice(enemies.indexOf(en),1);
     const name=MONSTER_DB[en.monType]?MONSTER_DB[en.monType].name:'敵';
-    // ゲームクリア（ドラゴン撃破）
+    // ボス撃破（ドラゴン）：即座にクリアとはせず、フロア中央に脱出口を出現させる。
+    // そこへ自分の足で歩いて入って初めてダンジョンクリアとする
     if(en.monType==='dragon'){
-      showAction('🐉 ドラゴンを倒した！ゲームクリア！！',4000);
-      setLog('GAME CLEAR！');
+      showAction('ドラゴンを倒した！ フロア中央に脱出口が現れた！',3000);
+      setLog('BOSS DEFEATED！');
       triggerFlash('rgba(255,215,0,');
       sfxItem();
-      if(spectatorMode) aiSpeak('The Dragon is defeated! Game clear!');
-      // クリア演出のあと、アイテム・お金は持ち帰ってエントランスへ（Lv・ステータスはリセット）
-      animLocked=true;
-      setTimeout(()=>{
-        fadeTransition(()=>{
-          resetPlayerStatsForEntrance();
-          initEntrance();
-          animLocked=false;
-        }, '✧ GAME CLEAR ✧');
-      }, 2600);
+      if(spectatorMode) aiSpeak('The Dragon is defeated! An exit portal has appeared!');
+      spawnExitPortal();
       return;
     }
-    // ゲームクリア（魔王撃破・上級ダンジョン）：討伐報酬として聖なる盾を入手させる
+    // ボス撃破（魔王・上級ダンジョン）：討伐報酬として聖なる盾を入手させ、
+    // ドラゴンと同様に脱出口を出現させる
     if(en.monType==='demonlord'){
       if(inventory.length<MAX_INV) inventory.push(makeItem('holysh'));
       else spawnObject('item',en.x,en.y,'holysh');
-      showAction('👹 魔王を倒した！上級ダンジョンクリア！！ 聖なる盾を手に入れた！',4000);
-      setLog('GAME CLEAR！');
+      showAction('魔王を倒した！ 聖なる盾を手に入れた！ フロア中央に脱出口が現れた！',3000);
+      setLog('BOSS DEFEATED！');
       triggerFlash('rgba(180,0,255,');
       sfxItem();
-      if(spectatorMode) aiSpeak('The Demon Lord is defeated! Game clear!');
-      animLocked=true;
-      setTimeout(()=>{
-        fadeTransition(()=>{
-          resetPlayerStatsForEntrance();
-          initEntrance();
-          animLocked=false;
-        }, '✧ GAME CLEAR ✧');
-      }, 2600);
+      if(spectatorMode) aiSpeak('The Demon Lord is defeated! An exit portal has appeared!');
+      spawnExitPortal();
       return;
     }
     if(awardExp){
@@ -5574,7 +5618,7 @@ document.getElementById('inv-underfoot').onclick=()=>{
     if(it.key==='gold'){
       // 金貨は拾うだけ
       state.gold+=it.gold;
-      showAction(`${it.gold}💰 拾った！`,1200);
+      showAction(`${it.gold} ゴールド 拾った！`,1200);
       sfxItem();
       scene.remove(it.mesh);
       if(it.light)releasePooledLight(it.light);
@@ -6039,7 +6083,7 @@ function animate(){
   if(!document.hidden && dt<1){ state.playTimeMs+=dt*1000; }
   updateDeathAnim();
   updateDashBob();
-  updatePlayerSmooth(dt);updatePlayerAngleSmooth(dt);updateWalkCycle(dt);updateEnemiesSmooth(dt);if(window._turnDragging)updateHighlight(true);updateCamera();updateAnims(dt);updateMagicBolts(dt);updateWandBolts(dt);updateThrowBolts(dt);updateDragonFlames(dt);updatePlayerVisibility();renderer.render(scene,camera);drawOverlay();drawFlash();drawFloatingNums();drawSleepMarks();drawConfuseMarks();drawHasteMark();drawMinimap();
+  updatePlayerSmooth(dt);updatePlayerAngleSmooth(dt);updateWalkCycle(dt);updateEnemiesSmooth(dt);if(window._turnDragging)updateHighlight(true);updateCamera();updateAnims(dt);updateMagicBolts(dt);updateWandBolts(dt);updateThrowBolts(dt);updateDragonFlames(dt);updateExitPortal(dt);updatePlayerVisibility();renderer.render(scene,camera);drawOverlay();drawFlash();drawFloatingNums();drawSleepMarks();drawConfuseMarks();drawHasteMark();drawMinimap();
 }
 
 // 死亡演出：自機がその場でバタッと倒れる（X軸回転）
