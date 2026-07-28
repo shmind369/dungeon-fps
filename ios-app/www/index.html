@@ -1111,6 +1111,35 @@ function sfxLevelUp(){
   });
 }
 
+// 巻物使用「シュワッ」：ノイズのバンドパスを素早く上げつつ、高音のきらめきを重ねる
+function sfxScrollActivate(){
+  const ctx=getAudioCtx(); if(!ctx)return;
+  const now=ctx.currentTime;
+  const src=ctx.createBufferSource(); src.buffer=getNoiseBuffer(ctx);
+  const bp=ctx.createBiquadFilter(); bp.type='bandpass';
+  bp.frequency.setValueAtTime(600,now);
+  bp.frequency.exponentialRampToValueAtTime(5000,now+0.16);
+  bp.Q.value=0.9;
+  const gain=ctx.createGain();
+  gain.gain.setValueAtTime(0.0001,now);
+  gain.gain.exponentialRampToValueAtTime(0.35,now+0.02);
+  gain.gain.exponentialRampToValueAtTime(0.0001,now+0.2);
+  src.connect(bp); bp.connect(gain); gain.connect(ctx.destination);
+  src.start(now); src.stop(now+0.22);
+  // キラキラ：高音の短いきらめき2音
+  [[1760,0.02],[2637,0.09]].forEach(([freq,delay])=>{
+    const t=now+delay;
+    const osc=ctx.createOscillator(); osc.type='sine';
+    osc.frequency.setValueAtTime(freq,t);
+    const g2=ctx.createGain();
+    g2.gain.setValueAtTime(0.0001,t);
+    g2.gain.exponentialRampToValueAtTime(0.18,t+0.01);
+    g2.gain.exponentialRampToValueAtTime(0.0001,t+0.15);
+    osc.connect(g2); g2.connect(ctx.destination);
+    osc.start(t); osc.stop(t+0.17);
+  });
+}
+
 // 武器・防具の装備「ジャキ！」：金属質のノイズ＋短い金属共鳴音
 function sfxEquip(){
   const ctx=getAudioCtx(); if(!ctx)return;
@@ -1730,8 +1759,21 @@ function vox(w,h,d,col,x,y,z,grp){
 }
 
 // 巻物を読む（使い切り）
-function useScroll(it){
+// 巻物使用：まず共通エフェクト（魔法陣・自機発光・キラキラ・SE）を再生し、
+// それが終わってから実際の効果を発動する。onDoneは効果発動後（敵ターン開始など）に呼ぶ
+function useScroll(it, onDone){
   const db=ITEM_DB[it.key];
+  playScrollActivateFx(scrollCategoryColor(it.key));
+  // 既存のアニメロック機構（'delay'）に載せて、入力ブロックが他の演出に上書きされないようにする
+  addAnim({type:'delay',mesh:playerGroup,baseX:playerGroup.position.x,baseZ:playerGroup.position.z,dx:0,dz:0,dist:0,duration:200,onEnd:()=>{
+    applyScrollEffect(it, db);
+    removeFromInv(it);
+    updateUI();
+    if(onDone) onDone();
+  }});
+}
+
+function applyScrollEffect(it, db){
   const eff=db.effect.scroll;
   const visEnemies=enemies.filter(e=>e.hp>0&&e.mesh.visible);
   switch(eff){
@@ -1819,8 +1861,6 @@ function useScroll(it){
     default:
       showAction('何も起きなかった…',1000);
   }
-  removeFromInv(it);
-  updateUI();
 }
 
 
@@ -2437,6 +2477,46 @@ function getDollarMarkTexture(){
   const tex=new THREE.CanvasTexture(cv);
   tex.magFilter=THREE.NearestFilter;
   _dollarMarkTexture=tex;
+  return tex;
+}
+
+// 巻物使用時に足元へ表示する魔法陣のテクスチャ（白線・透明背景、色は使用時にmaterial.colorで着色）
+let _magicCircleTexture=null;
+function getMagicCircleTexture(){
+  if(_magicCircleTexture)return _magicCircleTexture;
+  const S=128, cx=S/2, cy=S/2;
+  const cv=document.createElement('canvas');
+  cv.width=S; cv.height=S;
+  const c=cv.getContext('2d');
+  c.clearRect(0,0,S,S);
+  c.strokeStyle='#ffffff';
+  c.lineWidth=2;
+  // 外側と内側の円
+  c.beginPath(); c.arc(cx,cy,58,0,Math.PI*2); c.stroke();
+  c.beginPath(); c.arc(cx,cy,44,0,Math.PI*2); c.stroke();
+  // 内接する六芒星（2つの三角形）
+  const star=(r,rot)=>{
+    c.beginPath();
+    for(let i=0;i<3;i++){
+      const a=rot+i*(Math.PI*2/3)-Math.PI/2;
+      const x=cx+Math.cos(a)*r, y=cy+Math.sin(a)*r;
+      if(i===0) c.moveTo(x,y); else c.lineTo(x,y);
+    }
+    c.closePath(); c.stroke();
+  };
+  star(40,0);
+  star(40,Math.PI);
+  // 外周のルーン風の目盛り
+  c.lineWidth=1.6;
+  for(let i=0;i<12;i++){
+    const a=i*(Math.PI*2/12);
+    const x1=cx+Math.cos(a)*58, y1=cy+Math.sin(a)*58;
+    const x2=cx+Math.cos(a)*66, y2=cy+Math.sin(a)*66;
+    c.beginPath(); c.moveTo(x1,y1); c.lineTo(x2,y2); c.stroke();
+  }
+  const tex=new THREE.CanvasTexture(cv);
+  tex.magFilter=THREE.LinearFilter;
+  _magicCircleTexture=tex;
   return tex;
 }
 
@@ -3939,6 +4019,95 @@ function updateHitParticles(dt){
   }
 }
 
+// ============================================================
+// 巻物使用エフェクト（共通）：魔法陣・自機の発光・上へ舞うキラキラ・SE
+// ============================================================
+// 巻物の種類ごとの分類と色（🟢回復/🟡強化/🔵識別/🟣ワープ・特殊）
+const SCROLL_CATEGORY_COLOR={heal:0x40e060, buff:0xf0c840, identify:0x4080e0, warp:0xa040e0};
+const SCROLL_CATEGORY={
+  sc_enchant:'buff', sc_enchant_shield:'buff', sc_luck:'buff',
+  sc_map:'identify',
+  sc_teleport:'warp', sc_return:'warp', sc_fire:'warp', sc_confuse:'warp', sc_sleep:'warp', sc_seal:'warp', sc_nuke:'warp',
+};
+function scrollCategoryColor(key){
+  return SCROLL_CATEGORY_COLOR[SCROLL_CATEGORY[key]] || 0xffffff;
+}
+
+// 足元の魔法陣（0.2秒表示してフェードアウト）
+let magicCircleFx=null;
+function spawnMagicCircle(wx,wz,colorHex){
+  if(magicCircleFx){ scene.remove(magicCircleFx.mesh); disposeObject3D(magicCircleFx.mesh); }
+  const geo=new THREE.PlaneGeometry(1.6,1.6);
+  const mat=new THREE.MeshBasicMaterial({
+    map:getMagicCircleTexture(), color:colorHex, transparent:true,
+    opacity:0.9, blending:THREE.AdditiveBlending, depthWrite:false
+  });
+  const mesh=new THREE.Mesh(geo,mat);
+  mesh.rotation.x=-Math.PI/2;
+  mesh.position.set(wx,0.05,wz);
+  scene.add(mesh);
+  magicCircleFx={mesh,startTime:performance.now(),duration:200};
+}
+function updateMagicCircle(){
+  if(!magicCircleFx)return;
+  const t=(performance.now()-magicCircleFx.startTime)/magicCircleFx.duration;
+  if(t>=1){
+    scene.remove(magicCircleFx.mesh);
+    disposeObject3D(magicCircleFx.mesh);
+    magicCircleFx=null;
+    return;
+  }
+  magicCircleFx.mesh.material.opacity=0.9*(1-t);
+  magicCircleFx.mesh.rotation.z=t*Math.PI*0.6;
+}
+
+// 自機全身の瞬間発光
+function flashPlayerBody(colorHex){
+  playerParts.forEach(p=>{ p.material.emissive.setHex(colorHex); });
+  setTimeout(()=>{ playerParts.forEach(p=>{ p.material.emissive.setHex(0x000000); }); }, 220);
+}
+
+// 上へ舞うキラキラ
+const scrollSparkles=[];
+function spawnScrollSparkles(wx,wz,colorHex){
+  const geo=new THREE.SphereGeometry(0.06,4,4);
+  for(let i=0;i<14;i++){
+    const mat=new THREE.MeshBasicMaterial({color:colorHex});
+    const p=new THREE.Mesh(geo,mat);
+    const angle=Math.random()*Math.PI*2;
+    const r=Math.random()*0.5;
+    p.position.set(wx+Math.cos(angle)*r,0.1+Math.random()*0.3,wz+Math.sin(angle)*r);
+    p.userData.vx=Math.cos(angle)*0.25;
+    p.userData.vz=Math.sin(angle)*0.25;
+    p.userData.vy=1.0+Math.random()*0.8;
+    p.userData.life=0;
+    scene.add(p);
+    scrollSparkles.push(p);
+  }
+}
+function updateScrollSparkles(dt){
+  for(let i=scrollSparkles.length-1;i>=0;i--){
+    const p=scrollSparkles[i];
+    p.userData.life+=dt;
+    p.position.x+=p.userData.vx*dt;
+    p.position.y+=p.userData.vy*dt;
+    p.position.z+=p.userData.vz*dt;
+    p.userData.vy-=dt*0.6; // 上昇しつつ徐々に減速
+    p.material.opacity=Math.max(0,1-p.userData.life/0.7);
+    p.material.transparent=true;
+    if(p.userData.life>0.7){scene.remove(p);scrollSparkles.splice(i,1);}
+  }
+}
+
+// 魔法陣・発光・キラキラ・SEをまとめて再生する
+function playScrollActivateFx(colorHex){
+  const wx=state.x*CELL, wz=state.y*CELL;
+  spawnMagicCircle(wx,wz,colorHex);
+  flashPlayerBody(colorHex);
+  spawnScrollSparkles(wx,wz,colorHex);
+  sfxScrollActivate();
+}
+
 // 画面フラッシュ
 let flashEffect={active:false,startTime:0,duration:0,color:'rgba(255,60,60,'};
 function triggerFlash(color='rgba(255,60,60,'){
@@ -5156,8 +5325,7 @@ function doAction(act){
       return;
     } else if(db.type==='scroll'){
       closeActionMenu(); closeInventory();
-      useScroll(it);
-      enemyTurn();
+      useScroll(it, enemyTurn);
       return;
     } else if(db.type==='armor'||db.type==='shield'){
       if(it.equipped){ it.equipped=false; equippedArmor=null; showAction('防具をはずした'); }
@@ -6093,7 +6261,7 @@ function animate(){
   if(!document.hidden && dt<1){ state.playTimeMs+=dt*1000; }
   updateDeathAnim();
   updateDashBob();
-  updatePlayerSmooth(dt);updatePlayerAngleSmooth(dt);updateWalkCycle(dt);updateEnemiesSmooth(dt);if(window._turnDragging)updateHighlight(true);updateCamera();updateAnims(dt);updateMagicBolts(dt);updateWandBolts(dt);updateThrowBolts(dt);updateDragonFlames(dt);updateExitPortal(dt);updatePlayerVisibility();renderer.render(scene,camera);drawOverlay();drawFlash();drawFloatingNums();drawSleepMarks();drawConfuseMarks();drawHasteMark();drawMinimap();
+  updatePlayerSmooth(dt);updatePlayerAngleSmooth(dt);updateWalkCycle(dt);updateEnemiesSmooth(dt);if(window._turnDragging)updateHighlight(true);updateCamera();updateAnims(dt);updateMagicBolts(dt);updateWandBolts(dt);updateThrowBolts(dt);updateDragonFlames(dt);updateExitPortal(dt);updateMagicCircle();updateScrollSparkles(dt);updatePlayerVisibility();renderer.render(scene,camera);drawOverlay();drawFlash();drawFloatingNums();drawSleepMarks();drawConfuseMarks();drawHasteMark();drawMinimap();
 }
 
 // 死亡演出：自機がその場でバタッと倒れる（X軸回転）
