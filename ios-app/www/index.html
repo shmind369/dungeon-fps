@@ -1189,6 +1189,25 @@ function sfxDrink(){
   src.start(now); src.stop(now+0.11);
 }
 
+// パンを食べる「モグモグ」：柔らかく噛む音を2回
+function sfxEat(){
+  const ctx=getAudioCtx(); if(!ctx)return;
+  const now=ctx.currentTime;
+  [0,0.14].forEach(delay=>{
+    const t=now+delay;
+    const src=ctx.createBufferSource(); src.buffer=getNoiseBuffer(ctx);
+    const lp=ctx.createBiquadFilter(); lp.type='lowpass';
+    lp.frequency.setValueAtTime(1800,t);
+    lp.frequency.exponentialRampToValueAtTime(500,t+0.09);
+    const gain=ctx.createGain();
+    gain.gain.setValueAtTime(0.0001,t);
+    gain.gain.exponentialRampToValueAtTime(0.3,t+0.015);
+    gain.gain.exponentialRampToValueAtTime(0.0001,t+0.11);
+    src.connect(lp); lp.connect(gain); gain.connect(ctx.destination);
+    src.start(t); src.stop(t+0.12);
+  });
+}
+
 // 武器・防具の装備「ジャキ！」：金属質のノイズ＋短い金属共鳴音
 function sfxEquip(){
   const ctx=getAudioCtx(); if(!ctx)return;
@@ -5388,6 +5407,7 @@ function doAction(act){
     } else if(db.type==='food'){
       // 食べ物：満腹度を回復（くさったパンはHPダメージも）
       closeActionMenu(); closeInventory();
+      sfxEat();
       const fill=db.effect.food||30;
       state.food=Math.min(state.maxFood,state.food+fill);
       if(db.effect.damage){
