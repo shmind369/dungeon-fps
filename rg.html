@@ -1982,35 +1982,24 @@ function buildItemMesh(g, itemType){
     vox(0.12,0.05,0.12, GRAY,  0,0.45,0, g); // コルク
     vox(0.12,0.1,0.12,  LIGHTGREEN, 0,0.18,0, g); // 液体ハイライト
   } else if(itemType==='scroll'){
-    // 巻物：全体を統一感のある羊皮紙色にし、両端は面取りされた丸め紙筒（低ポリ円柱）、
-    // 紙面には文字らしき小さな暗色の帯を並べる（参考画像のボクセル巻物を再現）
-    const PAPER=0xd9c496, ROLL=0xe2cf9e, TEXT=0x8a7355;
-    const THICK=0.05, CY=0.2;
-    // 中央の紙面
-    vox(0.44,0.26,THICK, PAPER, 0,CY,0, g);
+    // 巻物：軸（丸め紙筒）は廃止し、床にペラッと薄く広げて置かれた紙のような見た目にする
+    const PAPER=0xd9c496, TEXT=0x8a7355;
+    const THICK=0.02, CY=0.06;
+    // 紙面（薄く平ら）
+    vox(0.5,0.34,THICK, PAPER, 0,CY,0, g);
     // 紙面に文字らしき暗色の帯を並べる（表面にわずかに浮かせる）
-    const tz=THICK/2+0.006;
+    const tz=THICK/2+0.004;
     const textRows=[
-      {y:CY+0.09, marks:[[-0.13,0.09],[0.03,0.06]]},
-      {y:CY+0.03, marks:[[-0.15,0.05],[-0.04,0.05],[0.09,0.08]]},
-      {y:CY-0.03, marks:[[-0.13,0.09],[0.05,0.07]]},
-      {y:CY-0.09, marks:[[-0.15,0.05],[-0.02,0.06]]},
+      {y:CY+0.11, marks:[[-0.15,0.11],[0.05,0.08]]},
+      {y:CY+0.04, marks:[[-0.17,0.06],[-0.05,0.06],[0.1,0.1]]},
+      {y:CY-0.04, marks:[[-0.15,0.11],[0.06,0.09]]},
+      {y:CY-0.11, marks:[[-0.17,0.06],[-0.02,0.07]]},
     ];
     textRows.forEach(row=>{
       row.marks.forEach(([mx,mw])=>{
-        vox(mw,0.03,0.012, TEXT, mx,row.y,tz, g);
+        vox(mw,0.03,0.01, TEXT, mx,row.y,tz, g);
       });
     });
-    // 両端の丸め紙筒（低ポリ円柱を横倒しにして、面取りされたボクセル風の丸みを出す）
-    const rollMat=new THREE.MeshLambertMaterial({color:ROLL, flatShading:true});
-    const rollGeo=new THREE.CylinderGeometry(0.1,0.1,0.16,8);
-    const leftRoll=new THREE.Mesh(rollGeo, rollMat);
-    leftRoll.rotation.z=Math.PI/2;
-    leftRoll.position.set(-0.27,CY,0);
-    g.add(leftRoll);
-    const rightRoll=leftRoll.clone();
-    rightRoll.position.x=0.27;
-    g.add(rightRoll);
   } else if(itemType==='food'){
     // パン：スフィアを潰して細長い楕円形に（コッペパン風、こんがり茶色）
     const loaf=new THREE.Mesh(
