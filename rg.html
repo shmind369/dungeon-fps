@@ -1140,6 +1140,30 @@ function sfxScrollActivate(){
   });
 }
 
+// 薬を飲む「ゴクッ」：音程が一瞬沈んでから戻る、喉ごしのような効果音
+function sfxDrink(){
+  const ctx=getAudioCtx(); if(!ctx)return;
+  const now=ctx.currentTime;
+  const osc=ctx.createOscillator(); osc.type='sine';
+  osc.frequency.setValueAtTime(260,now);
+  osc.frequency.exponentialRampToValueAtTime(150,now+0.08);
+  osc.frequency.exponentialRampToValueAtTime(220,now+0.16);
+  const gain=ctx.createGain();
+  gain.gain.setValueAtTime(0.0001,now);
+  gain.gain.exponentialRampToValueAtTime(0.4,now+0.02);
+  gain.gain.exponentialRampToValueAtTime(0.0001,now+0.2);
+  osc.connect(gain); gain.connect(ctx.destination);
+  osc.start(now); osc.stop(now+0.22);
+  // 口当たりの質感を出す短いノイズ
+  const src=ctx.createBufferSource(); src.buffer=getNoiseBuffer(ctx);
+  const lp=ctx.createBiquadFilter(); lp.type='lowpass'; lp.frequency.value=1200;
+  const nGain=ctx.createGain();
+  nGain.gain.setValueAtTime(0.12,now);
+  nGain.gain.exponentialRampToValueAtTime(0.0001,now+0.1);
+  src.connect(lp); lp.connect(nGain); nGain.connect(ctx.destination);
+  src.start(now); src.stop(now+0.11);
+}
+
 // 武器・防具の装備「ジャキ！」：金属質のノイズ＋短い金属共鳴音
 function sfxEquip(){
   const ctx=getAudioCtx(); if(!ctx)return;
@@ -5353,10 +5377,15 @@ function doAction(act){
       enemyTurn();
     } else if(db.type==='potion'){
       closeActionMenu(); closeInventory();
-      applyPotionToPlayer(db.effect, db.name);
-      removeFromInv(it);
-      updateUI();
-      endPlayerAction();
+      // 「ゴクッ」の飲む音を鳴らしてから、少し間を置いて効果を発動する
+      sfxDrink();
+      addAnim({type:'delay',mesh:playerGroup,baseX:playerGroup.position.x,baseZ:playerGroup.position.z,dx:0,dz:0,dist:0,duration:260,onEnd:()=>{
+        applyPotionToPlayer(db.effect, db.name);
+        removeFromInv(it);
+        updateUI();
+        endPlayerAction();
+      }});
+      return;
     } else if(db.type==='enhance'){
       const target=equippedWeapon||equippedArmor;
       if(target){ closeActionMenu(); closeInventory(); target.plus++; showAction(`${ITEM_DB[target.key].name}が+${target.plus}に！`); removeFromInv(it); updateUI(); enemyTurn(); }
