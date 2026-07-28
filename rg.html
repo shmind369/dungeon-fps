@@ -1982,21 +1982,44 @@ function buildItemMesh(g, itemType){
     vox(0.12,0.05,0.12, GRAY,  0,0.45,0, g); // コルク
     vox(0.12,0.1,0.12,  LIGHTGREEN, 0,0.18,0, g); // 液体ハイライト
   } else if(itemType==='scroll'){
-    // 巻物：羊皮紙（横長・両端がクルッと巻かれた形）
-    const PAPER=0xf0e8d0, ROLL=0xd8c8a0, RIBBON=0xc04040;
+    // 巻物：羊皮紙の紙面＋両端を丸めた紙筒（円柱）で、実際に「巻かれた」形にする
+    const PAPER=0xf0e8d0, ROLL=0xd8c8a0, ROLL_END=0xc0b088, RIBBON=0xc04040;
     // 中央の紙面（横長・寝かせ気味）
-    vox(0.5,0.28,0.06, PAPER, 0,0.2,0, g);
-    // 左の巻き（円柱風に太く）
-    vox(0.12,0.34,0.14, ROLL, -0.28,0.2,0, g);
-    vox(0.08,0.34,0.1,  0xc0b088, -0.32,0.2,0, g);
-    // 右の巻き
-    vox(0.12,0.34,0.14, ROLL,  0.28,0.2,0, g);
-    vox(0.08,0.34,0.1,  0xc0b088,  0.32,0.2,0, g);
+    vox(0.46,0.26,0.035, PAPER, 0,0.2,0, g);
+    // 紙面に手書き文字っぽい波線を貼る（表裏両面）
+    const textTex=getScrollTextTexture();
+    const textFront=new THREE.Mesh(
+      new THREE.PlaneGeometry(0.4,0.2),
+      new THREE.MeshBasicMaterial({map:textTex, transparent:true})
+    );
+    textFront.position.set(0,0.2,0.019);
+    g.add(textFront);
+    const textBack=textFront.clone();
+    textBack.position.z=-0.019;
+    textBack.rotation.y=Math.PI;
+    g.add(textBack);
+    // 両端の丸めた紙筒（円柱を横倒しにする）
+    const rollMat=new THREE.MeshLambertMaterial({color:ROLL});
+    const rollGeo=new THREE.CylinderGeometry(0.09,0.09,0.16,12);
+    const leftRoll=new THREE.Mesh(rollGeo, rollMat);
+    leftRoll.rotation.z=Math.PI/2;
+    leftRoll.position.set(-0.27,0.2,0);
+    g.add(leftRoll);
+    const rightRoll=leftRoll.clone();
+    rightRoll.position.x=0.27;
+    g.add(rightRoll);
+    // 紙筒の巻き終わりの切り口（明るい色の円盤）
+    const endMat=new THREE.MeshLambertMaterial({color:ROLL_END});
+    const endGeo=new THREE.CylinderGeometry(0.091,0.091,0.012,12);
+    const leftEnd=new THREE.Mesh(endGeo, endMat);
+    leftEnd.rotation.z=Math.PI/2;
+    leftEnd.position.set(-0.35,0.2,0);
+    g.add(leftEnd);
+    const rightEnd=leftEnd.clone();
+    rightEnd.position.x=0.35;
+    g.add(rightEnd);
     // 赤いリボン（中央に横帯）
-    vox(0.54,0.06,0.08, RIBBON, 0,0.2,0.01, g);
-    // 文字っぽい線
-    vox(0.3,0.02,0.02, 0x907040, 0,0.28,0.04, g);
-    vox(0.3,0.02,0.02, 0x907040, 0,0.13,0.04, g);
+    vox(0.5,0.055,0.045, RIBBON, 0,0.2,0.02, g);
   } else if(itemType==='food'){
     // パン：スフィアを潰して細長い楕円形に（コッペパン風、こんがり茶色）
     const loaf=new THREE.Mesh(
@@ -2415,6 +2438,38 @@ function getDollarMarkTexture(){
   const tex=new THREE.CanvasTexture(cv);
   tex.magFilter=THREE.NearestFilter;
   _dollarMarkTexture=tex;
+  return tex;
+}
+
+// 巻物の紙面に貼る、手書き文字っぽい波線のテクスチャをCanvasで生成（一度だけ作って使い回す）
+let _scrollTextTexture=null;
+function getScrollTextTexture(){
+  if(_scrollTextTexture)return _scrollTextTexture;
+  const W=128,H=64;
+  const cv=document.createElement('canvas');
+  cv.width=W; cv.height=H;
+  const c=cv.getContext('2d');
+  c.clearRect(0,0,W,H);
+  c.strokeStyle='#7a5a30';
+  c.lineWidth=2.6;
+  c.lineCap='round';
+  const lines=[{y:12,len:0.85},{y:24,len:0.65},{y:36,len:0.8},{y:48,len:0.5}];
+  lines.forEach(ln=>{
+    const startX=10, endX=10+(W-20)*ln.len;
+    c.beginPath();
+    c.moveTo(startX, ln.y);
+    const segs=6;
+    for(let i=1;i<=segs;i++){
+      const t=i/segs;
+      const x=startX+(endX-startX)*t;
+      const y=ln.y+Math.sin(t*Math.PI*3+ln.y)*2.2;
+      c.lineTo(x,y);
+    }
+    c.stroke();
+  });
+  const tex=new THREE.CanvasTexture(cv);
+  tex.magFilter=THREE.NearestFilter;
+  _scrollTextTexture=tex;
   return tex;
 }
 
