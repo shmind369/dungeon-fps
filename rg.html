@@ -860,7 +860,6 @@ const ITEM_DB={
   copper:   {name:'銅の剣',      type:'weapon', icon:'🗡️', color:'#c0c0c0', atk:4},
   iron:     {name:'鉄の剣',      type:'weapon', icon:'🗡️', color:'#c0c0c0', atk:6},
   steel:    {name:'鋼の剣',      type:'weapon', icon:'🗡️', color:'#c0c0c0', atk:9},
-  flame:    {name:'炎の剣',      type:'weapon', icon:'🗡️', color:'#c0c0c0', atk:8, effect:{onhit:'fire'}},
   ice:      {name:'まどろみの剣',type:'weapon', icon:'🗡️', color:'#c0c0c0', atk:8, effect:{onhit:'sleep'}},
   poison:   {name:'毒の短剣',    type:'weapon', icon:'🗡️', color:'#c0c0c0', atk:5, effect:{onhit:'poison'}},
   greatsw:  {name:'両手剣',      type:'weapon', icon:'🗡️', color:'#c0c0c0', atk:13, effect:{miss:0.2}},
@@ -874,7 +873,6 @@ const ITEM_DB={
   flamesh:  {name:'炎よけの盾',  type:'shield', icon:'🛡️', color:'#c0c0c0', def:5, effect:{resist:'magic'}},
   poisonsh: {name:'毒よけの盾',  type:'shield', icon:'🛡️', color:'#c0c0c0', def:5, effect:{resist:'poison'}},
   heavysh:  {name:'重装の盾',    type:'shield', icon:'🛡️', color:'#c0c0c0', def:13, effect:{hungry:1.5}},
-  reflectsh:{name:'反射の盾',    type:'shield', icon:'🛡️', color:'#c0c0c0', def:7, effect:{reflect:0.3}},
   mirrorsh: {name:'鏡の盾',      type:'shield', icon:'🛡️', color:'#c0c0c0', def:6, effect:{thorns:0.3}},
   holysh:   {name:'聖なる盾',    type:'shield', icon:'🛡️', color:'#c0c0c0', def:10, effect:{regen:true}},
   // === 薬（potion） ===
@@ -918,7 +916,7 @@ const ITEM_KEYS=Object.keys(ITEM_DB);
 // 床に落ちるアイテム候補（装備は控えめ、消費を多め）
 const FLOOR_ITEM_KEYS=['herb','herb','hiherb','bread','bread','bigbread','badbread',
   'powerp','lifep','speedp','poisonp','confusep','sleepp','curep','revivep',
-  'iron','copper','club','woodsh','bronzesh','ironsh','flame','ice','poison','steel','flamesh','poisonsh','steelsh',
+  'iron','copper','club','woodsh','bronzesh','ironsh','ice','poison','steel','flamesh','poisonsh','steelsh',
   'st_atk','st_fire','st_sleep','st_confuse','st_swap','st_knock','st_seal',
   'sc_enchant','sc_enchant_shield','sc_fire','sc_teleport','sc_return','sc_confuse','sc_sleep','sc_luck','sc_nuke','sc_map','sc_seal',
   'arrow_wood','arrow_wood','arrow_wood'];
@@ -931,7 +929,7 @@ const BEGINNER_FLOOR_ITEM_KEYS=FLOOR_ITEM_KEYS.filter(k=>{
   return true;
 });
 // 上級ダンジョンでは、通常のプールに加えてこれまで入手手段がなかった上位の盾も出現させる（武器の種類は増やさない）
-const ADVANCED_EXTRA_EQUIPMENT=['reflectsh','mirrorsh','holysh','heavysh'];
+const ADVANCED_EXTRA_EQUIPMENT=['mirrorsh','holysh','heavysh'];
 const ADVANCED_FLOOR_ITEM_KEYS=FLOOR_ITEM_KEYS.concat(ADVANCED_EXTRA_EQUIPMENT);
 // ダンジョン種別ごとのアイテム・モンスター出現プールの対応表（既定は中級のプール）
 const DUNGEON_ITEM_POOLS={beginner:BEGINNER_FLOOR_ITEM_KEYS, advanced:ADVANCED_FLOOR_ITEM_KEYS};
@@ -2823,11 +2821,8 @@ function spawnObject(type,gx,gy,arg,count){
     g.position.set(wx,0.05,wz);
     g.userData={gx,gy,isGold:true};
     scene.add(g);
-    // 金色の光で存在を強調（プールから使い回してシェーダー再コンパイルを防ぐ）
-    const glt=acquirePooledLight(0xffd040,1.8,3.5);
-    glt.position.set(wx,0.9,wz);
-    g.userData.light=glt;
-    floorItems.push({x:gx, y:gy, mesh:g, key:'gold', gold:amount, light:glt});
+    // 部屋が開示される前に光で位置が分かってしまうのを避けるため、発光は行わない
+    floorItems.push({x:gx, y:gy, mesh:g, key:'gold', gold:amount});
     objectMeshes.push(g);
     return;
   } else if(type==='enemy'){
@@ -4270,8 +4265,6 @@ function fireMagicBolt(e, dmg){
     spawnDamageNum(blockerEnemy.mesh.position.x,2.0,blockerEnemy.mesh.position.z,`${dmg}`,'#ffffff');
     showAction('魔法が他の敵に当たった！',800);
     if(blockerEnemy.hp<=0) damageEnemy(blockerEnemy,0,false);
-  } else if(shEff&&shEff.reflect&&Math.random()<shEff.reflect){
-    showAction('魔法を反射した！',800);
   } else {
     let mdmg=dmg;
     if(shEff&&shEff.resist==='magic') mdmg=Math.max(1,Math.round(mdmg*0.5));
@@ -4923,13 +4916,8 @@ function moveForward(dash=false){
         target.aware=true; // 攻撃を受けたら即座に気づく（鈍感型・斜め隣接でも確実に）
         sfxAttack();
         spawnHitEffect(target.mesh.position.x,target.mesh.position.z);
-        // 炎エフェクト
-        if(wpEff&&wpEff.onhit==='fire'&&Math.random()<0.4){
-          const extra=Math.round(dmg*0.5);
-          target.hp-=extra;
-          triggerFlash('rgba(255,100,0,');
-          spawnDamageNum(target.mesh.position.x,2.6,target.mesh.position.z,`火${extra}`,'#ffffff');
-        } else if(wpEff&&wpEff.onhit==='sleep'&&Math.random()<0.035){
+        // 状態異常エフェクト
+        if(wpEff&&wpEff.onhit==='sleep'&&Math.random()<0.035){
           target.sleep=(target.sleep||0)+5;
           triggerFlash('rgba(120,180,255,');
           spawnDamageNum(target.mesh.position.x,2.6,target.mesh.position.z,`zzZ`,'#a0d0ff');
