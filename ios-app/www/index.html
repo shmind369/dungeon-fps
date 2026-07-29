@@ -5676,6 +5676,7 @@ function shootArrow(){
   const willHit = hitEnemy ? Math.random()<7/8 : false;
 
   it.count--;
+  if(it.count<=0) removeFromInv(it); // 矢は残0本になった時点で持ち物から削除する
   updateUI();
 
   if(hitEnemy && willHit){
