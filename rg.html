@@ -877,7 +877,9 @@ const state={x:0,y:0,dir:0,angle:-Math.PI/2,targetAngle:-Math.PI/2,actionTimer:0
   hp:15,maxHp:15,str:0,lv:1,exp:0,nextExp:10,stepCount:0,
   food:100,maxFood:100,foodStep:0,gold:0,
   haste:0,confuse:0,inEntrance:false,playTimeMs:0,globalTurnCount:0,
-  dungeonType:'normal', adventureCount:1}; // 'normal'=中級【全10F】 / 'beginner'=初級【全5F】 / 'advanced'=上級【全10F】
+  dungeonType:'normal', adventureCount:1,
+  normalUnlocked:false, advancedUnlocked:false}; // 'normal'=中級【全10F】 / 'beginner'=初級【全5F】 / 'advanced'=上級【全10F】
+// normalUnlocked：初級を初めてクリアすると解放。advancedUnlocked：中級を初めてクリアすると解放
 // adventureCount：セーブスロットごとの「○回目の冒険」。ゲームオーバー/ダンジョンクリア/
 // 帰還の巻物でエントランスへ戻るたびに+1する（セーブ・ロード・タイトルへ戻る等では増やさない）
 let MAP=[],rooms=[],stairsPos=null,returnPos=null,floorItems=[],explored=[];
@@ -2751,6 +2753,8 @@ function getMossWallTexture(){
 }
 
 // 洞窟壁テクスチャ（7〜8Fの壁に使用。不揃いな岩肌）
+// 床の石畳（暖色寄りのニュートラルグレー）と見分けやすいよう、青みがかった濃い岩肌に
+// 石英の鉱脈のような明るい筋を通し、色相・明度の両方で床とはっきり差をつける
 let _caveWallTexture=null;
 function getCaveWallTexture(){
   if(_caveWallTexture)return _caveWallTexture;
@@ -2758,15 +2762,27 @@ function getCaveWallTexture(){
   const cv=document.createElement('canvas');
   cv.width=S; cv.height=S;
   const c=cv.getContext('2d');
-  c.fillStyle='#120e0a';
+  c.fillStyle='#070a10';
   c.fillRect(0,0,S,S);
   // 大小不揃いな岩の塊を無秩序に重ねて、積み石ではない自然な岩肌にする
   for(let i=0;i<16;i++){
     const x=Math.random()*S, y=Math.random()*S;
     const w=6+Math.random()*12, h=6+Math.random()*12;
-    const g=55+Math.floor(Math.random()*28);
-    c.fillStyle=`rgb(${g},${Math.round(g*0.84)},${Math.round(g*0.72)})`;
+    const g=68+Math.floor(Math.random()*42);
+    c.fillStyle=`rgb(${Math.round(g*0.68)},${Math.round(g*0.82)},${g})`;
     c.fillRect(x,y,w,h);
+  }
+  // 石英の鉱脈のような明るい筋を散りばめ、視認性と洞窟らしさを高める
+  c.strokeStyle='rgba(170,205,255,0.55)';
+  c.lineWidth=1.4;
+  for(let i=0;i<6;i++){
+    let x=Math.random()*S, y=Math.random()*S;
+    c.beginPath(); c.moveTo(x,y);
+    for(let s=0;s<3;s++){
+      x+=(Math.random()-0.5)*14; y+=(Math.random()-0.5)*14;
+      c.lineTo(x,y);
+    }
+    c.stroke();
   }
   const tex=new THREE.CanvasTexture(cv);
   tex.magFilter=THREE.NearestFilter;
@@ -3452,6 +3468,10 @@ function applySave(data){
   // この機能追加より前のセーブデータにはadventureCountが無いため、1回目として扱う
   // （data.state基準で判定し、以前のセッションのstateに残った値を引き継がないようにする）
   state.adventureCount=data.state.adventureCount!==undefined?data.state.adventureCount:1;
+  // この機能追加より前のセーブデータには開放フラグが無い。既存プレイヤーが
+  // 遊べていたダンジョンを突然ロックしないよう、旧データは全開放扱いにする
+  state.normalUnlocked=data.state.normalUnlocked!==undefined?data.state.normalUnlocked:true;
+  state.advancedUnlocked=data.state.advancedUnlocked!==undefined?data.state.advancedUnlocked:true;
   playerSleepTurns=data.playerSleepTurns||0;
   nextItemId=data.nextItemId||nextItemId;
   warehouseUnlocked=data.warehouseUnlocked!==undefined?data.warehouseUnlocked:warehouseUnlocked;
@@ -3495,7 +3515,8 @@ function resetFullGameState(){
     hp:15,maxHp:15,str:0,lv:1,exp:0,nextExp:10,stepCount:0,
     food:100,maxFood:100,foodStep:0,gold:0,
     haste:0,confuse:0,inEntrance:false,playTimeMs:0,globalTurnCount:0,
-    dungeonType:'normal', adventureCount:1
+    dungeonType:'normal', adventureCount:1,
+    normalUnlocked:false, advancedUnlocked:false
   });
   inventory.length=0;
   equippedWeapon=null; equippedArmor=null; equippedArrow=null;
@@ -3984,6 +4005,7 @@ function checkStepOn(){
         sfxItem();
         triggerFlash('rgba(255,215,0,');
         state.adventureCount=(state.adventureCount||1)+1; // ダンジョンクリアで今回の冒険が終了
+        state.normalUnlocked=true; // 初級クリアで中級を解放
         fadeTransition(()=>{
           resetPlayerStatsForEntrance();
           initEntrance();
@@ -4018,6 +4040,7 @@ function checkStepOn(){
       sfxItem();
       triggerFlash(isAdvanced?'rgba(180,0,255,':'rgba(255,215,0,');
       state.adventureCount=(state.adventureCount||1)+1; // ダンジョンクリアで今回の冒険が終了
+      if(!isAdvanced) state.advancedUnlocked=true; // 中級クリアで上級を解放
       fadeTransition(()=>{
         resetPlayerStatsForEntrance();
         initEntrance();
@@ -5284,9 +5307,19 @@ document.getElementById('confirm-no').onclick=()=>{
 
 // ダンジョン入口：初級/中級/上級を選ぶモーダル
 const dungeonSelectModal=document.getElementById('dungeon-select-modal');
-function showDungeonSelect(){ dungeonSelectModal.classList.add('show'); }
+const dungeonSelectNormalBtn=document.getElementById('dungeon-select-normal');
+const dungeonSelectAdvancedBtn=document.getElementById('dungeon-select-advanced');
+// 開放状況に応じてボタンの表示・押せる/押せないを更新する（初級クリアで中級、中級クリアで上級を解放）
+function updateDungeonSelectButtons(){
+  dungeonSelectNormalBtn.disabled=!state.normalUnlocked;
+  dungeonSelectNormalBtn.textContent=state.normalUnlocked?'中級【全10F】':'中級【LOCK】';
+  dungeonSelectAdvancedBtn.disabled=!state.advancedUnlocked;
+  dungeonSelectAdvancedBtn.textContent=state.advancedUnlocked?'上級【全10F】':'上級【LOCK】';
+}
+function showDungeonSelect(){ updateDungeonSelectButtons(); dungeonSelectModal.classList.add('show'); }
 function closeDungeonSelect(){ dungeonSelectModal.classList.remove('show'); }
-document.getElementById('dungeon-select-normal').onclick=()=>{
+dungeonSelectNormalBtn.onclick=()=>{
+  if(!state.normalUnlocked)return;
   closeDungeonSelect();
   sfxStairs();
   // 別種のダンジョンを選び直した際に前回分の配送予約が混ざらないようにする
@@ -5302,7 +5335,8 @@ document.getElementById('dungeon-select-beginner').onclick=()=>{
   fadeTransition(()=>{ initFloor(1); }, '地下 1 階');
   startBGM();
 };
-document.getElementById('dungeon-select-advanced').onclick=()=>{
+dungeonSelectAdvancedBtn.onclick=()=>{
+  if(!state.advancedUnlocked)return;
   closeDungeonSelect();
   sfxStairs();
   pendingFloorSpawns={};
