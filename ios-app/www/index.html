@@ -5954,7 +5954,13 @@ document.getElementById('inv-underfoot').onclick=()=>{
       return;
     }
     if(it.key==='arrow_wood'){
-      // 矢も金貨と同様、拾うだけ
+      // 持ち物に空きがある、または既に矢のスタックがある場合はそのまま拾う。
+      // 持ち物が満杯で合流できるスタックも無い場合は、装備品と同様に交換メニューへ回す。
+      const existingArrows=inventory.find(x=>x.key===it.key);
+      if(!existingArrows&&inventory.length>=MAX_INV){
+        openUnderfootMenu(it);
+        return;
+      }
       if(pickupArrows(it.key,it.count)){
         sfxItem();
         scene.remove(it.mesh);
@@ -5981,7 +5987,7 @@ function openUnderfootMenu(it){
   document.getElementById('underfoot-title').textContent='足元：'+db.name;
   // 使う/装備ボタンのラベルを種別で切替
   const useBtn=underfootModal.querySelector('.act-btn[data-uf="use"]');
-  if(db.type==='weapon'||db.type==='armor'||db.type==='shield'){ useBtn.textContent='装備する'; }
+  if(db.type==='weapon'||db.type==='armor'||db.type==='shield'||db.type==='arrow'){ useBtn.textContent='装備する'; }
   else if(db.type==='staff'){ useBtn.textContent='振る'; }
   else { useBtn.textContent='使う'; }
   underfootModal.classList.add('show');
@@ -6020,6 +6026,39 @@ function doUnderfootAction(act){
 
   if(act==='swap'){
     openSwapMenu();
+    return;
+  }
+
+  // 装備品（武器/盾防具/矢/杖）は「使う」で消費されず、そのまま持ち物に残り続ける。
+  // 持ち物が満杯の場合にそのまま拾うと21個目になってしまうため、満杯時は先に
+  // 現在装備中の同スロットのものを持ち物から外して足元へ逃がし、1枠空けてから
+  // 通常の装備処理に進む（＝現在の装備と足元のアイテムを1回の操作で入れ替える）
+  const equipTypes=['weapon','shield','armor','arrow','staff'];
+  if(act==='use'&&equipTypes.includes(ITEM_DB[it.key].type)&&inventory.length>=MAX_INV){
+    const itDb=ITEM_DB[it.key];
+    let displaced=null;
+    if(itDb.type==='weapon') displaced=equippedWeapon;
+    else if(itDb.type==='shield'||itDb.type==='armor') displaced=equippedArmor;
+    else if(itDb.type==='arrow') displaced=equippedArrow;
+    // 杖には装備の概念がないため交換相手がおらず、常に満杯として拒否する
+    if(!displaced){
+      showAction(`持ち物がいっぱい！\n${itDb.name}の上に乗った。`,1500);
+      closeUnderfootMenu();
+      return;
+    }
+    const fx=it.x, fy=it.y;
+    removeFromInv(displaced);
+    const gained=moveUnderfootToInventory(it,true);
+    closeUnderfootMenu();
+    selectedItem=gained;
+    doAction('use'); // 装備処理そのものは既存のロジックに委ねる（ターン消費も含む）
+    // 外した方を足元の同じ場所に置いて、見た目にも「入れ替わった」ことが分かるようにする
+    if(state.inEntrance){
+      const slot=getWarehouseSlot(fx,fy);
+      if(slot){ warehouseData[`${slot.sx},${slot.sy}`]={itemKey:displaced.key, plus:displaced.plus||0, charges:displaced.charges, count:displaced.count}; }
+    }
+    spawnObject('item',fx,fy,displaced.key,displaced.count);
+    updateUnderfootLabel();
     return;
   }
 
