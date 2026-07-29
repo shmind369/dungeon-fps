@@ -900,7 +900,7 @@ let prevAdjacentEnemies=[]; // 直前に自機と隣接していたモンスタ�
 const ITEM_DB={
   // === 武器 ===
   club:     {name:'こん棒',      type:'weapon', icon:'🗡️', color:'#c0c0c0', atk:2},
-  copper:   {name:'銅の剣',      type:'weapon', icon:'🗡️', color:'#c0c0c0', atk:4},
+  copper:   {name:'青銅の剣',    type:'weapon', icon:'🗡️', color:'#c0c0c0', atk:4},
   iron:     {name:'鉄の剣',      type:'weapon', icon:'🗡️', color:'#c0c0c0', atk:6},
   steel:    {name:'鋼の剣',      type:'weapon', icon:'🗡️', color:'#c0c0c0', atk:9},
   ice:      {name:'まどろみの剣',type:'weapon', icon:'🗡️', color:'#c0c0c0', atk:8, effect:{onhit:'sleep'}},
@@ -959,7 +959,7 @@ const FLOOR_ITEM_KEYS=['herb','herb','hiherb','bread','bread','bigbread','badbre
   'st_atk','st_sleep','st_confuse','st_swap','st_knock','st_seal',
   'sc_enchant','sc_enchant_shield','sc_teleport','sc_return','sc_confuse','sc_sleep','sc_luck','sc_nuke','sc_map','sc_seal',
   'arrow_wood','arrow_wood','arrow_wood'];
-// 初級ダンジョンでは武器・盾のドロップをこん棒・銅の剣・木の盾・青銅の盾のみに絞る
+// 初級ダンジョンでは武器・盾のドロップをこん棒・青銅の剣・木の盾・青銅の盾のみに絞る
 // （それ以外の武器・防具種別は除外し、薬・食料・杖・巻物・矢はそのまま残す）
 const BEGINNER_ALLOWED_EQUIPMENT=['club','copper','woodsh','bronzesh'];
 const BEGINNER_FLOOR_ITEM_KEYS=FLOOR_ITEM_KEYS.filter(k=>{
@@ -4003,6 +4003,7 @@ function checkStepOn(){
     // お金は持ち帰ってエントランスへ）
     if(state.dungeonType==='beginner'&&state.floor>=5){
       showConfirm('初級ダンジョンをクリアしますか？',()=>{
+        const firstNormalUnlock=!state.normalUnlocked;
         showAction('初級ダンジョンをクリアした！',2400);
         setLog('CLEAR！');
         sfxItem();
@@ -4013,6 +4014,11 @@ function checkStepOn(){
           resetPlayerStatsForEntrance();
           initEntrance();
         }, '✧ DUNGEON CLEAR ✧');
+        // 暗転演出（フェードオーバーレイはaction-labelより手前に表示される）が
+        // 完全に終わってエントランスに戻ってから、解放メッセージを改めて表示する
+        if(firstNormalUnlock){
+          setTimeout(()=>{ showAction('ダンジョン選択時に中級ダンジョンを選べるようになった。',2400); }, 1800);
+        }
       });
       return;
     }
@@ -4038,6 +4044,7 @@ function checkStepOn(){
   if(exitPortalPos&&state.x===exitPortalPos.x&&state.y===exitPortalPos.y){
     const isAdvanced=state.dungeonType==='advanced';
     showConfirm('脱出口に入り、ダンジョンをクリアしますか？',()=>{
+      const firstAdvancedUnlock=!isAdvanced&&!state.advancedUnlocked;
       showAction(isAdvanced?'上級ダンジョンをクリアした！':'中級ダンジョンをクリアした！',2400);
       setLog('CLEAR！');
       sfxItem();
@@ -4048,6 +4055,11 @@ function checkStepOn(){
         resetPlayerStatsForEntrance();
         initEntrance();
       }, isAdvanced?'✧ ADVANCED DUNGEON CLEAR ✧':'✧ DUNGEON CLEAR ✧');
+      // 暗転演出（フェードオーバーレイはaction-labelより手前に表示される）が
+      // 完全に終わってエントランスに戻ってから、解放メッセージを改めて表示する
+      if(firstAdvancedUnlock){
+        setTimeout(()=>{ showAction('ダンジョン選択時に上級ダンジョンを選べるようになった。',2400); }, 1800);
+      }
     });
     return;
   }
