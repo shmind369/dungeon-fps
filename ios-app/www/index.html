@@ -902,7 +902,6 @@ const ITEM_DB={
   iron:     {name:'鉄の剣',      type:'weapon', icon:'🗡️', color:'#c0c0c0', atk:6},
   steel:    {name:'鋼の剣',      type:'weapon', icon:'🗡️', color:'#c0c0c0', atk:9},
   ice:      {name:'まどろみの剣',type:'weapon', icon:'🗡️', color:'#c0c0c0', atk:8, effect:{onhit:'sleep'}},
-  poison:   {name:'毒の短剣',    type:'weapon', icon:'🗡️', color:'#c0c0c0', atk:5, effect:{onhit:'poison'}},
   greatsw:  {name:'両手剣',      type:'weapon', icon:'🗡️', color:'#c0c0c0', atk:13, effect:{miss:0.2}},
   dragon:   {name:'龍殺しの剣',  type:'weapon', icon:'🗡️', color:'#c0c0c0', atk:11, effect:{slayer:'dragon'}},
   murasama: {name:'妖刀ムラマサ',type:'weapon', icon:'🗡️', color:'#c0c0c0', atk:16, effect:{recoil:0.15}},
@@ -912,7 +911,6 @@ const ITEM_DB={
   ironsh:   {name:'鉄の盾',      type:'shield', icon:'🛡️', color:'#c0c0c0', def:6},
   steelsh:  {name:'鋼の盾',      type:'shield', icon:'🛡️', color:'#c0c0c0', def:9},
   flamesh:  {name:'炎よけの盾',  type:'shield', icon:'🛡️', color:'#c0c0c0', def:5, effect:{resist:'magic'}},
-  poisonsh: {name:'毒よけの盾',  type:'shield', icon:'🛡️', color:'#c0c0c0', def:5, effect:{resist:'poison'}},
   heavysh:  {name:'重装の盾',    type:'shield', icon:'🛡️', color:'#c0c0c0', def:13, effect:{hungry:1.5}},
   mirrorsh: {name:'鏡の盾',      type:'shield', icon:'🛡️', color:'#c0c0c0', def:6, effect:{thorns:0.3}},
   holysh:   {name:'聖なる盾',    type:'shield', icon:'🛡️', color:'#c0c0c0', def:10, effect:{regen:true}},
@@ -930,7 +928,6 @@ const ITEM_DB={
   // === 巻物（scroll・使い切り） ===
   sc_enchant: {name:'武器強化の巻物',type:'scroll', icon:'📜', color:'#c0c0c0', effect:{scroll:'enchantWeapon'}},
   sc_enchant_shield: {name:'盾強化の巻物',type:'scroll', icon:'📜', color:'#c0c0c0', effect:{scroll:'enchantShield'}},
-  sc_fire:    {name:'炎の巻物',      type:'scroll', icon:'📜', color:'#c0c0c0', effect:{scroll:'fireAll', power:14}},
   sc_teleport:{name:'ワープの巻物',type:'scroll', icon:'📜', color:'#c0c0c0', effect:{scroll:'teleport'}},
   sc_return:  {name:'帰還の巻物',    type:'scroll', icon:'📜', color:'#c0c0c0', effect:{scroll:'return'}},
   sc_confuse: {name:'混乱の巻物',    type:'scroll', icon:'📜', color:'#c0c0c0', effect:{scroll:'confuseAll'}},
@@ -941,7 +938,6 @@ const ITEM_DB={
   sc_seal:    {name:'封印の巻物',    type:'scroll', icon:'📜', color:'#c0c0c0', effect:{scroll:'sealAll'}},
   // === 杖（staff・回数制） ===
   st_atk:    {name:'攻撃の杖',    type:'staff', icon:'🪄', color:'#c0c0c0', effect:{wand:'damage', power:15}},
-  st_fire:   {name:'火炎の杖',    type:'staff', icon:'🪄', color:'#c0c0c0', effect:{wand:'fire', power:12}},
   st_sleep:  {name:'睡眠の杖',    type:'staff', icon:'🪄', color:'#c0c0c0', effect:{wand:'sleep'}},
   st_confuse:{name:'混乱の杖',    type:'staff', icon:'🪄', color:'#c0c0c0', effect:{wand:'confuse'}},
   st_swap:   {name:'場所替えの杖',type:'staff', icon:'🪄', color:'#c0c0c0', effect:{wand:'swap'}},
@@ -957,9 +953,9 @@ const ITEM_KEYS=Object.keys(ITEM_DB);
 // 床に落ちるアイテム候補（装備は控えめ、消費を多め）
 const FLOOR_ITEM_KEYS=['herb','herb','hiherb','bread','bread','bigbread','badbread',
   'powerp','lifep','speedp','poisonp','confusep','sleepp','curep','revivep',
-  'iron','copper','club','woodsh','bronzesh','ironsh','ice','poison','steel','flamesh','poisonsh','steelsh',
-  'st_atk','st_fire','st_sleep','st_confuse','st_swap','st_knock','st_seal',
-  'sc_enchant','sc_enchant_shield','sc_fire','sc_teleport','sc_return','sc_confuse','sc_sleep','sc_luck','sc_nuke','sc_map','sc_seal',
+  'iron','copper','club','woodsh','bronzesh','ironsh','ice','steel','flamesh','steelsh',
+  'st_atk','st_sleep','st_confuse','st_swap','st_knock','st_seal',
+  'sc_enchant','sc_enchant_shield','sc_teleport','sc_return','sc_confuse','sc_sleep','sc_luck','sc_nuke','sc_map','sc_seal',
   'arrow_wood','arrow_wood','arrow_wood'];
 // 初級ダンジョンでは武器・盾のドロップをこん棒・銅の剣・木の盾・青銅の盾のみに絞る
 // （それ以外の武器・防具種別は除外し、薬・食料・杖・巻物・矢はそのまま残す）
@@ -1896,16 +1892,6 @@ function applyScrollEffect(it, db){
       else { showAction('強化できる盾がない…',1200); }
       break;
     }
-    case 'fireAll':
-      if(visEnemies.length===0){ showAction('何も起きなかった…',1000); break; }
-      visEnemies.forEach(e=>{
-        e.hp-=db.effect.power;
-        spawnDamageNum(e.mesh.position.x,2.0,e.mesh.position.z,`火${db.effect.power}`,'#ffffff');
-        if(e.hp<=0)damageEnemy(e,0);
-      });
-      triggerFlash('rgba(255,100,0,');
-      showAction('炎が周囲を包んだ！',1500);
-      break;
     case 'teleport': {
       let room,p,tries=0;
       do {
@@ -2047,11 +2033,6 @@ function applyWandEffect(eff,e,wdx,wdz){
     case 'damage':
       e.hp-=eff.power;
       spawnDamageNum(e.mesh.position.x,2.0,e.mesh.position.z,`${eff.power}`,'#ffffff');
-      if(e.hp<=0)damageEnemy(e,0);
-      break;
-    case 'fire':
-      e.hp-=eff.power;
-      spawnDamageNum(e.mesh.position.x,2.0,e.mesh.position.z,`火${eff.power}`,'#ffffff');
       if(e.hp<=0)damageEnemy(e,0);
       break;
     case 'sleep':
@@ -4144,7 +4125,7 @@ const SCROLL_CATEGORY_COLOR={heal:0x40e060, buff:0xf0c840, identify:0x4080e0, wa
 const SCROLL_CATEGORY={
   sc_enchant:'buff', sc_enchant_shield:'buff', sc_luck:'buff',
   sc_map:'identify',
-  sc_teleport:'warp', sc_return:'warp', sc_fire:'warp', sc_confuse:'warp', sc_sleep:'warp', sc_seal:'warp', sc_nuke:'warp',
+  sc_teleport:'warp', sc_return:'warp', sc_confuse:'warp', sc_sleep:'warp', sc_seal:'warp', sc_nuke:'warp',
 };
 function scrollCategoryColor(key){
   return SCROLL_CATEGORY_COLOR[SCROLL_CATEGORY[key]] || 0xffffff;
@@ -5229,10 +5210,6 @@ function moveForward(dash=false){
           target.sleep=(target.sleep||0)+5;
           triggerFlash('rgba(120,180,255,');
           spawnDamageNum(target.mesh.position.x,2.6,target.mesh.position.z,`zzZ`,'#a0d0ff');
-        } else if(wpEff&&wpEff.onhit==='poison'&&Math.random()<0.35){
-          target.poisoned=(target.poisoned||0)+5;
-          triggerFlash('rgba(160,60,200,');
-          spawnDamageNum(target.mesh.position.x,2.6,target.mesh.position.z,`毒`,'#a040c0');
         } else {
           triggerFlash('rgba(255,200,0,');
         }
@@ -6106,7 +6083,7 @@ actionModal.onclick=e=>{if(e.target===actionModal)closeActionMenu();};
 const ANGLE_OF=[-Math.PI/2,-Math.PI/4,0,Math.PI/4,Math.PI/2,3*Math.PI/4,Math.PI,-3*Math.PI/4];
 const MOVE_INTERVAL=210;      // 通常の移動連打間隔(ms)
 const DASH_INTERVAL=95;       // ダッシュ中の移動連打間隔(ms)
-const WAIT_INTERVAL=Math.round(DASH_INTERVAL/1.2); // 待機の連打間隔(ms)。ターン消化速度を1.2倍に
+const WAIT_INTERVAL=Math.round(DASH_INTERVAL/1.56); // 待機の連打間隔(ms)。ターン消化速度をダッシュの1.56倍に(従来の1.2倍からさらに1.3倍アップ)
 
 // 確認ダイアログ等の操作を止める系モーダルが開いているか（開いている間は移動キー押しっぱなしでも先に進ませない）
 function isBlockingModalOpen(){
