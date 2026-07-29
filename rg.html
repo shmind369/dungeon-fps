@@ -2752,9 +2752,10 @@ function getMossWallTexture(){
   return tex;
 }
 
-// 洞窟壁テクスチャ（7〜8Fの壁に使用。不揃いな岩肌）
-// 床の石畳（暖色寄りのニュートラルグレー）と見分けやすいよう、青みがかった濃い岩肌に
-// 石英の鉱脈のような明るい筋を通し、色相・明度の両方で床とはっきり差をつける
+// 洞窟壁テクスチャ（7〜8Fの壁に使用）
+// 床の石畳（暖色寄りのニュートラルグレー）と見分けやすいよう青みがかった色にしつつ、
+// 他の壁と同じ「目地で区切られたブロック」構造にして、遠目にもブロック一つ一つの
+// 境界とハイライト/シャドウによる凹凸がはっきり分かるようにする（情報量は控えめに）
 let _caveWallTexture=null;
 function getCaveWallTexture(){
   if(_caveWallTexture)return _caveWallTexture;
@@ -2762,27 +2763,27 @@ function getCaveWallTexture(){
   const cv=document.createElement('canvas');
   cv.width=S; cv.height=S;
   const c=cv.getContext('2d');
-  c.fillStyle='#070a10';
+  c.fillStyle='#05070c'; // 目地（暗い青みがかった隙間）
   c.fillRect(0,0,S,S);
-  // 大小不揃いな岩の塊を無秩序に重ねて、積み石ではない自然な岩肌にする
-  for(let i=0;i<16;i++){
-    const x=Math.random()*S, y=Math.random()*S;
-    const w=6+Math.random()*12, h=6+Math.random()*12;
-    const g=68+Math.floor(Math.random()*42);
-    c.fillStyle=`rgb(${Math.round(g*0.68)},${Math.round(g*0.82)},${g})`;
-    c.fillRect(x,y,w,h);
-  }
-  // 石英の鉱脈のような明るい筋を散りばめ、視認性と洞窟らしさを高める
-  c.strokeStyle='rgba(170,205,255,0.55)';
-  c.lineWidth=1.4;
-  for(let i=0;i<6;i++){
-    let x=Math.random()*S, y=Math.random()*S;
-    c.beginPath(); c.moveTo(x,y);
-    for(let s=0;s<3;s++){
-      x+=(Math.random()-0.5)*14; y+=(Math.random()-0.5)*14;
-      c.lineTo(x,y);
+  const rows=3, cols=3;
+  const rh=S/rows, rw=S/cols;
+  const gap=3;
+  for(let ry=0; ry<rows; ry++){
+    const offset=(ry%2===0)?0:rw/2; // 1段おきに半マスずらして不規則な岩肌に
+    for(let rx=-1; rx<=cols; rx++){
+      const x=rx*rw+offset, y=ry*rh;
+      const bx=x+gap/2, by=y+gap/2, bw=rw-gap, bh=rh-gap;
+      const g=76+Math.floor(Math.random()*20)-10; // ブロックごとの濃淡は控えめに
+      c.fillStyle=`rgb(${Math.round(g*0.66)},${Math.round(g*0.80)},${g})`;
+      c.fillRect(bx,by,bw,bh);
+      // 立体感を出すハイライト（左上）とシャドウ（右下）で凹凸をはっきりさせる
+      c.fillStyle='rgba(220,235,255,0.28)';
+      c.fillRect(bx,by,bw,3);
+      c.fillRect(bx,by,3,bh);
+      c.fillStyle='rgba(0,0,0,0.45)';
+      c.fillRect(bx,by+bh-3,bw,3);
+      c.fillRect(bx+bw-3,by,3,bh);
     }
-    c.stroke();
   }
   const tex=new THREE.CanvasTexture(cv);
   tex.magFilter=THREE.NearestFilter;
