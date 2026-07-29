@@ -5688,6 +5688,8 @@ function shootArrow(){
       hitEnemy.investigating=false; hitEnemy.chaseDistMap=null;
       const dmg=calcDamage(totalAtk(db.atk),hitEnemy.def||0);
       spawnDamageNum(hitEnemy.mesh.position.x,2.0,hitEnemy.mesh.position.z,`${dmg}`,'#ffffff');
+      const hitName=MONSTER_DB[hitEnemy.monType]?MONSTER_DB[hitEnemy.monType].name:'敵';
+      showAction(`${hitName}に${dmg}のダメージを与えた`,800);
       sfxAttack();
       damageEnemy(hitEnemy, dmg);
       // 命中した場合は矢を消費する（外れた場合のみ床に落ちる）
