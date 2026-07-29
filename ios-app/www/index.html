@@ -340,6 +340,32 @@ body { font-family:'Courier New',monospace; color:#c8b89a; user-select:none; -we
 }
 #inv-suspend:active { background:#222; }
 
+/* 交換：所持アイテム選択モーダル（インベントリと同じ見た目のリストを流用） */
+#swap-modal {
+  position:fixed; inset:0; z-index:44;
+  background:rgba(0,0,0,0.6);
+  display:none; align-items:center; justify-content:center;
+}
+#swap-modal.show { display:flex; }
+#swap-panel {
+  width:510px; max-width:660px; max-height:840px;
+  background:#000; border:3px solid #f8f8f8; border-radius:3px;
+  box-shadow:0 0 0 1px #000818, 0 4px 10px rgba(0,0,0,0.5);
+  display:flex; flex-direction:column; overflow:hidden;
+}
+#swap-header {
+  padding:18px 24px; border-bottom:1px solid #f8f8f8;
+  color:#fff; font-size:22px; letter-spacing:2px; text-align:center;
+}
+#swap-list { overflow-y:auto; padding:12px; flex:1 1 auto; min-height:0; }
+#swap-footer { padding:15px 18px; border-top:1px solid #f8f8f8; flex-shrink:0; }
+#swap-cancel {
+  width:100%; background:#000; border:1px solid #f8f8f8; color:#a0a0a0;
+  font-size:20px; padding:17px; border-radius:3px;
+  font-family:'Courier New',monospace; cursor:pointer;
+}
+#swap-cancel:active { background:#222; }
+
 /* アクションメニュー */
 #action-panel, .action-panel-box {
   width:420px; max-width:480px;
@@ -457,6 +483,7 @@ body.spectator-mode #dialogue-box,
 body.spectator-mode #inv-modal,
 body.spectator-mode #action-modal,
 body.spectator-mode #underfoot-modal,
+body.spectator-mode #swap-modal,
 body.spectator-mode #confirm-modal,
 body.spectator-mode #dungeon-select-modal {
   pointer-events:none;
@@ -669,7 +696,19 @@ body.spectator-mode #spectator-caption.show { display:block; opacity:1; }
       <button class="act-btn" data-uf="use">使う</button>
       <button class="act-btn" data-uf="pick">拾う</button>
     </div>
+    <button class="act-btn" data-uf="swap">交換</button>
     <button class="act-btn" data-uf="cancel">やめる</button>
+  </div>
+</div>
+
+<!-- 交換：所持アイテムを選ぶモーダル -->
+<div id="swap-modal">
+  <div id="swap-panel">
+    <div id="swap-header">交換するアイテムを選択</div>
+    <div id="swap-list"></div>
+    <div id="swap-footer">
+      <button id="swap-cancel">やめる</button>
+    </div>
   </div>
 </div>
 
@@ -5944,6 +5983,11 @@ function doUnderfootAction(act){
     return;
   }
 
+  if(act==='swap'){
+    openSwapMenu();
+    return;
+  }
+
   // 使う / 投げる：一旦インベントリに入れて、通常のアクション処理に委ねる
   // （消費されるので、持ち物が満杯でも一時的に入れることを許可する）
   const gained=moveUnderfootToInventory(it,true);
@@ -5967,6 +6011,74 @@ underfootModal.querySelectorAll('.act-btn').forEach(b=>{
   b.addEventListener('click',handler);
 });
 underfootModal.onclick=e=>{ if(e.target===underfootModal)closeUnderfootMenu(); };
+
+// 「交換」：足元のアイテムと所持アイテムを1回のスワップ処理で入れ替える
+const swapModal=document.getElementById('swap-modal');
+function openSwapMenu(){
+  if(inventory.length===0){ showAction('持ち物がない',1000); return; }
+  renderSwapList();
+  swapModal.classList.add('show');
+}
+function closeSwapMenu(){ swapModal.classList.remove('show'); }
+function renderSwapList(){
+  const list=document.getElementById('swap-list');
+  list.innerHTML='';
+  inventory.forEach(it=>{
+    const db=ITEM_DB[it.key];
+    const div=document.createElement('div');
+    div.className='inv-item'+(it.equipped?' equipped':'');
+    const plusStr=it.plus>0?`<span class="inv-plus">+${it.plus}</span>`:'';
+    const eqStr=it.equipped?'<span class="inv-eq">E</span>':'';
+    const chargeStr=(db.type==='staff')?`<span class="inv-plus">(残${it.charges})</span>`
+      :(db.type==='arrow')?`<span class="inv-plus">x${it.count}</span>`:'';
+    const statVal=db.type==='weapon'?(db.atk||db.effect?.damage||0)+(it.plus||0)
+      :(db.type==='shield'||db.type==='armor')?(db.def||0)+(it.plus||0)
+      :db.type==='arrow'?(db.atk||0):null;
+    const statStr=statVal!==null?`<span class="inv-stat">${db.type==='weapon'||db.type==='arrow'?'攻':'防'}${statVal}</span>`:'';
+    div.innerHTML=`<span class="inv-icon">${db.icon}</span>
+      <span class="inv-name" style="color:${db.color}">${db.name} ${plusStr}${chargeStr}</span>${statStr} ${eqStr}`;
+    div.onclick=()=>doSwapWithFloorItem(it);
+    list.appendChild(div);
+  });
+}
+// 選んだ所持アイテムと足元のアイテムを1回の処理で入れ替える（拾う→置くの2手順ではなく単一スワップ）
+function doSwapWithFloorItem(invIt){
+  const floorIt=underfootTarget;
+  if(!floorIt){ closeSwapMenu(); closeUnderfootMenu(); return; }
+  const floorDb=ITEM_DB[floorIt.key];
+  const invDb=ITEM_DB[invIt.key];
+  const fx=floorIt.x, fy=floorIt.y;
+
+  // 装備中のアイテムを交換に出す場合は装備解除する
+  if(equippedWeapon===invIt) equippedWeapon=null;
+  if(equippedArmor===invIt) equippedArmor=null;
+  if(equippedArrow===invIt) equippedArrow=null;
+
+  // 所持アイテムを一旦持ち物から取り除く（ここで抜くことで、直後の
+  // moveUnderfootToInventoryが持ち物数の増減なしに正しく受け取れる）
+  const idx=inventory.indexOf(invIt);
+  inventory.splice(idx,1);
+
+  // 足元のアイテムを持ち物へ（倉庫マスならplus/chargesの永続データも正しく引き継ぐ）
+  moveUnderfootToInventory(floorIt,true);
+
+  // 持っていたアイテムを足元の同じ場所に置く（倉庫マスなら永続データも保存する）
+  if(state.inEntrance){
+    const slot=getWarehouseSlot(fx,fy);
+    if(slot){ warehouseData[`${slot.sx},${slot.sy}`]={itemKey:invIt.key, plus:invIt.plus||0, charges:invIt.charges, count:invIt.count}; }
+  }
+  spawnObject('item',fx,fy,invIt.key,invIt.count);
+
+  sfxItem();
+  showAction(`${invDb.name}と${floorDb.name}を交換した！`,1500);
+  closeSwapMenu();
+  closeUnderfootMenu();
+  renderInventory();
+  updateUnderfootLabel();
+  updateUI();
+}
+document.getElementById('swap-cancel').onclick=closeSwapMenu;
+swapModal.onclick=e=>{ if(e.target===swapModal)closeSwapMenu(); };
 
 // タブを離れた瞬間・閉じる直前は間引きなしで確実に保存
 document.addEventListener('visibilitychange',()=>{
