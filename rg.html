@@ -377,6 +377,11 @@ body { font-family:'Courier New',monospace; color:#c8b89a; user-select:none; -we
   color:#fff; font-size:23px; text-align:center;
   padding-bottom:15px; border-bottom:1px solid #f8f8f8; margin-bottom:6px;
 }
+#action-desc, #underfoot-desc {
+  color:#b0b0b0; font-size:16px; line-height:1.5;
+  margin-top:-8px; margin-bottom:2px;
+}
+#action-desc:empty, #underfoot-desc:empty { display:none; margin:0; }
 .act-btn-row {
   display:flex; flex-direction:row; gap:12px;
 }
@@ -678,6 +683,7 @@ body.spectator-mode #spectator-caption.show { display:block; opacity:1; }
 <div id="action-modal">
   <div id="action-panel">
     <div id="action-title">アイテム</div>
+    <div id="action-desc"></div>
     <div class="act-btn-row">
       <button class="act-btn" data-act="drop">置く</button>
       <button class="act-btn" data-act="throw">投げる</button>
@@ -691,6 +697,7 @@ body.spectator-mode #spectator-caption.show { display:block; opacity:1; }
 <div id="underfoot-modal">
   <div class="action-panel-box">
     <div id="underfoot-title">足元のアイテム</div>
+    <div id="underfoot-desc"></div>
     <div class="act-btn-row">
       <button class="act-btn" data-uf="throw">投げる</button>
       <button class="act-btn" data-uf="use">使う</button>
@@ -899,57 +906,57 @@ let prevAdjacentEnemies=[]; // 直前に自機と隣接していたモンスタ�
 // アイテムマスタ定義
 const ITEM_DB={
   // === 武器 ===
-  club:     {name:'こん棒',      type:'weapon', icon:'🗡️', color:'#c0c0c0', atk:2},
-  copper:   {name:'青銅の剣',    type:'weapon', icon:'🗡️', color:'#c0c0c0', atk:4},
-  iron:     {name:'鉄の剣',      type:'weapon', icon:'🗡️', color:'#c0c0c0', atk:6},
-  steel:    {name:'鋼の剣',      type:'weapon', icon:'🗡️', color:'#c0c0c0', atk:9},
-  ice:      {name:'まどろみの剣',type:'weapon', icon:'🗡️', color:'#c0c0c0', atk:8, effect:{onhit:'sleep'}},
-  greatsw:  {name:'両手剣',      type:'weapon', icon:'🗡️', color:'#c0c0c0', atk:13, effect:{miss:0.2}},
-  dragon:   {name:'龍殺しの剣',  type:'weapon', icon:'🗡️', color:'#c0c0c0', atk:11, effect:{slayer:'dragon'}},
-  murasama: {name:'妖刀ムラマサ',type:'weapon', icon:'🗡️', color:'#c0c0c0', atk:16, effect:{recoil:0.15}},
+  club:     {name:'こん棒',      type:'weapon', icon:'🗡️', color:'#c0c0c0', atk:2, desc:'攻撃力2。特殊な効果はない。'},
+  copper:   {name:'青銅の剣',    type:'weapon', icon:'🗡️', color:'#c0c0c0', atk:4, desc:'攻撃力4。特殊な効果はない。'},
+  iron:     {name:'鉄の剣',      type:'weapon', icon:'🗡️', color:'#c0c0c0', atk:6, desc:'攻撃力6。特殊な効果はない。'},
+  steel:    {name:'鋼の剣',      type:'weapon', icon:'🗡️', color:'#c0c0c0', atk:9, desc:'攻撃力9。特殊な効果はない。'},
+  ice:      {name:'まどろみの剣',type:'weapon', icon:'🗡️', color:'#c0c0c0', atk:8, effect:{onhit:'sleep'}, desc:'攻撃力8。低確率で攻撃した相手を眠らせる。'},
+  greatsw:  {name:'両手剣',      type:'weapon', icon:'🗡️', color:'#c0c0c0', atk:13, effect:{miss:0.2}, desc:'攻撃力13と高いが、攻撃が外れやすい。'},
+  dragon:   {name:'龍殺しの剣',  type:'weapon', icon:'🗡️', color:'#c0c0c0', atk:11, effect:{slayer:'dragon'}, desc:'攻撃力11。ドラゴンに特効があり、2倍のダメージを与える。'},
+  murasama: {name:'妖刀ムラマサ',type:'weapon', icon:'🗡️', color:'#c0c0c0', atk:16, effect:{recoil:0.15}, desc:'攻撃力16と非常に高いが、低確率で攻撃時に自分も反動ダメージを受ける。'},
   // === 防具（盾） ===
-  woodsh:   {name:'木の盾',      type:'shield', icon:'🛡️', color:'#c0c0c0', def:2},
-  bronzesh: {name:'青銅の盾',    type:'shield', icon:'🛡️', color:'#c0c0c0', def:4},
-  ironsh:   {name:'鉄の盾',      type:'shield', icon:'🛡️', color:'#c0c0c0', def:6},
-  steelsh:  {name:'鋼の盾',      type:'shield', icon:'🛡️', color:'#c0c0c0', def:9},
-  flamesh:  {name:'炎よけの盾',  type:'shield', icon:'🛡️', color:'#c0c0c0', def:5, effect:{resist:'magic'}},
-  heavysh:  {name:'重装の盾',    type:'shield', icon:'🛡️', color:'#c0c0c0', def:13, effect:{hungry:1.5}},
-  mirrorsh: {name:'鏡の盾',      type:'shield', icon:'🛡️', color:'#c0c0c0', def:6, effect:{thorns:0.3}},
-  holysh:   {name:'聖なる盾',    type:'shield', icon:'🛡️', color:'#c0c0c0', def:10, effect:{regen:true}},
+  woodsh:   {name:'木の盾',      type:'shield', icon:'🛡️', color:'#c0c0c0', def:2, desc:'防御力2。特殊な効果はない。'},
+  bronzesh: {name:'青銅の盾',    type:'shield', icon:'🛡️', color:'#c0c0c0', def:4, desc:'防御力4。特殊な効果はない。'},
+  ironsh:   {name:'鉄の盾',      type:'shield', icon:'🛡️', color:'#c0c0c0', def:6, desc:'防御力6。特殊な効果はない。'},
+  steelsh:  {name:'鋼の盾',      type:'shield', icon:'🛡️', color:'#c0c0c0', def:9, desc:'防御力9。特殊な効果はない。'},
+  flamesh:  {name:'炎よけの盾',  type:'shield', icon:'🛡️', color:'#c0c0c0', def:5, effect:{resist:'magic'}, desc:'防御力5。魔法によるダメージを半減させる。'},
+  heavysh:  {name:'重装の盾',    type:'shield', icon:'🛡️', color:'#c0c0c0', def:13, effect:{hungry:1.5}, desc:'防御力13と高いが、装備中は満腹度の減りが早くなる。'},
+  mirrorsh: {name:'鏡の盾',      type:'shield', icon:'🛡️', color:'#c0c0c0', def:6, effect:{thorns:0.3}, desc:'防御力6。低確率で受けたダメージを相手に反射する。'},
+  holysh:   {name:'聖なる盾',    type:'shield', icon:'🛡️', color:'#c0c0c0', def:10, effect:{regen:true}, desc:'防御力10。装備しているだけでHPが少しずつ回復する。'},
   // === 薬（potion） ===
-  herb:     {name:'薬草',        type:'potion', icon:'🧪', color:'#c0c0c0', effect:{heal:20}},
-  hiherb:   {name:'高級薬草',    type:'potion', icon:'🧪', color:'#c0c0c0', effect:{heal:50}},
-  powerp:   {name:'ちからの薬',  type:'potion', icon:'🧪', color:'#c0c0c0', effect:{buff:'atk'}},
-  lifep:    {name:'命の薬',      type:'potion', icon:'🧪', color:'#c0c0c0', effect:{buff:'maxhp'}},
-  speedp:   {name:'すばやさの薬',type:'potion', icon:'🧪', color:'#c0c0c0', effect:{status:'haste'}},
-  poisonp:  {name:'毒の薬',      type:'potion', icon:'🧪', color:'#c0c0c0', effect:{damage:10}},
-  confusep: {name:'混乱の薬',    type:'potion', icon:'🧪', color:'#c0c0c0', effect:{status:'confuse'}},
-  sleepp:   {name:'睡眠の薬',    type:'potion', icon:'🧪', color:'#c0c0c0', effect:{status:'sleep'}},
-  curep:    {name:'解毒の薬',    type:'potion', icon:'🧪', color:'#c0c0c0', effect:{cure:true}},
-  revivep:  {name:'復活の薬',    type:'potion', icon:'🧪', color:'#c0c0c0', effect:{revive:true}},
+  herb:     {name:'薬草',        type:'potion', icon:'🧪', color:'#c0c0c0', effect:{heal:20}, desc:'飲むとHPが20回復する。HPが満タンの時に飲むと、代わりに最大HPが2増える。'},
+  hiherb:   {name:'高級薬草',    type:'potion', icon:'🧪', color:'#c0c0c0', effect:{heal:50}, desc:'飲むとHPが50回復する。HPが満タンの時に飲むと、代わりに最大HPが2増える。'},
+  powerp:   {name:'ちからの薬',  type:'potion', icon:'🧪', color:'#c0c0c0', effect:{buff:'atk'}, desc:'飲むと、ちから（攻撃力）が永続的に上がる。'},
+  lifep:    {name:'命の薬',      type:'potion', icon:'🧪', color:'#c0c0c0', effect:{buff:'maxhp'}, desc:'飲むと、最大HPが永続的に10増える。'},
+  speedp:   {name:'すばやさの薬',type:'potion', icon:'🧪', color:'#c0c0c0', effect:{status:'haste'}, desc:'飲むと、一定ターンの間すばやくなり、行動回数が増える。'},
+  poisonp:  {name:'毒の薬',      type:'potion', icon:'🧪', color:'#c0c0c0', effect:{damage:10}, desc:'毒の薬。飲むとHPが10減ってしまう。'},
+  confusep: {name:'混乱の薬',    type:'potion', icon:'🧪', color:'#c0c0c0', effect:{status:'confuse'}, desc:'飲むと、一定ターンの間混乱してしまう。'},
+  sleepp:   {name:'睡眠の薬',    type:'potion', icon:'🧪', color:'#c0c0c0', effect:{status:'sleep'}, desc:'飲むと、その場で眠ってしまう。'},
+  curep:    {name:'解毒の薬',    type:'potion', icon:'🧪', color:'#c0c0c0', effect:{cure:true}, desc:'飲むと、混乱などの状態異常が治る。'},
+  revivep:  {name:'復活の薬',    type:'potion', icon:'🧪', color:'#c0c0c0', effect:{revive:true}, desc:'持っていると、力尽きた瞬間に自動で発動し、HPを全回復して復活する。'},
   // === 巻物（scroll・使い切り） ===
-  sc_enchant: {name:'武器強化の巻物',type:'scroll', icon:'📜', color:'#c0c0c0', effect:{scroll:'enchantWeapon'}},
-  sc_enchant_shield: {name:'盾強化の巻物',type:'scroll', icon:'📜', color:'#c0c0c0', effect:{scroll:'enchantShield'}},
-  sc_teleport:{name:'ワープの巻物',type:'scroll', icon:'📜', color:'#c0c0c0', effect:{scroll:'teleport'}},
-  sc_return:  {name:'帰還の巻物',    type:'scroll', icon:'📜', color:'#c0c0c0', effect:{scroll:'return'}},
-  sc_confuse: {name:'混乱の巻物',    type:'scroll', icon:'📜', color:'#c0c0c0', effect:{scroll:'confuseAll'}},
-  sc_sleep:   {name:'睡眠の巻物',    type:'scroll', icon:'📜', color:'#c0c0c0', effect:{scroll:'sleepAll'}},
-  sc_luck:    {name:'幸運の巻物',    type:'scroll', icon:'📜', color:'#c0c0c0', effect:{scroll:'luck'}},
-  sc_nuke:    {name:'全体攻撃の巻物',type:'scroll', icon:'📜', color:'#c0c0c0', effect:{scroll:'damageAll', power:20}},
-  sc_map:     {name:'地図の巻物',    type:'scroll', icon:'📜', color:'#c0c0c0', effect:{scroll:'map'}},
-  sc_seal:    {name:'封印の巻物',    type:'scroll', icon:'📜', color:'#c0c0c0', effect:{scroll:'sealAll'}},
+  sc_enchant: {name:'武器強化の巻物',type:'scroll', icon:'📜', color:'#c0c0c0', effect:{scroll:'enchantWeapon'}, desc:'読むと、装備中の武器が+1され攻撃力が上がる。'},
+  sc_enchant_shield: {name:'盾強化の巻物',type:'scroll', icon:'📜', color:'#c0c0c0', effect:{scroll:'enchantShield'}, desc:'読むと、装備中の盾が+1され防御力が上がる。'},
+  sc_teleport:{name:'ワープの巻物',type:'scroll', icon:'📜', color:'#c0c0c0', effect:{scroll:'teleport'}, desc:'読むと、今いるフロアのランダムな場所に瞬間移動する。'},
+  sc_return:  {name:'帰還の巻物',    type:'scroll', icon:'📜', color:'#c0c0c0', effect:{scroll:'return'}, desc:'読むと、ダンジョンからエントランスへ帰還する。今回の冒険はここで終了する。'},
+  sc_confuse: {name:'混乱の巻物',    type:'scroll', icon:'📜', color:'#c0c0c0', effect:{scroll:'confuseAll'}, desc:'読むと、周囲にいる敵全体を混乱させる。'},
+  sc_sleep:   {name:'睡眠の巻物',    type:'scroll', icon:'📜', color:'#c0c0c0', effect:{scroll:'sleepAll'}, desc:'読むと、周囲にいる敵全体を眠らせる。'},
+  sc_luck:    {name:'幸運の巻物',    type:'scroll', icon:'📜', color:'#c0c0c0', effect:{scroll:'luck'}, desc:'読むと、レベルが1上がりHPが全回復する。'},
+  sc_nuke:    {name:'全体攻撃の巻物',type:'scroll', icon:'📜', color:'#c0c0c0', effect:{scroll:'damageAll', power:20}, desc:'読むと、周囲にいる敵全体にダメージを与える。'},
+  sc_map:     {name:'地図の巻物',    type:'scroll', icon:'📜', color:'#c0c0c0', effect:{scroll:'map'}, desc:'読むと、今いるフロアの地形が全て分かるようになる。'},
+  sc_seal:    {name:'封印の巻物',    type:'scroll', icon:'📜', color:'#c0c0c0', effect:{scroll:'sealAll'}, desc:'読むと、周囲にいる敵全体の特殊能力を封じる。'},
   // === 杖（staff・回数制） ===
-  st_atk:    {name:'攻撃の杖',    type:'staff', icon:'🪄', color:'#c0c0c0', effect:{wand:'damage', power:15}},
-  st_sleep:  {name:'睡眠の杖',    type:'staff', icon:'🪄', color:'#c0c0c0', effect:{wand:'sleep'}},
-  st_confuse:{name:'混乱の杖',    type:'staff', icon:'🪄', color:'#c0c0c0', effect:{wand:'confuse'}},
-  st_swap:   {name:'場所替えの杖',type:'staff', icon:'🪄', color:'#c0c0c0', effect:{wand:'swap'}},
-  st_knock:  {name:'吹き飛ばしの杖',type:'staff', icon:'🪄', color:'#c0c0c0', effect:{wand:'knockback'}},
-  st_seal:   {name:'封印の杖',    type:'staff', icon:'🪄', color:'#c0c0c0', effect:{wand:'seal'}},
-  bread:    {name:'パン',        type:'food', icon:'🍞', color:'#c0c0c0', effect:{food:50}},
-  bigbread: {name:'大きいパン',  type:'food', icon:'🍞', color:'#c0c0c0', effect:{food:90}},
-  badbread: {name:'くさったパン',type:'food', icon:'🍞', color:'#c0c0c0', effect:{food:20,damage:8}},
+  st_atk:    {name:'攻撃の杖',    type:'staff', icon:'🪄', color:'#c0c0c0', effect:{wand:'damage', power:15}, desc:'振った方向の敵にダメージを与える。'},
+  st_sleep:  {name:'睡眠の杖',    type:'staff', icon:'🪄', color:'#c0c0c0', effect:{wand:'sleep'}, desc:'振った方向の敵を眠らせる。'},
+  st_confuse:{name:'混乱の杖',    type:'staff', icon:'🪄', color:'#c0c0c0', effect:{wand:'confuse'}, desc:'振った方向の敵を混乱させる。'},
+  st_swap:   {name:'場所替えの杖',type:'staff', icon:'🪄', color:'#c0c0c0', effect:{wand:'swap'}, desc:'振った方向の敵と自分の位置を入れ替える。'},
+  st_knock:  {name:'吹き飛ばしの杖',type:'staff', icon:'🪄', color:'#c0c0c0', effect:{wand:'knockback'}, desc:'振った方向の敵を、進める限り遠くへ吹き飛ばす。'},
+  st_seal:   {name:'封印の杖',    type:'staff', icon:'🪄', color:'#c0c0c0', effect:{wand:'seal'}, desc:'振った方向の敵の特殊能力を封じる。'},
+  bread:    {name:'パン',        type:'food', icon:'🍞', color:'#c0c0c0', effect:{food:50}, desc:'食べると満腹度が50回復する。'},
+  bigbread: {name:'大きいパン',  type:'food', icon:'🍞', color:'#c0c0c0', effect:{food:90}, desc:'食べると満腹度が90回復する。'},
+  badbread: {name:'くさったパン',type:'food', icon:'🍞', color:'#c0c0c0', effect:{food:20,damage:8}, desc:'食べると満腹度が20回復するが、お腹を壊してHPが8減ってしまう。'},
   // === 矢（arrow・弓で撃つ消耗品。所持数のみで管理し、拾うと1スタックにまとまる） ===
-  arrow_wood: {name:'木の矢', type:'arrow', icon:'🏹', color:'#c0c0c0', atk:2},
+  arrow_wood: {name:'木の矢', type:'arrow', icon:'🏹', color:'#c0c0c0', atk:2, desc:'弓矢ボタンで放つ投擲武器。攻撃力2。'},
 };
 const ITEM_KEYS=Object.keys(ITEM_DB);
 // 床に落ちるアイテム候補（装備は控えめ、消費を多め）
@@ -5437,6 +5444,7 @@ function openActionMenu(it){
   const db=ITEM_DB[it.key];
   const chargeTxt=(db.type==='staff')?` (残${it.charges})`:(db.type==='arrow')?` (残${it.count}本)`:'';
   document.getElementById('action-title').textContent=db.name+(it.plus>0?` +${it.plus}`:'')+chargeTxt;
+  document.getElementById('action-desc').textContent=db.desc||'';
   // 使う/装備するボタンのラベル切替
   const useBtn=document.querySelector('.act-btn[data-act="use"]');
   if(db.type==='weapon'||db.type==='armor'||db.type==='shield'||db.type==='arrow'){
@@ -5988,6 +5996,7 @@ function openUnderfootMenu(it){
   underfootTarget=it;
   const db=ITEM_DB[it.key];
   document.getElementById('underfoot-title').textContent='足元：'+db.name;
+  document.getElementById('underfoot-desc').textContent=db.desc||'';
   // 使う/装備ボタンのラベルを種別で切替
   const useBtn=underfootModal.querySelector('.act-btn[data-uf="use"]');
   if(db.type==='weapon'||db.type==='armor'||db.type==='shield'||db.type==='arrow'){ useBtn.textContent='装備する'; }
