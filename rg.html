@@ -877,7 +877,9 @@ const state={x:0,y:0,dir:0,angle:-Math.PI/2,targetAngle:-Math.PI/2,actionTimer:0
   hp:15,maxHp:15,str:0,lv:1,exp:0,nextExp:10,stepCount:0,
   food:100,maxFood:100,foodStep:0,gold:0,
   haste:0,confuse:0,inEntrance:false,playTimeMs:0,globalTurnCount:0,
-  dungeonType:'normal'}; // 'normal'=中級【全10F】 / 'beginner'=初級【全5F】 / 'advanced'=上級【全10F】
+  dungeonType:'normal', adventureCount:1}; // 'normal'=中級【全10F】 / 'beginner'=初級【全5F】 / 'advanced'=上級【全10F】
+// adventureCount：セーブスロットごとの「○回目の冒険」。ゲームオーバー/ダンジョンクリア/
+// 帰還の巻物でエントランスへ戻るたびに+1する（セーブ・ロード・タイトルへ戻る等では増やさない）
 let MAP=[],rooms=[],stairsPos=null,returnPos=null,floorItems=[],explored=[];
 // ボス撃破後にフロア中央へ出現する脱出口（青い光の柱）。入るとダンジョンクリアになる
 let exitPortalPos=null,exitPortalAnim=null;
@@ -1921,6 +1923,7 @@ function applyScrollEffect(it, db){
     case 'return':
       if(state.inEntrance){ showAction('ここでは使えない…',1200); break; }
       setLog('帰還');
+      state.adventureCount=(state.adventureCount||1)+1; // 帰還の巻物で今回の冒険が終了
       fadeTransition(()=>{
         resetPlayerStatsForEntrance();
         initEntrance();
@@ -3465,6 +3468,9 @@ function loadSaveData(slot){
 
 function applySave(data){
   Object.assign(state, data.state);
+  // この機能追加より前のセーブデータにはadventureCountが無いため、1回目として扱う
+  // （data.state基準で判定し、以前のセッションのstateに残った値を引き継がないようにする）
+  state.adventureCount=data.state.adventureCount!==undefined?data.state.adventureCount:1;
   playerSleepTurns=data.playerSleepTurns||0;
   nextItemId=data.nextItemId||nextItemId;
   warehouseUnlocked=data.warehouseUnlocked!==undefined?data.warehouseUnlocked:warehouseUnlocked;
@@ -3508,7 +3514,7 @@ function resetFullGameState(){
     hp:15,maxHp:15,str:0,lv:1,exp:0,nextExp:10,stepCount:0,
     food:100,maxFood:100,foodStep:0,gold:0,
     haste:0,confuse:0,inEntrance:false,playTimeMs:0,globalTurnCount:0,
-    dungeonType:'normal'
+    dungeonType:'normal', adventureCount:1
   });
   inventory.length=0;
   equippedWeapon=null; equippedArmor=null; equippedArrow=null;
@@ -3901,6 +3907,7 @@ function gameOverToEntrance(){
   inventory.length=0;
   equippedWeapon=null; equippedArmor=null; equippedArrow=null;
   state.gold=0;
+  state.adventureCount=(state.adventureCount||1)+1; // ゲームオーバーで今回の冒険が終了
   resetPlayerStatsForEntrance();
   animLocked=false;
   isPlayerDown=false;
@@ -3995,6 +4002,7 @@ function checkStepOn(){
         setLog('CLEAR！');
         sfxItem();
         triggerFlash('rgba(255,215,0,');
+        state.adventureCount=(state.adventureCount||1)+1; // ダンジョンクリアで今回の冒険が終了
         fadeTransition(()=>{
           resetPlayerStatsForEntrance();
           initEntrance();
@@ -4028,6 +4036,7 @@ function checkStepOn(){
       setLog('CLEAR！');
       sfxItem();
       triggerFlash(isAdvanced?'rgba(180,0,255,':'rgba(255,215,0,');
+      state.adventureCount=(state.adventureCount||1)+1; // ダンジョンクリアで今回の冒険が終了
       fadeTransition(()=>{
         resetPlayerStatsForEntrance();
         initEntrance();
@@ -6572,6 +6581,7 @@ function slotSummaryHtml(slot, data){
       <span class="slot-date">${formatSavedAt(data.savedAt)}</span>
     </div>
     <div class="slot-body">
+      <div class="slot-row"><span class="slot-k">冒険回数</span><span class="slot-v">${st.adventureCount!==undefined?st.adventureCount:1}回目の冒険</span></div>
       <div class="slot-row"><span class="slot-k">現在地</span><span class="slot-v">${saveLocationLabel(st)}</span></div>
       <div class="slot-row"><span class="slot-k">Lv</span><span class="slot-v">${st.lv!==undefined?st.lv:'—'}</span></div>
       <div class="slot-row"><span class="slot-k">所持金</span><span class="slot-v">${(st.gold!==undefined?st.gold:0)} G</span></div>
