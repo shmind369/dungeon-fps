@@ -4003,6 +4003,7 @@ function checkStepOn(){
     // お金は持ち帰ってエントランスへ）
     if(state.dungeonType==='beginner'&&state.floor>=5){
       showConfirm('初級ダンジョンをクリアしますか？',()=>{
+        const firstNormalUnlock=!state.normalUnlocked;
         showAction('初級ダンジョンをクリアした！',2400);
         setLog('CLEAR！');
         sfxItem();
@@ -4013,6 +4014,11 @@ function checkStepOn(){
           resetPlayerStatsForEntrance();
           initEntrance();
         }, '✧ DUNGEON CLEAR ✧');
+        // 暗転演出（フェードオーバーレイはaction-labelより手前に表示される）が
+        // 完全に終わってエントランスに戻ってから、解放メッセージを改めて表示する
+        if(firstNormalUnlock){
+          setTimeout(()=>{ showAction('ダンジョン選択時に中級ダンジョンを選べるようになった。',2400); }, 1800);
+        }
       });
       return;
     }
@@ -4038,6 +4044,7 @@ function checkStepOn(){
   if(exitPortalPos&&state.x===exitPortalPos.x&&state.y===exitPortalPos.y){
     const isAdvanced=state.dungeonType==='advanced';
     showConfirm('脱出口に入り、ダンジョンをクリアしますか？',()=>{
+      const firstAdvancedUnlock=!isAdvanced&&!state.advancedUnlocked;
       showAction(isAdvanced?'上級ダンジョンをクリアした！':'中級ダンジョンをクリアした！',2400);
       setLog('CLEAR！');
       sfxItem();
@@ -4048,6 +4055,11 @@ function checkStepOn(){
         resetPlayerStatsForEntrance();
         initEntrance();
       }, isAdvanced?'✧ ADVANCED DUNGEON CLEAR ✧':'✧ DUNGEON CLEAR ✧');
+      // 暗転演出（フェードオーバーレイはaction-labelより手前に表示される）が
+      // 完全に終わってエントランスに戻ってから、解放メッセージを改めて表示する
+      if(firstAdvancedUnlock){
+        setTimeout(()=>{ showAction('ダンジョン選択時に上級ダンジョンを選べるようになった。',2400); }, 1800);
+      }
     });
     return;
   }
