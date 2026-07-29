@@ -1816,7 +1816,9 @@ function buildDungeon(){
   let texturedWallMat=null;
   if(useWallTexture){
     const tex=getWallTextureForFloor(state.floor);
-    tex.repeat.set(3,4);
+    // 7〜8Fの洞窟壁は、石一つ一つが約5倍大きく見えるようリピート数を減らす
+    const isCaveFloor=state.floor>6&&state.floor<=8;
+    tex.repeat.set(isCaveFloor?3/5:3, isCaveFloor?4/5:4);
     texturedWallMat=new THREE.MeshLambertMaterial({map:tex});
   }
   const wMat=()=>useWallTexture?texturedWallMat:new THREE.MeshLambertMaterial({color:0x3a2410});
