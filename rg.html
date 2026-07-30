@@ -3748,6 +3748,7 @@ function restoreFloor(floorData){
 // カメラ
 const _v=new THREE.Vector3();
 let firstPersonMode=false; // 試験的な一人称視点モード（ステータスバー下のボタンで切り替え）
+let minimapVisible=true; // プレイ画面（#game-area）をタップするたびに表示/非表示を切り替える
 let spectatorMode=false; // AI観戦モード：プレイヤー操作を無効化し、AIが自動でプレイする
 const FP_EYE_HEIGHT=1.3;
 // 手前のマスが見やすいよう、視線をわずかに下向きにする（カメラの高さ自体は変えない）
@@ -3821,8 +3822,8 @@ function hideDialogue(){
   dialogueBox.classList.remove('show');
   activeDialogueNPC=null;
 }
-dialogueBox.addEventListener('click',hideDialogue);
-dialogueBox.addEventListener('touchstart',e=>{e.preventDefault();hideDialogue();},{passive:false});
+dialogueBox.addEventListener('click',e=>{e.stopPropagation();hideDialogue();});
+dialogueBox.addEventListener('touchstart',e=>{e.preventDefault();e.stopPropagation();hideDialogue();},{passive:false});
 
 // 会話中のNPCから自機が離れたら自動でウィンドウを閉じる（斜め隣接も含めた8方向の隣接判定）
 function checkDialogueDistance(){
@@ -6432,6 +6433,19 @@ function toggleDashMode(){
 }
 document.getElementById('dash-btn').addEventListener('click',toggleDashMode);
 
+// プレイ画面（#game-area）をタップするたびにミニマップの表示/非表示を切り替える。
+// ダイアログ表示中はダイアログ側のタップ（閉じる）を優先させ、ミニマップ切り替えは行わない。
+// touchstart側でpreventDefaultして後続の合成clickイベントを起こさせないことで、
+// 素早い連続タップでも1回ごとに正しくトグルされるようにする（時間ベースの二重発火防止は使わない）
+(()=>{
+  const toggleMinimap=()=>{
+    if(dialogueBox.classList.contains('show'))return;
+    minimapVisible=!minimapVisible;
+  };
+  gameArea.addEventListener('touchstart',e=>{e.preventDefault();toggleMinimap();},{passive:false});
+  gameArea.addEventListener('click',toggleMinimap);
+})();
+
 // ダッシュモード表示（ステータスバーの下に配置し、ON中のみ表示）
 function updateDashIndicator(){
   const el=document.getElementById('dash-indicator');
@@ -6660,6 +6674,7 @@ function updateExplored(){
 }
 
 function drawMinimap(){
+  if(!minimapVisible)return;
   if(!MAP.length||!explored.length)return;
   const S=11; // 大胆に大きく表示する
   const ox=(overlay.width-MAP_W*S)/2, oy=(overlay.height-MAP_H*S)/2; // 画面中央に配置
