@@ -1285,9 +1285,11 @@ function sfxEquip(){
 // ============================================================
 function midiToFreq(m){return 440*Math.pow(2,(m-69)/12);}
 // トラックごとにコード進行・テンポ・音色を変えて雰囲気を差別化する。
-// どちらもコード配列を巡回するだけの単純な構造なので、末尾から先頭へ継ぎ目なく自然にループする。
+// いずれもコード配列を巡回するだけの単純な構造なので、末尾から先頭へ継ぎ目なく自然にループする。
 // 初級：Dナチュラルマイナー i(Dm)-VI(Bb)-III(F)-VII(C)。落ち着いたテンポの基本パターン
-// 中級・上級：Aマイナーのアンダルシア終止 i(Am)-VII(G)-VI(F)-V(E) で、V→iの解決感を出しつつ緊張感のある雰囲気にする
+// 中級：Aマイナーのアンダルシア終止 i(Am)-VII(G)-VI(F)-V(E) で、V→iの解決感を出しつつ緊張感のある雰囲気にする
+// 上級：Gナチュラルマイナー主体 i(Gm)-v(Dm)-VI(Eb)-iv(Cm) で、短調の和音を重ねて中級より重く冷たい雰囲気にする
+// ボス戦：Eハーモニックマイナーの i(Em)-VI(C)-VII(D)-V(B) で、V→iの解決感を保ちつつテンポと音色で緊迫感を出す
 const BGM_TRACKS={
   beginner:{
     chords:[
@@ -1298,7 +1300,7 @@ const BGM_TRACKS={
     ],
     arpPattern:[0,1,2,3,2,1,0,1], arpType:'sine', tempo:78, delayTime:0.28,
   },
-  deep:{
+  normal:{
     chords:[
       {bassMidi:45, tones:[57,60,64,69]}, // Am: A2 bass / A3-C4-E4-A4
       {bassMidi:43, tones:[55,59,62,67]}, // G : G2 bass / G3-B3-D4-G4
@@ -1306,6 +1308,24 @@ const BGM_TRACKS={
       {bassMidi:40, tones:[52,56,59,64]}, // E : E2 bass / E3-G#3-B3-E4（ハーモニックにVを効かせる）
     ],
     arpPattern:[0,2,1,3,1,2,0,3], arpType:'triangle', tempo:90, delayTime:0.22,
+  },
+  advanced:{
+    chords:[
+      {bassMidi:43, tones:[55,58,62,67]}, // Gm: G2 bass / G3-Bb3-D4-G4
+      {bassMidi:38, tones:[50,53,57,62]}, // Dm: D2 bass / D3-F3-A3-D4
+      {bassMidi:39, tones:[51,55,58,63]}, // Eb: Eb2 bass / Eb3-G3-Bb3-Eb4
+      {bassMidi:36, tones:[48,51,55,60]}, // Cm: C2 bass / C3-Eb3-G3-C4
+    ],
+    arpPattern:[0,1,2,1,3,1,2,1], arpType:'square', tempo:84, delayTime:0.34,
+  },
+  boss:{
+    chords:[
+      {bassMidi:40, tones:[52,55,59,64]}, // Em: E2 bass / E3-G3-B3-E4
+      {bassMidi:36, tones:[48,52,55,60]}, // C : C2 bass / C3-E3-G3-C4
+      {bassMidi:38, tones:[50,54,57,62]}, // D : D2 bass / D3-F#3-A3-D4
+      {bassMidi:47, tones:[59,63,66,71]}, // B : B2 bass / B3-D#4-F#4-B4（ハーモニックマイナーのVで緊張を強める）
+    ],
+    arpPattern:[0,1,2,3,3,2,1,0], arpType:'sawtooth', tempo:116, delayTime:0.16,
   },
 };
 let bgmPlaying=false, bgmSchedulerTimer=null, bgmNextNoteTime=0, bgmChordIndex=0, bgmBarsInChord=0;
@@ -3206,6 +3226,11 @@ function restoreWarehouseItems(room){
 function initFloor(floor){
   state.inEntrance=false;
   state.floor=floor;
+  // 最深部（ボス階）はダンジョン曲からボス戦用BGMへクロスフェードで切り替える
+  if(floor===10&&state.dungeonType!=='beginner'&&bgmTrack!==BGM_TRACKS.boss){
+    if(bgmPlaying) stopBGM();
+    startBGM('boss');
+  }
   npcList=[];
   exitPortalPos=null; exitPortalAnim=null;
   floorTurnCount=0; updateTurnCounterDisplay(); // このフロアでのターン数をリセット
@@ -5363,7 +5388,7 @@ dungeonSelectNormalBtn.onclick=()=>{
   pendingFloorSpawns={};
   state.dungeonType='normal';
   fadeTransition(()=>{ initFloor(1); }, '地下 1 階');
-  startBGM('deep');
+  startBGM('normal');
 };
 document.getElementById('dungeon-select-beginner').onclick=()=>{
   closeDungeonSelect();
@@ -5380,7 +5405,7 @@ dungeonSelectAdvancedBtn.onclick=()=>{
   pendingFloorSpawns={};
   state.dungeonType='advanced';
   fadeTransition(()=>{ initFloor(1); }, '地下 1 階');
-  startBGM('deep');
+  startBGM('advanced');
 };
 document.getElementById('dungeon-select-cancel').onclick=closeDungeonSelect;
 
