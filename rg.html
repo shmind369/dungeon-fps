@@ -3327,6 +3327,12 @@ function spawnWallSignMesh(gx,gy,dir,tex,w,h){
 function spawnWallSign(gx,gy,dir,text){
   return spawnWallSignMesh(gx,gy,dir,createSignTexture(text),CELL*0.5,CELL*0.62);
 }
+// 指定した画像ファイル(png/jpg等)を、指定マス(gx,gy)から見て指定方向(dir)の壁に貼り付ける
+const _wallImageLoader=new THREE.TextureLoader();
+function spawnWallImage(gx,gy,dir,path,w,h){
+  const tex=_wallImageLoader.load(path);
+  return spawnWallSignMesh(gx,gy,dir,tex,w,h);
+}
 // チュートリアル用紙（タイトル＋番号付きルール、任意で簡単な図）のテクスチャを生成する
 function createRuleSignTexture(title,rules){
   const W=320,H=460;
@@ -3424,6 +3430,9 @@ function buildEntranceSigns(res){
     {lines:['中央ボタン＋矢印で','ターンを消費せず','向きだけ変えられる。'],diagram:'turnChange'},
   ]);
   spawnWallSignMesh(res.doorX+1, res.doorY, 'n', ruleTex, CELL*0.85, CELL*1.22);
+
+  // 倉庫内部の西壁（入り口から見て奥、扉とは反対側）にユーザー指定の画像を貼る（お試し）
+  spawnWallImage(res.storageRoom.x, res.storageRoom.cy, 'w', 'assets/wall_poster1.jpg', CELL*0.7, CELL*1.24);
 }
 
 // 倉庫の5x5スペースに床マーカーを表示（解放済み/未解放）
