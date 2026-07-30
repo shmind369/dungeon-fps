@@ -3424,12 +3424,40 @@ function buildEntranceSigns(res){
   // 倉庫の入り口（本体と倉庫をつなぐ通路の、倉庫側すぐ手前の北壁）に「倉庫」の紙を貼る
   spawnWallSign(res.storageRoom.x+res.storageRoom.w, res.storageRoom.cy, 'n', '倉庫');
 
-  // ダンジョン入口の扉の脇（本体の北壁）に、移動操作編のチュートリアル用紙を貼る
-  const ruleTex=createRuleSignTexture('① 移動のルール',[
-    {lines:['ダンジョンはターン制。','自分が動くまで','モンスターも動かない。']},
-    {lines:['中央ボタン＋矢印で','ターンを消費せず','向きだけ変えられる。'],diagram:'turnChange'},
-  ]);
-  spawnWallSignMesh(res.doorX+1, res.doorY, 'n', ruleTex, CELL*0.85, CELL*1.22);
+  // ダンジョン入口の扉を挟んで左右に、チュートリアル用紙を6枚一列に並べて貼る
+  // （扉のマス自体は使わず、その左右3マスずつに①〜⑥を配置する）
+  const tutorialSigns=[
+    {dx:-3, title:'① 移動のルール', rules:[
+      {lines:['ダンジョンはターン制。','自分が動くまで','モンスターも動かない。']},
+      {lines:['中央ボタン＋矢印で','ターンを消費せず','向きだけ変えられる。'],diagram:'turnChange'},
+    ]},
+    {dx:-2, title:'② 満腹度のルール', rules:[
+      {lines:['満腹度が0になると','HPが少しずつ','減っていく。']},
+      {lines:['食料を食べると','満腹度が','回復する。']},
+    ]},
+    {dx:-1, title:'③ 攻撃の基本', rules:[
+      {lines:['進みたい方向に','モンスターがいると','攻撃になる。']},
+      {lines:['攻撃は稀に','外れることもある。']},
+      {lines:['眠っている相手には','攻撃が必ず当たる。']},
+    ]},
+    {dx:1, title:'④ 持ち物のルール', rules:[
+      {lines:['持ち物は最大20個。','矢は99本まで','1つにまとまる。']},
+      {lines:['「整理」で持ち物を','並べ替えられる。']},
+      {lines:['足元にアイテムが','あれば「交換」で','入れ替えられる。']},
+    ]},
+    {dx:2, title:'⑤ 装備と強化', rules:[
+      {lines:['武器や盾は','「装備する」で','身につけられる。']},
+      {lines:['強化の巻物で','装備を「+1」に','強くできる。']},
+    ]},
+    {dx:3, title:'⑥ 力尽きた時・帰還', rules:[
+      {lines:['力尽きるとレベルは','リセットされる。','ゴールドと持ち物は','失わない。']},
+      {lines:['「帰還の巻物」で','いつでも安全に','エントランスへ','戻れる。']},
+    ]},
+  ];
+  tutorialSigns.forEach(sign=>{
+    const tex=createRuleSignTexture(sign.title, sign.rules);
+    spawnWallSignMesh(res.doorX+sign.dx, res.doorY, 'n', tex, CELL*0.85, CELL*1.22);
+  });
 
   // 倉庫内部の西壁（入り口から見て奥、扉とは反対側）にユーザー指定の画像を貼る（お試し）
   spawnWallImage(res.storageRoom.x, res.storageRoom.cy, 'w', 'assets/wall_poster1.jpg', CELL*0.7, CELL*1.24);
