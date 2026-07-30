@@ -1058,7 +1058,7 @@ function makeItem(key,count){
 // 効果音エンジン（Web Audio APIでその場で音を合成、音声ファイル不要）
 // ============================================================
 // 音量設定（BGM/効果音を個別に0〜100%で調整可能。端末に永続保存する）
-let gameSettings={bgmVolume:1.0, sfxVolume:1.0};
+let gameSettings={bgmVolume:0.3, sfxVolume:0.3};
 function loadSettings(){
   try{
     const saved=JSON.parse(localStorage.getItem('rg_settings')||'null');
