@@ -1409,6 +1409,7 @@ const BGM_TRACKS={
       {bassMidi:47, tones:[59,63,66,71]}, // B : B2 bass / B3-D#4-F#4-B4（ハーモニックマイナーのVで緊張を強める）
     ],
     arpPattern:[0,1,2,3,3,2,1,0], arpType:'sawtooth', tempo:116, delayTime:0.16,
+    volumeMul:0.25, // 他のBGMより音圧が大きく感じられるため、基準音量をさらに絞る
   },
 };
 let bgmPlaying=false, bgmSchedulerTimer=null, bgmNextNoteTime=0, bgmChordIndex=0, bgmBarsInChord=0;
@@ -1454,7 +1455,7 @@ function startBGM(trackKey){
   bgmTrack=BGM_TRACKS[trackKey]||BGM_TRACKS.beginner;
   bgmBeat=60/bgmTrack.tempo; bgmEighth=bgmBeat/2;
   bgmPlaying=true;
-  bgmMaster=ctx.createGain(); bgmMaster.gain.value=BGM_BASE_GAIN*gameSettings.bgmVolume;
+  bgmMaster=ctx.createGain(); bgmMaster.gain.value=BGM_BASE_GAIN*gameSettings.bgmVolume*(bgmTrack.volumeMul||1);
   bgmMaster.connect(ctx.destination);
   const delayNode=ctx.createDelay(); delayNode.delayTime.value=bgmTrack.delayTime;
   const feedback=ctx.createGain(); feedback.gain.value=0.32;
@@ -5530,7 +5531,7 @@ settingsBgmSlider.oninput=()=>{
   const v=parseInt(settingsBgmSlider.value,10)/100;
   gameSettings.bgmVolume=v;
   settingsBgmVal.textContent=settingsBgmSlider.value+'%';
-  if(bgmMaster) bgmMaster.gain.value=BGM_BASE_GAIN*v;
+  if(bgmMaster&&bgmTrack) bgmMaster.gain.value=BGM_BASE_GAIN*v*(bgmTrack.volumeMul||1);
   saveSettings();
 };
 settingsSfxSlider.oninput=()=>{
