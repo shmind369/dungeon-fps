@@ -2000,10 +2000,12 @@ function useScroll(it, onDone){
   playScrollActivateFx(scrollCategoryColor(it.key));
   // 既存のアニメロック機構（'delay'）に載せて、入力ブロックが他の演出に上書きされないようにする
   addAnim({type:'delay',mesh:playerGroup,baseX:playerGroup.position.x,baseZ:playerGroup.position.z,dx:0,dz:0,dist:0,duration:200,onEnd:()=>{
-    applyScrollEffect(it, db);
+    const skipEnemyTurn=applyScrollEffect(it, db);
     removeFromInv(it);
     updateUI();
-    if(onDone) onDone();
+    // 帰還の巻物で帰還処理を開始した場合は、既にダンジョンを離れる最中なので
+    // このターンは敵を行動させない（帰還完了前にモンスターに攻撃されるのを防ぐ）
+    if(onDone && !skipEnemyTurn) onDone();
   }});
 }
 
@@ -2043,7 +2045,7 @@ function applyScrollEffect(it, db){
         resetPlayerStatsForEntrance();
         initEntrance();
       }, 'エントランス');
-      break;
+      return true; // 帰還処理を開始したら、このターンは敵を行動させない
     case 'confuseAll':
       if(visEnemies.length===0){ showAction('何も起きなかった…',1000); break; }
       visEnemies.forEach(e=>{ e.confused=(e.confused||0)+8; });
@@ -4092,23 +4094,38 @@ function pickupItem(key,gx,gy){
 
 // 矢の入手（金貨と同様に本数のみで管理。既存の矢スタックがあれば数を合算し、
 // なければ新しくインベントリに1枠使って入手する。99本が上限）
+// 戻り値は実際に拾えた本数（0の場合は何も拾えなかった）。所持上限(MAX_ARROWS)を
+// 超える分は床に残すため、呼び出し側は返り値ぶんだけ床のアイテムから減らすこと
 function pickupArrows(key, dropAmount){
   const existing=inventory.find(x=>x.key===key);
   if(existing){
-    if(existing.count>=MAX_ARROWS){ showAction(`これ以上${ITEM_DB[key].name}は持てない`,1200); return false; }
+    if(existing.count>=MAX_ARROWS){ showAction(`これ以上${ITEM_DB[key].name}は持てない`,1200); return 0; }
     const got=Math.min(MAX_ARROWS-existing.count, dropAmount);
     existing.count+=got;
     showAction(`${ITEM_DB[key].name}を${got}本拾った！`,1200);setLog('アイテム取得');
     updateUI(); renderInventory();
-    return true;
+    return got;
   }
-  if(inventory.length>=MAX_INV){showAction(`持ち物がいっぱい！\n${ITEM_DB[key].name}の上に乗った。`,1500);return false;}
+  if(inventory.length>=MAX_INV){showAction(`持ち物がいっぱい！\n${ITEM_DB[key].name}の上に乗った。`,1500);return 0;}
   const got=Math.min(MAX_ARROWS,dropAmount);
   const it=makeItem(key,got);
   inventory.unshift(it);
   showAction(`${ITEM_DB[key].name}を${got}本拾った！`,1200);setLog('アイテム取得');
   updateUI();
-  return true;
+  return got;
+}
+// 床の矢アイテムから実際に拾えた本数ぶんだけ減らし、0本になった場合のみ完全に取り除く。
+// 一部しか拾えなかった場合は残数を床に残す（倉庫マスの永続データも合わせて更新する）
+function removePickedArrowsFromFloor(item, got, gx, gy){
+  item.count-=got;
+  if(item.count<=0){
+    scene.remove(item.mesh);
+    floorItems.splice(floorItems.indexOf(item),1);
+    if(state.inEntrance) removeFromWarehouseAt(gx,gy);
+  } else if(state.inEntrance){
+    const slot=getWarehouseSlot(gx,gy);
+    if(slot){ const saved=warehouseData[`${slot.sx},${slot.sy}`]; if(saved) saved.count=item.count; }
+  }
 }
 
 // エントランス帰還時：Lv・EXP・素のステータスをリセット（お金・アイテムは持ち帰り）
@@ -4219,10 +4236,10 @@ function checkStepOn(){
       floorItems.splice(floorItems.indexOf(item),1);
       updateUI();
     } else if(item.key==='arrow_wood'){
-      if(pickupArrows(item.key,item.count)){
+      const got=pickupArrows(item.key,item.count);
+      if(got>0){
         sfxItem();
-        scene.remove(item.mesh);floorItems.splice(floorItems.indexOf(item),1);
-        if(state.inEntrance) removeFromWarehouseAt(state.x,state.y);
+        removePickedArrowsFromFloor(item,got,state.x,state.y);
       }
     } else if(pickupItem(item.key,state.x,state.y)){
       sfxItem();
@@ -6129,11 +6146,10 @@ document.getElementById('inv-underfoot').onclick=()=>{
         openUnderfootMenu(it);
         return;
       }
-      if(pickupArrows(it.key,it.count)){
+      const got=pickupArrows(it.key,it.count);
+      if(got>0){
         sfxItem();
-        scene.remove(it.mesh);
-        floorItems.splice(floorItems.indexOf(it),1);
-        if(state.inEntrance) removeFromWarehouseAt(it.x,it.y);
+        removePickedArrowsFromFloor(it,got,it.x,it.y);
       }
       updateUnderfootLabel();
       return;
