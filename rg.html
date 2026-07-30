@@ -3303,10 +3303,10 @@ function createSignTexture(text){
   tex.minFilter=THREE.LinearMipmapLinearFilter;
   return tex;
 }
-// 指定マス(gx,gy)から見て指定方向(dir: 'n'|'s'|'e'|'w')の壁に、案内サインの紙を貼り付ける
-function spawnWallSign(gx,gy,dir,text){
-  const tex=createSignTexture(text);
-  const geo=new THREE.PlaneGeometry(CELL*0.5,CELL*0.62);
+// 指定マス(gx,gy)から見て指定方向(dir: 'n'|'s'|'e'|'w')の壁に、テクスチャ済みの紙を貼り付ける
+// （サイズはワールド単位。省略時はCELL*0.5 x CELL*0.62の小さい紙）
+function spawnWallSignMesh(gx,gy,dir,tex,w,h){
+  const geo=new THREE.PlaneGeometry(w||CELL*0.5,h||CELL*0.62);
   const mat=new THREE.MeshBasicMaterial({map:tex});
   const plane=new THREE.Mesh(geo,mat);
   const wx=gx*CELL, wz=gy*CELL;
@@ -3323,10 +3323,107 @@ function spawnWallSign(gx,gy,dir,text){
   objectMeshes.push(plane);
   return plane;
 }
+// 指定マス(gx,gy)から見て指定方向(dir)の壁に、短い一言だけの案内サインを貼り付ける
+function spawnWallSign(gx,gy,dir,text){
+  return spawnWallSignMesh(gx,gy,dir,createSignTexture(text),CELL*0.5,CELL*0.62);
+}
+// チュートリアル用紙（タイトル＋番号付きルール、任意で簡単な図）のテクスチャを生成する
+function createRuleSignTexture(title,rules){
+  const W=320,H=460;
+  const cv=document.createElement('canvas');
+  cv.width=W; cv.height=H;
+  const c=cv.getContext('2d');
+  c.fillStyle='#e8dcc0';
+  c.fillRect(0,0,W,H);
+  const grad=c.createRadialGradient(W/2,H/2,H*0.28,W/2,H/2,H*0.8);
+  grad.addColorStop(0,'rgba(0,0,0,0)');
+  grad.addColorStop(1,'rgba(70,50,20,0.28)');
+  c.fillStyle=grad;
+  c.fillRect(0,0,W,H);
+  c.strokeStyle='#7a6440';
+  c.lineWidth=6;
+  c.strokeRect(10,10,W-20,H-20);
+
+  c.fillStyle='#2a2016';
+  c.textAlign='center';
+  c.font='bold 30px "Hiragino Kaku Gothic ProN","Yu Gothic","Meiryo",sans-serif';
+  c.fillText(title,W/2,50);
+  c.strokeStyle='#9a8358';
+  c.lineWidth=2;
+  c.beginPath();c.moveTo(28,68);c.lineTo(W-28,68);c.stroke();
+
+  let y=68;
+  rules.forEach((rule,i)=>{
+    y+=36;
+    // 丸番号
+    c.beginPath();
+    c.fillStyle='#5a4526';
+    c.arc(38,y-8,14,0,Math.PI*2);
+    c.fill();
+    c.fillStyle='#e8dcc0';
+    c.font='bold 18px sans-serif';
+    c.textAlign='center';
+    c.fillText(String(i+1),38,y-2);
+    // ルール本文
+    c.fillStyle='#2a2016';
+    c.font='21px "Hiragino Kaku Gothic ProN","Yu Gothic","Meiryo",sans-serif';
+    c.textAlign='left';
+    rule.lines.forEach(line=>{ c.fillText(line,62,y); y+=28; });
+    if(rule.diagram==='turnChange'){ y+=8; drawTurnChangeDiagram(c,W/2,y+40); y+=104; }
+    if(i<rules.length-1){
+      y+=14;
+      c.strokeStyle='rgba(154,131,88,0.6)';
+      c.lineWidth=1.5;
+      c.beginPath();c.moveTo(28,y-8);c.lineTo(W-28,y-8);c.stroke();
+    }
+  });
+
+  const tex=new THREE.CanvasTexture(cv);
+  tex.magFilter=THREE.LinearFilter;
+  tex.minFilter=THREE.LinearMipmapLinearFilter;
+  return tex;
+}
+// 「中央ボタンを押しながら方向ボタン」＝ターン消費なしで向き変更、を表す簡単な図
+// （長押しを表す丸 ＋ 押す方向の矢印 ＝ ターン消費「0」、という3コマの記号列にする）
+function drawTurnChangeDiagram(c,cx,cy){
+  c.save();
+  c.strokeStyle='#5a4526';
+  c.fillStyle='#5a4526';
+  c.lineWidth=3;
+  c.lineCap='round';
+  // 1コマ目：長押しを表す二重丸
+  const x1=cx-100;
+  c.beginPath();c.arc(x1,cy,16,0,Math.PI*2);c.stroke();
+  c.beginPath();c.arc(x1,cy,7,0,Math.PI*2);c.fill();
+  // ＋
+  c.font='bold 26px sans-serif';c.textAlign='center';c.textBaseline='middle';
+  c.fillText('+',cx-60,cy);
+  // 2コマ目：押す方向を示す矢印（右上向き）
+  const x2=cx-16,y2=cy;
+  c.beginPath();
+  c.moveTo(x2-14,y2+14);c.lineTo(x2+12,y2-12);
+  c.moveTo(x2+12,y2-12);c.lineTo(x2-2,y2-12);
+  c.moveTo(x2+12,y2-12);c.lineTo(x2+12,y2+2);
+  c.stroke();
+  // ＝
+  c.fillText('=',cx+34,cy);
+  // 3コマ目：ターン消費0
+  c.beginPath();c.roundRect ? c.roundRect(cx+58,cy-18,44,36,6) : c.rect(cx+58,cy-18,44,36);c.stroke();
+  c.font='bold 20px sans-serif';
+  c.fillText('0',cx+80,cy);
+  c.restore();
+}
 // エントランスの案内サインをまとめて設置する
 function buildEntranceSigns(res){
   // 倉庫の入り口（本体と倉庫をつなぐ通路の、倉庫側すぐ手前の北壁）に「倉庫」の紙を貼る
   spawnWallSign(res.storageRoom.x+res.storageRoom.w, res.storageRoom.cy, 'n', '倉庫');
+
+  // ダンジョン入口の扉の脇（本体の北壁）に、移動操作編のチュートリアル用紙を貼る
+  const ruleTex=createRuleSignTexture('① 移動のルール',[
+    {lines:['ダンジョン内はすべてターン制。','自分が行動しない限り、','モンスターは動かない。']},
+    {lines:['中央ボタンを押しながら','矢印を押すと、ターンを','消費せず向きだけ変わる。'],diagram:'turnChange'},
+  ]);
+  spawnWallSignMesh(res.doorX+1, res.doorY, 'n', ruleTex, CELL*0.85, CELL*1.22);
 }
 
 // 倉庫の5x5スペースに床マーカーを表示（解放済み/未解放）
