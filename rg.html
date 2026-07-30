@@ -3224,6 +3224,9 @@ function initEntrance(){
   // 入れない部屋（ショップ・銀行・スペース）の入り口をNPCで塞ぐ
   spawnBlockerNPCs(res);
 
+  // 壁に貼られた案内サイン（チュートリアル用紙）
+  buildEntranceSigns(res);
+
   updateUI();
   saveGame();
 }
@@ -3271,6 +3274,59 @@ function spawnBlockerNPCs(res){
   spawnNPC(bank.x-1, bank.cy, '銀行の番人', blockText, 0x4a6a2a, Math.PI/2);
   // スペース（右下）：部屋の左端の1つ外に立つ（西を向く）
   spawnNPC(space.x-1, space.cy, '謎の人物', blockText, 0x5a2a5a, Math.PI/2);
+}
+
+// 壁に貼る紙（案内サイン）のテクスチャを生成する（少し黄ばんだ紙に文字を描く）
+function createSignTexture(text){
+  const W=256,H=320;
+  const cv=document.createElement('canvas');
+  cv.width=W; cv.height=H;
+  const c=cv.getContext('2d');
+  c.fillStyle='#e8dcc0';
+  c.fillRect(0,0,W,H);
+  // 四隅を少し暗くして年季の入った紙らしい質感にする
+  const grad=c.createRadialGradient(W/2,H/2,H*0.25,W/2,H/2,H*0.75);
+  grad.addColorStop(0,'rgba(0,0,0,0)');
+  grad.addColorStop(1,'rgba(70,50,20,0.28)');
+  c.fillStyle=grad;
+  c.fillRect(0,0,W,H);
+  c.strokeStyle='#7a6440';
+  c.lineWidth=6;
+  c.strokeRect(10,10,W-20,H-20);
+  c.fillStyle='#2a2016';
+  c.font='bold 84px "Hiragino Kaku Gothic ProN","Yu Gothic","Meiryo",sans-serif';
+  c.textAlign='center';
+  c.textBaseline='middle';
+  c.fillText(text, W/2, H/2+6);
+  const tex=new THREE.CanvasTexture(cv);
+  tex.magFilter=THREE.LinearFilter;
+  tex.minFilter=THREE.LinearMipmapLinearFilter;
+  return tex;
+}
+// 指定マス(gx,gy)から見て指定方向(dir: 'n'|'s'|'e'|'w')の壁に、案内サインの紙を貼り付ける
+function spawnWallSign(gx,gy,dir,text){
+  const tex=createSignTexture(text);
+  const geo=new THREE.PlaneGeometry(CELL*0.5,CELL*0.62);
+  const mat=new THREE.MeshBasicMaterial({map:tex});
+  const plane=new THREE.Mesh(geo,mat);
+  const wx=gx*CELL, wz=gy*CELL;
+  // 壁本体(wGeo)はマス境界を中心に厚み0.12(半分0.06)を持つため、その手前面よりさらに
+  // 少し浮かせて貼らないと壁の中に埋まってしまう（半厚み0.06 + 余裕0.03）
+  const eps=0.06+0.03;
+  const y=1.4; // ほぼ目線の高さ
+  if(dir==='n'){ plane.position.set(wx,y,wz-CELL/2+eps); plane.rotation.y=0; }
+  else if(dir==='s'){ plane.position.set(wx,y,wz+CELL/2-eps); plane.rotation.y=Math.PI; }
+  else if(dir==='w'){ plane.position.set(wx-CELL/2+eps,y,wz); plane.rotation.y=Math.PI/2; }
+  else if(dir==='e'){ plane.position.set(wx+CELL/2-eps,y,wz); plane.rotation.y=-Math.PI/2; }
+  plane.userData={gx,gy};
+  scene.add(plane);
+  objectMeshes.push(plane);
+  return plane;
+}
+// エントランスの案内サインをまとめて設置する
+function buildEntranceSigns(res){
+  // 倉庫の入り口（本体と倉庫をつなぐ通路の、倉庫側すぐ手前の北壁）に「倉庫」の紙を貼る
+  spawnWallSign(res.storageRoom.x+res.storageRoom.w, res.storageRoom.cy, 'n', '倉庫');
 }
 
 // 倉庫の5x5スペースに床マーカーを表示（解放済み/未解放）
