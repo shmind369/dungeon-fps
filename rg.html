@@ -5227,8 +5227,9 @@ function enemyTurn(){
 
     // 自機と隣接（1マス以内）していれば移動せず攻撃
     const doAttack=(e)=>{
-      // 物理攻撃（近接）を仕掛けてきた敵の方向へ自機の向きを変える（魔法弾・ブレスなど遠隔攻撃は対象外）
-      facePlayerToward(e.x,e.y);
+      // 物理攻撃（近接）を仕掛けてきた敵の方向へ自機の向きを変える（魔法弾・ブレスなど遠隔攻撃は対象外）。
+      // 一人称視点では視界が急に回転して分かりづらくなるため、その場合は向きを変えない
+      if(!firstPersonMode) facePlayerToward(e.x,e.y);
       // 命中率7/8（約87.5%）
       if(Math.random()>=7/8){
         enemyLunge(e);
