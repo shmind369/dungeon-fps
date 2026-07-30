@@ -4092,10 +4092,11 @@ function getAdjacentEnemies(){
   return enemies.filter(e=>e.hp>0&&e!==undefined&&Math.abs(e.x-state.x)<=1&&Math.abs(e.y-state.y)<=1&&!(e.x===state.x&&e.y===state.y));
 }
 // 自機とモンスターが新たに隣接した時だけ、そのモンスターの方向へ自機の向きを変える
-// （既に他のモンスターと隣接していた場合は向きを変えない）
+// （既に他のモンスターと隣接していた場合は向きを変えない）。一人称視点では
+// 視界が急に回転して分かりづらくなるため、この自動振り向きも行わない
 function checkAutoFaceNewAdjacent(){
   const current=getAdjacentEnemies();
-  if(prevAdjacentEnemies.length===0&&current.length>0){
+  if(!firstPersonMode&&prevAdjacentEnemies.length===0&&current.length>0){
     facePlayerToward(current[0].x,current[0].y);
   }
   prevAdjacentEnemies=current;
@@ -6708,6 +6709,20 @@ function doAttackButton(){
   }
 }
 
+// 押しっぱなし系の操作（方向パッドの連打・待機ボタンの連打・中央ボタンのドラッグ旋回）は、
+// 対象要素自身のtouchend/touchcancelが（WebView環境などで）取りこぼされると、
+// setIntervalやドラッグ状態が「押されたまま」に固定されてしまい、他のボタンを
+// 押しても意図通りに反応しなくなることがある。指が画面のどこかから離れれば
+// 必ず全ての押しっぱなし状態が解除されるよう、window単位でもtouchend/touchcancel/
+// blur/visibilitychangeを監視し、登録された解除処理を強制的に呼び出す安全策を設ける。
+const _activeInputReleasers=[];
+function _registerInputReleaser(fn){ _activeInputReleasers.push(fn); }
+function _releaseAllStuckInputs(){ _activeInputReleasers.forEach(fn=>{ try{ fn(); }catch(e){} }); }
+window.addEventListener('touchend', _releaseAllStuckInputs, {passive:true});
+window.addEventListener('touchcancel', _releaseAllStuckInputs, {passive:true});
+window.addEventListener('blur', _releaseAllStuckInputs);
+document.addEventListener('visibilitychange', ()=>{ if(document.hidden) _releaseAllStuckInputs(); });
+
 document.querySelectorAll('.dp').forEach(btn=>{
   const dir=parseInt(btn.dataset.dir);
   if(dir===-1){
@@ -6740,6 +6755,7 @@ document.querySelectorAll('.dp').forEach(btn=>{
       window._turnDragging=false;nb.classList.remove('turn-on');
       updateHighlight(false);
     };
+    _registerInputReleaser(end);
 
     nb.addEventListener('touchstart',e=>{e.preventDefault();const t=e.touches[0];start(t.clientX,t.clientY);},{passive:false});
     nb.addEventListener('touchmove',e=>{e.preventDefault();const t=e.touches[0];move(t.clientX,t.clientY);},{passive:false});
@@ -6757,6 +6773,7 @@ document.querySelectorAll('.dp').forEach(btn=>{
       repeatTimer=setInterval(()=>{dpadPress(dir);},interval);
     };
     const stopMove=()=>{clearInterval(repeatTimer);repeatTimer=null;};
+    _registerInputReleaser(stopMove);
     btn.addEventListener('touchstart',e=>{e.preventDefault();startMove();},{passive:false});
     btn.addEventListener('touchend',e=>{e.preventDefault();stopMove();},{passive:false});
     btn.addEventListener('touchcancel',e=>{e.preventDefault();stopMove();},{passive:false});
@@ -6783,6 +6800,7 @@ document.querySelectorAll('.dp').forEach(btn=>{
     repeatTimer=setInterval(()=>{doWait();},WAIT_INTERVAL);
   };
   const stopWait=()=>{clearInterval(repeatTimer);repeatTimer=null;};
+  _registerInputReleaser(stopWait);
   wb.addEventListener('touchstart',e=>{e.preventDefault();startWait();},{passive:false});
   wb.addEventListener('touchend',e=>{e.preventDefault();stopWait();},{passive:false});
   wb.addEventListener('touchcancel',e=>{e.preventDefault();stopWait();},{passive:false});
