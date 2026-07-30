@@ -703,8 +703,8 @@ body.spectator-mode #spectator-caption.show { display:block; opacity:1; }
   <div id="inv-panel">
     <div id="inv-header">
       <div id="inv-header-left">
-        <button id="settings-btn" aria-label="設定">⚙</button>
         <span>持ち物</span>
+        <button id="settings-btn" aria-label="設定">⚙</button>
       </div>
     </div>
     <div id="inv-list"></div>
@@ -1371,6 +1371,8 @@ function midiToFreq(m){return 440*Math.pow(2,(m-69)/12);}
 // 中級：Aマイナーのアンダルシア終止 i(Am)-VII(G)-VI(F)-V(E) で、V→iの解決感を出しつつ緊張感のある雰囲気にする
 // 上級：Gナチュラルマイナー主体 i(Gm)-v(Dm)-VI(Eb)-iv(Cm) で、短調の和音を重ねて中級より重く冷たい雰囲気にする
 // ボス戦：Eハーモニックマイナーの i(Em)-VI(C)-VII(D)-V(B) で、V→iの解決感を保ちつつテンポと音色で緊迫感を出す
+// BGM全体の基準音量（効果音に対して控えめになるよう、以前の0.6より少し下げてある）
+const BGM_BASE_GAIN=0.45;
 const BGM_TRACKS={
   beginner:{
     chords:[
@@ -1452,7 +1454,7 @@ function startBGM(trackKey){
   bgmTrack=BGM_TRACKS[trackKey]||BGM_TRACKS.beginner;
   bgmBeat=60/bgmTrack.tempo; bgmEighth=bgmBeat/2;
   bgmPlaying=true;
-  bgmMaster=ctx.createGain(); bgmMaster.gain.value=0.6*gameSettings.bgmVolume;
+  bgmMaster=ctx.createGain(); bgmMaster.gain.value=BGM_BASE_GAIN*gameSettings.bgmVolume;
   bgmMaster.connect(ctx.destination);
   const delayNode=ctx.createDelay(); delayNode.delayTime.value=bgmTrack.delayTime;
   const feedback=ctx.createGain(); feedback.gain.value=0.32;
@@ -5511,7 +5513,7 @@ settingsBgmSlider.oninput=()=>{
   const v=parseInt(settingsBgmSlider.value,10)/100;
   gameSettings.bgmVolume=v;
   settingsBgmVal.textContent=settingsBgmSlider.value+'%';
-  if(bgmMaster) bgmMaster.gain.value=0.6*v;
+  if(bgmMaster) bgmMaster.gain.value=BGM_BASE_GAIN*v;
   saveSettings();
 };
 settingsSfxSlider.oninput=()=>{
