@@ -1899,12 +1899,12 @@ function generateEntranceMap(){
   // オフセット（マップ中央寄りに配置）
   const OX=3, OY=7;
 
-  // エントランス本体：横7 x 縦9
+  // エントランス本体：横7 x 縦7（倉庫・スペースの部屋と下端を揃える）
   const cx0=OX+7+1; // 左部屋(7)+通路(1)
   const cy0=OY;
-  const cw=7, ch=9;
+  const cw=7, ch=7;
   for(let y=cy0;y<cy0+ch;y++)for(let x=cx0;x<cx0+cw;x++)m[y][x]=0;
-  const centerRoom={x:cx0,y:cy0,w:cw,h:ch,cx:cx0+3,cy:cy0+4,id:'center'};
+  const centerRoom={x:cx0,y:cy0,w:cw,h:ch,cx:cx0+3,cy:cy0+3,id:'center'};
   rs.push(centerRoom);
 
   // 2部屋（各7x7）：倉庫とスペース
