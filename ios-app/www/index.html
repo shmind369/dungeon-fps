@@ -1899,36 +1899,32 @@ function generateEntranceMap(){
   // オフセット（マップ中央寄りに配置）
   const OX=3, OY=7;
 
-  // エントランス本体：横7 x 縦15
+  // エントランス本体：横7 x 縦9
   const cx0=OX+7+1; // 左部屋(7)+通路(1)
   const cy0=OY;
-  const cw=7, ch=15;
+  const cw=7, ch=9;
   for(let y=cy0;y<cy0+ch;y++)for(let x=cx0;x<cx0+cw;x++)m[y][x]=0;
-  const centerRoom={x:cx0,y:cy0,w:cw,h:ch,cx:cx0+3,cy:cy0+7,id:'center'};
+  const centerRoom={x:cx0,y:cy0,w:cw,h:ch,cx:cx0+3,cy:cy0+4,id:'center'};
   rs.push(centerRoom);
 
-  // 4部屋（各7x7）
+  // 2部屋（各7x7）：倉庫とスペース
   const leftX=OX, rightX=cx0+cw+1;
-  const topY=OY, botY=OY+8;
+  const topY=OY;
 
   const storageRoom={x:leftX,y:topY,w:7,h:7,cx:leftX+3,cy:topY+3,id:'storage'};
-  const shopRoom   ={x:leftX,y:botY,w:7,h:7,cx:leftX+3,cy:botY+3,id:'shop'};
-  const bankRoom   ={x:rightX,y:topY,w:7,h:7,cx:rightX+3,cy:topY+3,id:'bank'};
-  const spaceRoom  ={x:rightX,y:botY,w:7,h:7,cx:rightX+3,cy:botY+3,id:'space'};
-  [storageRoom,shopRoom,bankRoom,spaceRoom].forEach(r=>{
+  const spaceRoom  ={x:rightX,y:topY,w:7,h:7,cx:rightX+3,cy:topY+3,id:'space'};
+  [storageRoom,spaceRoom].forEach(r=>{
     for(let y=r.y;y<r.y+r.h;y++)for(let x=r.x;x<r.x+r.w;x++)m[y][x]=0;
     rs.push(r);
   });
 
-  // 通路で接続（各部屋の中心行/列からエントランス本体まで一直線）
+  // 通路で接続（各部屋の中心行からエントランス本体まで一直線）
   function carveH(y,xFrom,xTo){const s=Math.min(xFrom,xTo),e=Math.max(xFrom,xTo);for(let x=s;x<=e;x++)m[y][x]=0;}
   carveH(storageRoom.cy, storageRoom.x+storageRoom.w-1, cx0); // 倉庫→本体
-  carveH(shopRoom.cy,    shopRoom.x+shopRoom.w-1, cx0);       // ショップ→本体
-  carveH(bankRoom.cy,    cx0+cw-1, bankRoom.x);               // 本体→銀行
   carveH(spaceRoom.cy,   cx0+cw-1, spaceRoom.x);              // 本体→スペース
 
   return{cells:m,rooms:rs, doorX:cx0+3, doorY:cy0, startX:cx0+3, startY:cy0+ch-4,
-    storageRoom, shopRoom, bankRoom, spaceRoom, centerRoom};
+    storageRoom, spaceRoom, centerRoom};
 }
 
 // ダンジョン構築
@@ -3221,9 +3217,6 @@ function initEntrance(){
   // 倉庫の案内NPCを配置
   spawnWarehouseNPC(res.storageRoom);
 
-  // 入れない部屋（ショップ・銀行・スペース）の入り口をNPCで塞ぐ
-  spawnBlockerNPCs(res);
-
   // 壁に貼られた案内サイン（チュートリアル用紙）
   buildEntranceSigns(res);
 
@@ -3261,20 +3254,6 @@ function spawnWarehouseNPC(room){
     0x6a4a28, Math.PI*0.75);
 }
 
-// 入れない部屋（ショップ・銀行・スペース）の入り口をNPCで塞ぐ
-function spawnBlockerNPCs(res){
-  // 各部屋と本体をつなぐ通路は部屋の cy 行。その部屋側の入り口マスに立たせて塞ぐ。
-  // ショップ：左側の部屋 → 入り口は部屋の右端の外(=部屋右端+0 は部屋内なので、通路の1マス)
-  // 通路は carveH で部屋の端から本体まで掘られている。部屋のすぐ外＝入り口を塞ぐ。
-  const shop=res.shopRoom, bank=res.bankRoom, space=res.spaceRoom;
-  const blockText='準備中だよ。';
-  // ショップ（左下）：部屋の右端の1つ外に立つ（東を向く＝通路側）
-  spawnNPC(shop.x+shop.w, shop.cy, 'ショップの店員', blockText, 0x2a4a6a, -Math.PI/2);
-  // 銀行（右上）：部屋の左端の1つ外に立つ（西を向く）
-  spawnNPC(bank.x-1, bank.cy, '銀行の番人', blockText, 0x4a6a2a, Math.PI/2);
-  // スペース（右下）：部屋の左端の1つ外に立つ（西を向く）
-  spawnNPC(space.x-1, space.cy, '謎の人物', blockText, 0x5a2a5a, Math.PI/2);
-}
 
 // 壁に貼る紙（案内サイン）のテクスチャを生成する（少し黄ばんだ紙に文字を描く）
 function createSignTexture(text){

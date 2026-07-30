@@ -3217,9 +3217,6 @@ function initEntrance(){
   // 倉庫の案内NPCを配置
   spawnWarehouseNPC(res.storageRoom);
 
-  // 入れない部屋（ショップ・銀行・スペース）の入り口をNPCで塞ぐ
-  spawnBlockerNPCs(res);
-
   // 壁に貼られた案内サイン（チュートリアル用紙）
   buildEntranceSigns(res);
 
@@ -3257,20 +3254,6 @@ function spawnWarehouseNPC(room){
     0x6a4a28, Math.PI*0.75);
 }
 
-// 入れない部屋（ショップ・銀行・スペース）の入り口をNPCで塞ぐ
-function spawnBlockerNPCs(res){
-  // 各部屋と本体をつなぐ通路は部屋の cy 行。その部屋側の入り口マスに立たせて塞ぐ。
-  // ショップ：左側の部屋 → 入り口は部屋の右端の外(=部屋右端+0 は部屋内なので、通路の1マス)
-  // 通路は carveH で部屋の端から本体まで掘られている。部屋のすぐ外＝入り口を塞ぐ。
-  const shop=res.shopRoom, bank=res.bankRoom, space=res.spaceRoom;
-  const blockText='準備中だよ。';
-  // ショップ（左下）：部屋の右端の1つ外に立つ（東を向く＝通路側）
-  spawnNPC(shop.x+shop.w, shop.cy, 'ショップの店員', blockText, 0x2a4a6a, -Math.PI/2);
-  // 銀行（右上）：部屋の左端の1つ外に立つ（西を向く）
-  spawnNPC(bank.x-1, bank.cy, '銀行の番人', blockText, 0x4a6a2a, Math.PI/2);
-  // スペース（右下）：部屋の左端の1つ外に立つ（西を向く）
-  spawnNPC(space.x-1, space.cy, '謎の人物', blockText, 0x5a2a5a, Math.PI/2);
-}
 
 // 壁に貼る紙（案内サイン）のテクスチャを生成する（少し黄ばんだ紙に文字を描く）
 function createSignTexture(text){
