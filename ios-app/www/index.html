@@ -3366,7 +3366,7 @@ function createRuleSignTexture(title,rules){
     c.fillText(String(i+1),38,y-2);
     // ルール本文
     c.fillStyle='#2a2016';
-    c.font='21px "Hiragino Kaku Gothic ProN","Yu Gothic","Meiryo",sans-serif';
+    c.font='20px "Hiragino Kaku Gothic ProN","Yu Gothic","Meiryo",sans-serif';
     c.textAlign='left';
     rule.lines.forEach(line=>{ c.fillText(line,62,y); y+=28; });
     if(rule.diagram==='turnChange'){ y+=8; drawTurnChangeDiagram(c,W/2,y+40); y+=104; }
@@ -3420,8 +3420,8 @@ function buildEntranceSigns(res){
 
   // ダンジョン入口の扉の脇（本体の北壁）に、移動操作編のチュートリアル用紙を貼る
   const ruleTex=createRuleSignTexture('① 移動のルール',[
-    {lines:['ダンジョン内はすべてターン制。','自分が行動しない限り、','モンスターは動かない。']},
-    {lines:['中央ボタンを押しながら','矢印を押すと、ターンを','消費せず向きだけ変わる。'],diagram:'turnChange'},
+    {lines:['ダンジョンはターン制。','自分が動くまで','モンスターも動かない。']},
+    {lines:['中央ボタン＋矢印で','ターンを消費せず','向きだけ変えられる。'],diagram:'turnChange'},
   ]);
   spawnWallSignMesh(res.doorX+1, res.doorY, 'n', ruleTex, CELL*0.85, CELL*1.22);
 }
