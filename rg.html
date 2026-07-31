@@ -977,7 +977,6 @@ const ITEM_DB={
   steelsh:  {name:'鋼の盾',      type:'shield', icon:'🛡️', color:'#c0c0c0', def:9, desc:'防御力9。特殊な効果はない。'},
   flamesh:  {name:'炎よけの盾',  type:'shield', icon:'🛡️', color:'#c0c0c0', def:5, effect:{resist:'magic'}, desc:'防御力5。魔法によるダメージを半減させる。'},
   heavysh:  {name:'重装の盾',    type:'shield', icon:'🛡️', color:'#c0c0c0', def:13, effect:{hungry:1.5}, desc:'防御力13と高いが、装備中は満腹度の減りが早くなる。'},
-  mirrorsh: {name:'鏡の盾',      type:'shield', icon:'🛡️', color:'#c0c0c0', def:6, effect:{thorns:0.3}, desc:'防御力6。低確率で受けたダメージを相手に反射する。'},
   holysh:   {name:'聖なる盾',    type:'shield', icon:'🛡️', color:'#c0c0c0', def:10, effect:{regen:true}, desc:'防御力10。装備しているだけでHPが少しずつ回復する。'},
   // === 薬（potion） ===
   herb:     {name:'薬草',        type:'potion', icon:'🧪', color:'#c0c0c0', effect:{heal:20}, desc:'飲むとHPが20回復する。HPが満タンの時に飲むと、代わりに最大HPが2増える。'},
@@ -1031,7 +1030,7 @@ const BEGINNER_FLOOR_ITEM_KEYS=FLOOR_ITEM_KEYS.filter(k=>{
   return true;
 });
 // 上級ダンジョンでは、通常のプールに加えてこれまで入手手段がなかった上位の盾も出現させる（武器の種類は増やさない）
-const ADVANCED_EXTRA_EQUIPMENT=['mirrorsh','holysh','heavysh'];
+const ADVANCED_EXTRA_EQUIPMENT=['holysh','heavysh'];
 const ADVANCED_FLOOR_ITEM_KEYS=FLOOR_ITEM_KEYS.concat(ADVANCED_EXTRA_EQUIPMENT);
 // ダンジョン種別ごとのアイテム・モンスター出現プールの対応表（既定は中級のプール）
 const DUNGEON_ITEM_POOLS={beginner:BEGINNER_FLOOR_ITEM_KEYS, advanced:ADVANCED_FLOOR_ITEM_KEYS};
@@ -5377,14 +5376,6 @@ function enemyTurn(){
       } else {
         showAction(`${dmg}ダメージを受けた！`,800);
       }
-      // 盾のトゲ（鏡の盾）：受けたダメージの一部を敵に返す
-      const shEff=equippedArmor?ITEM_DB[equippedArmor.key].effect:null;
-      if(shEff&&shEff.thorns){
-        const back=Math.max(1,Math.round(dmg*shEff.thorns));
-        e.hp-=back;
-        spawnDamageNum(e.mesh.position.x,2.0,e.mesh.position.z,`反射${back}`,'#ffffff');
-        if(e.hp<=0) damageEnemy(e,0);
-      }
       updateUI();
       checkPlayerDeath();
     };
@@ -5748,6 +5739,7 @@ function updateUnderfootLabel(){
   if(!it){
     if(stairsPos&&state.x===stairsPos.x&&state.y===stairsPos.y){ label='階段'; empty=false; }
     else if(returnPos&&state.x===returnPos.x&&state.y===returnPos.y){ label='帰還の間'; empty=false; }
+    else if(exitPortalPos&&state.x===exitPortalPos.x&&state.y===exitPortalPos.y){ label='帰還エリア'; empty=false; }
     else if(state.inEntrance&&entranceInfo&&state.x===entranceInfo.doorX&&state.y===entranceInfo.doorY){ label='ダンジョン入口'; empty=false; }
   }
   span.textContent=label;
