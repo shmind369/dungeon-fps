@@ -1058,7 +1058,7 @@ function makeItem(key,count){
 // 効果音エンジン（Web Audio APIでその場で音を合成、音声ファイル不要）
 // ============================================================
 // 音量設定（BGM/効果音を個別に0〜100%で調整可能。端末に永続保存する）
-let gameSettings={bgmVolume:0.3, sfxVolume:0.3};
+let gameSettings={bgmVolume:1, sfxVolume:0.3};
 function loadSettings(){
   try{
     const saved=JSON.parse(localStorage.getItem('rg_settings')||'null');
@@ -1372,7 +1372,9 @@ function midiToFreq(m){return 440*Math.pow(2,(m-69)/12);}
 // 上級：Gナチュラルマイナー主体 i(Gm)-v(Dm)-VI(Eb)-iv(Cm) で、短調の和音を重ねて中級より重く冷たい雰囲気にする
 // ボス戦：Eハーモニックマイナーの i(Em)-VI(C)-VII(D)-V(B) で、V→iの解決感を保ちつつテンポと音色で緊迫感を出す
 // BGM全体の基準音量（効果音に対して控えめになるよう、以前の0.6より少し下げてある）
-const BGM_BASE_GAIN=0.45;
+// ※ 従来のデフォルト音量(bgmVolume=0.3)をスライダーの100%として扱うため、
+//    その分(0.3倍)基準ゲインを下げてある。実際の聴感上の音量は変更前と同じ。
+const BGM_BASE_GAIN=0.45*0.3;
 const BGM_TRACKS={
   beginner:{
     chords:[
