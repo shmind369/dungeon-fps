@@ -941,7 +941,7 @@ const state={x:0,y:0,dir:0,angle:-Math.PI/2,targetAngle:-Math.PI/2,actionTimer:0
   food:100,maxFood:100,foodStep:0,gold:0,
   haste:0,confuse:0,inEntrance:false,playTimeMs:0,globalTurnCount:0,
   dungeonType:'normal', adventureCount:1,
-  normalUnlocked:false, advancedUnlocked:false}; // 'normal'=中級【全10F】 / 'beginner'=初級【全5F】 / 'advanced'=上級【全10F】
+  normalUnlocked:false, advancedUnlocked:false, endingSeen:false}; // 'normal'=中級【全10F】 / 'beginner'=初級【全5F】 / 'advanced'=上級【全10F】
 // normalUnlocked：初級を初めてクリアすると解放。advancedUnlocked：中級を初めてクリアすると解放
 // adventureCount：セーブスロットごとの「○回目の冒険」。ゲームオーバー/ダンジョンクリア/
 // 帰還の巻物でエントランスへ戻るたびに+1する（セーブ・ロード・タイトルへ戻る等では増やさない）
@@ -3824,7 +3824,7 @@ function resetFullGameState(){
     food:100,maxFood:100,foodStep:0,gold:0,
     haste:0,confuse:0,inEntrance:false,playTimeMs:0,globalTurnCount:0,
     dungeonType:'normal', adventureCount:1,
-    normalUnlocked:false, advancedUnlocked:false
+    normalUnlocked:false, advancedUnlocked:false, endingSeen:false
   });
   inventory.length=0;
   equippedWeapon=null; equippedArmor=null; equippedArrow=null;
@@ -3994,6 +3994,12 @@ function hideDialogue(){
 }
 dialogueBox.addEventListener('click',e=>{e.stopPropagation();hideDialogue();});
 dialogueBox.addEventListener('touchstart',e=>{e.preventDefault();e.stopPropagation();hideDialogue();},{passive:false});
+
+// 上級ダンジョン初クリア時、エントランスに戻った後に一度だけ表示する簡単なエンディング
+function showEndingDialogue(){
+  showDialogue('',
+    '上級ダンジョン、最奥のボスを打ち破った。\n\n長い旅もひとまずここで一区切り。\nダンジョンの奥には、まだ何かが眠っているかもしれない。\n気が向けば、また潜ってみるといい。');
+}
 
 // 会話中のNPCから自機が離れたら自動でウィンドウを閉じる（斜め隣接も含めた8方向の隣接判定）
 function checkDialogueDistance(){
@@ -4365,12 +4371,14 @@ function checkStepOn(){
     const isAdvanced=state.dungeonType==='advanced';
     showConfirm('脱出口に入り、ダンジョンをクリアしますか？',()=>{
       const firstAdvancedUnlock=!isAdvanced&&!state.advancedUnlocked;
+      const showEnding=isAdvanced&&!state.endingSeen; // 上級初クリア時のみ、簡単なエンディングを1回だけ表示する
       showAction(isAdvanced?'上級ダンジョンをクリアした！':'中級ダンジョンをクリアした！',2400);
       setLog('CLEAR！');
       sfxItem();
       triggerFlash(isAdvanced?'rgba(180,0,255,':'rgba(255,215,0,');
       state.adventureCount=(state.adventureCount||1)+1; // ダンジョンクリアで今回の冒険が終了
       if(!isAdvanced) state.advancedUnlocked=true; // 中級クリアで上級を解放
+      if(showEnding) state.endingSeen=true;
       fadeTransition(()=>{
         resetPlayerStatsForEntrance();
         initEntrance();
@@ -4379,6 +4387,8 @@ function checkStepOn(){
       // 完全に終わってエントランスに戻ってから、解放メッセージを改めて表示する
       if(firstAdvancedUnlock){
         setTimeout(()=>{ showAction('ダンジョン選択時に上級ダンジョンを選べるようになった。',2400); }, 1800);
+      } else if(showEnding){
+        setTimeout(()=>{ showEndingDialogue(); }, 1800);
       }
     });
     return;
