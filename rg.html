@@ -492,15 +492,22 @@ body { font-family:'Courier New',monospace; color:#c8b89a; user-select:none; -we
 }
 #title-screen.hide { display:none; }
 #title-logo {
-  color:#f0d080; font-size:32px; letter-spacing:2px; text-align:center;
-  text-shadow:0 0 18px rgba(240,208,128,0.35), 0 2px 3px rgba(0,0,0,0.6);
+  color:#f0d080; font-size:36px; font-weight:bold; letter-spacing:3px; text-align:center;
+  text-shadow:0 0 24px rgba(240,208,128,0.5), 0 0 8px rgba(240,208,128,0.35), 0 2px 3px rgba(0,0,0,0.7);
   line-height:1.4;
 }
+#title-logo::before, #title-logo::after {
+  content:'';
+  display:block;
+  width:150px; height:1px; margin:0 auto 16px;
+  background:linear-gradient(90deg, transparent, #9a8458, transparent);
+}
+#title-logo::after { margin:16px auto 0; }
 #title-logo .sub-jp {
   display:block; font-size:12px; color:#9a8458; letter-spacing:4px; margin-top:10px;
 }
 #title-logo .title-ver {
-  display:block; font-size:11px; color:#7a6a48; letter-spacing:2px; margin-top:8px;
+  display:block; font-size:11px; font-weight:normal; color:#7a6a48; letter-spacing:2px; margin-top:8px;
 }
 #title-buttons { display:flex; flex-direction:column; gap:14px; width:260px; max-width:280px; }
 .title-btn {
@@ -514,7 +521,6 @@ body { font-family:'Courier New',monospace; color:#c8b89a; user-select:none; -we
 #title-debug { border-color:#5a5a5a; color:#a0a0a0; }
 #title-debug.debug-on { border-color:#d04040; color:#ff9090; }
 #title-spectator:active { background:#1c3040; }
-#title-footer { color:#5a4e38; font-size:10px; letter-spacing:1px; }
 
 /* AI観戦モード：操作系ボタンをすべて無効化し、右上に終了ボタンと観戦中の表示を出す
    （確認・選択系モーダルはAI自身がクリックして進めるため、プレイヤーの
@@ -625,7 +631,6 @@ body.spectator-mode #spectator-caption.show { display:block; opacity:1; }
     <button id="title-spectator" class="title-btn">AI観戦モード</button>
     <button id="title-debug" class="title-btn">デバッグモード：OFF</button>
   </div>
-  <div id="title-footer">Three.js Voxel Roguelike</div>
 </div>
 <button id="spectator-exit">観戦をやめる</button>
 <div id="spectator-badge">AI観戦モード</div>
