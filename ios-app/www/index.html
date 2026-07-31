@@ -744,6 +744,7 @@ body.spectator-mode #spectator-caption.show { display:block; opacity:1; }
       <button class="act-btn" data-act="throw">投げる</button>
       <button class="act-btn" data-act="use">使う</button>
     </div>
+    <button class="act-btn" data-act="swap">交換</button>
     <button class="act-btn" data-act="cancel">やめる</button>
   </div>
 </div>
@@ -5801,6 +5802,10 @@ function openActionMenu(it){
   } else {
     useBtn.textContent='使う';
   }
+  // 足元に交換可能なアイテムがある時だけ「交換」ボタンを表示する
+  const swapBtn=document.querySelector('.act-btn[data-act="swap"]');
+  const floorIt=getUnderfootItem();
+  swapBtn.style.display=(floorIt&&floorIt.key!=='gold')?'':'none';
   actionModal.classList.add('show');
 }
 function closeActionMenu(){ actionModal.classList.remove('show'); selectedItem=null; }
@@ -5897,6 +5902,15 @@ function doAction(act){
     showAction(`${db.name}を置いた`);
     closeActionMenu(); renderInventory(); updateUI();
     endPlayerAction();
+
+  } else if(act==='swap'){
+    // 所持アイテム側から開始する交換：足元のアイテムと1回のスワップ処理で入れ替える
+    // （足元側から開始した場合と同じdoSwapWithFloorItemを使うことで、処理を共通化する）
+    const floorIt=getUnderfootItem();
+    if(!floorIt||floorIt.key==='gold'){ closeActionMenu(); return; }
+    closeActionMenu();
+    underfootTarget=floorIt;
+    doSwapWithFloorItem(it);
 
   } else {
     closeActionMenu();
