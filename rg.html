@@ -402,6 +402,60 @@ body { font-family:'Courier New',monospace; color:#c8b89a; user-select:none; -we
 }
 #swap-cancel:active { background:#222; }
 
+/* 多目的ホール：やることリストモーダル（交換モーダルと同じ見た目に入力欄を追加） */
+#todo-modal {
+  position:fixed; inset:0; z-index:44;
+  background:rgba(0,0,0,0.6);
+  display:none; align-items:center; justify-content:center;
+}
+#todo-modal.show { display:flex; }
+#todo-panel {
+  width:510px; max-width:660px; max-height:840px;
+  background:#000; border:3px solid #f8f8f8; border-radius:3px;
+  box-shadow:0 0 0 1px #000818, 0 4px 10px rgba(0,0,0,0.5);
+  display:flex; flex-direction:column; overflow:hidden;
+}
+#todo-header {
+  padding:18px 24px; border-bottom:1px solid #f8f8f8;
+  color:#fff; font-size:22px; letter-spacing:2px; text-align:center;
+}
+#todo-list { overflow-y:auto; padding:12px; flex:1 1 auto; min-height:0; }
+.todo-item {
+  display:flex; align-items:center; gap:12px;
+  padding:14px 16px; margin-bottom:6px;
+  background:#000; border:1px solid #444; border-radius:3px;
+  color:#fff; font-size:19px;
+}
+.todo-item-text { flex:1; white-space:pre-line; }
+.todo-item-del {
+  background:#000; border:1px solid #666; color:#a0a0a0;
+  width:30px; height:30px; line-height:1; border-radius:3px;
+  cursor:pointer; flex-shrink:0; font-size:16px;
+}
+.todo-item-del:active { background:#222; }
+#todo-empty { color:#888; font-size:18px; text-align:center; padding:20px; }
+#todo-input-row {
+  display:flex; gap:8px; padding:0 18px 12px; flex-shrink:0;
+}
+#todo-input {
+  flex:1; background:#000; border:1px solid #f8f8f8; color:#fff;
+  font-size:18px; padding:12px; border-radius:3px;
+  font-family:'Courier New',monospace;
+}
+#todo-add {
+  background:#000; border:1px solid #f8f8f8; color:#fff;
+  font-size:18px; padding:12px 18px; border-radius:3px;
+  font-family:'Courier New',monospace; cursor:pointer; flex-shrink:0;
+}
+#todo-add:active { background:#222; }
+#todo-footer { padding:15px 18px; border-top:1px solid #f8f8f8; flex-shrink:0; }
+#todo-close {
+  width:100%; background:#000; border:1px solid #f8f8f8; color:#a0a0a0;
+  font-size:20px; padding:17px; border-radius:3px;
+  font-family:'Courier New',monospace; cursor:pointer;
+}
+#todo-close:active { background:#222; }
+
 /* アクションメニュー */
 #action-panel, .action-panel-box {
   width:420px; max-width:480px;
@@ -777,6 +831,21 @@ body.spectator-mode #spectator-caption.show { display:block; opacity:1; }
   </div>
 </div>
 
+<!-- 多目的ホール：やることリストモーダル -->
+<div id="todo-modal">
+  <div id="todo-panel">
+    <div id="todo-header">やることリスト</div>
+    <div id="todo-list"></div>
+    <div id="todo-input-row">
+      <input type="text" id="todo-input" maxlength="40" placeholder="やることを書き足す…">
+      <button id="todo-add">追加</button>
+    </div>
+    <div id="todo-footer">
+      <button id="todo-close">やめる</button>
+    </div>
+  </div>
+</div>
+
 <!-- YES/NO確認モーダル -->
 <div id="confirm-modal">
   <div id="confirm-panel">
@@ -958,6 +1027,9 @@ let warehouseUnlocked=9; // 解放済みスロット数（3x3=9が初期）
 let warehouseData={}; // key: "sx,sy" -> {itemKey, plus, charges}
 let entranceInfo=null; // generateEntranceMapの戻り値を保持
 let npcList=[]; // エントランスのNPC群 [{x,y,mesh,name,text}]
+// 開発者やることリスト（多目的ホールのNPCが表示。プレイヤーが自由にテキストで追加できる）
+const DEFAULT_TODO_LIST=['罠システムを作る','壺システムを作る'];
+let todoList=[...DEFAULT_TODO_LIST];
 let enemies=[];
 let prevAdjacentEnemies=[]; // 直前に自機と隣接していたモンスター（新規隣接の判定用）
 
@@ -3222,6 +3294,9 @@ function initEntrance(){
   // 倉庫の案内NPCを配置
   spawnWarehouseNPC(res.storageRoom);
 
+  // 多目的ホールのやることリストNPCを配置
+  spawnTodoNPC(res.spaceRoom);
+
   // 壁に貼られた案内サイン（チュートリアル用紙）
   buildEntranceSigns(res);
 
@@ -3231,7 +3306,7 @@ function initEntrance(){
 
 // 倉庫案内NPCの生成・配置（倉庫の入口脇、通路はふさがない位置）
 // 汎用NPC生成（ボクセルの人型）。colorで衣の色を変えられる
-function spawnNPC(npcX,npcY,name,text,robeColor,facingY){
+function spawnNPC(npcX,npcY,name,text,robeColor,facingY,kind){
   const g=new THREE.Group();
   const robe=robeColor||0x6a4a28;
   vox(0.16,0.28,0.16, 0x2a2016, -0.12,0.14,0, g); // 左脚
@@ -3248,7 +3323,7 @@ function spawnNPC(npcX,npcY,name,text,robeColor,facingY){
   g.position.set(npcX*CELL,0,npcY*CELL);
   scene.add(g);
   objectMeshes.push(g);
-  npcList.push({x:npcX,y:npcY,mesh:g,name,text});
+  npcList.push({x:npcX,y:npcY,mesh:g,name,text,kind});
 }
 
 function spawnWarehouseNPC(room){
@@ -3257,6 +3332,14 @@ function spawnWarehouseNPC(room){
   spawnNPC(npcX,npcY,'倉庫の案内人',
     'ここは倉庫じゃ。\n色の変わった床にアイテムを『置く』と、\n次に来た時もそのまま残っておるよ。\nまだ使えん床もあるが、\nそのうち広がるかもしれんのう。',
     0x6a4a28, Math.PI*0.75);
+}
+
+// 多目的ホールの「やることリスト」NPC（開発メモ係）：通路（部屋西側cy行）をふさがない位置に配置
+function spawnTodoNPC(room){
+  const npcX=room.x+1, npcY=room.cy-2;
+  spawnNPC(npcX,npcY,'開発メモ係',
+    'ここは多目的ホールじゃ。\n今考えている「やること」を貼り出しておるよ。\n思いついたことがあれば、\nお主も書き足していってくれ。',
+    0x2f5d8c, Math.PI*0.25, 'todo');
 }
 
 
@@ -3684,6 +3767,7 @@ function serializeSave(){
     warehouseUnlocked,
     warehouseData,
     pendingFloorSpawns,
+    todoList,
     inventory:inventory.map(it=>{
       const o={id:it.id,key:it.key,plus:it.plus||0,equipped:!!it.equipped};
       if(it.charges!==undefined)o.charges=it.charges;
@@ -3786,6 +3870,7 @@ function applySave(data){
   warehouseUnlocked=data.warehouseUnlocked!==undefined?data.warehouseUnlocked:warehouseUnlocked;
   warehouseData=data.warehouseData||{};
   pendingFloorSpawns=data.pendingFloorSpawns||{};
+  todoList=Array.isArray(data.todoList)?data.todoList:[...DEFAULT_TODO_LIST];
 
   inventory.length=0;
   equippedWeapon=null; equippedArmor=null; equippedArrow=null;
@@ -3834,6 +3919,7 @@ function resetFullGameState(){
   warehouseUnlocked=9;
   warehouseData={};
   pendingFloorSpawns={};
+  todoList=[...DEFAULT_TODO_LIST];
 }
 
 // WebGLコンテキスト復元時などに、セーブデータを介さず「今の状態」をそのまま
@@ -5524,6 +5610,7 @@ function moveForward(dash=false){
     // 前方にNPCがいれば会話（移動・攻撃より優先。NPCのマスには進めない＝入り口を塞ぐ）
     const npc=npcList.find(n=>n.x===nx&&n.y===ny);
     if(npc){
+      if(npc.kind==='todo'){ openTodoModal(); setLog(npc.name||'NPC'); return; }
       showDialogue(npc.name||'案内人', npc.text||'', npc);
       setLog(npc.name||'NPC');
       return;
@@ -6518,6 +6605,48 @@ function doSwapWithFloorItem(invIt){
 }
 document.getElementById('swap-cancel').onclick=closeSwapMenu;
 swapModal.onclick=e=>{ if(e.target===swapModal)closeSwapMenu(); };
+
+// 多目的ホール：やることリストモーダル
+const todoModal=document.getElementById('todo-modal');
+const todoInput=document.getElementById('todo-input');
+function openTodoModal(){
+  renderTodoList();
+  todoModal.classList.add('show');
+  todoInput.value='';
+}
+function closeTodoModal(){ todoModal.classList.remove('show'); }
+function renderTodoList(){
+  const list=document.getElementById('todo-list');
+  list.innerHTML='';
+  if(todoList.length===0){
+    list.innerHTML='<div id="todo-empty">まだ何も書かれていない</div>';
+    return;
+  }
+  todoList.forEach((text,idx)=>{
+    const div=document.createElement('div');
+    div.className='todo-item';
+    div.innerHTML=`<span class="todo-item-text"></span><button class="todo-item-del">×</button>`;
+    div.querySelector('.todo-item-text').textContent=text;
+    div.querySelector('.todo-item-del').onclick=()=>{
+      todoList.splice(idx,1);
+      renderTodoList();
+      saveGame();
+    };
+    list.appendChild(div);
+  });
+}
+function addTodoItem(){
+  const v=todoInput.value.trim();
+  if(!v)return;
+  todoList.push(v);
+  todoInput.value='';
+  renderTodoList();
+  saveGame();
+}
+document.getElementById('todo-add').onclick=addTodoItem;
+todoInput.addEventListener('keydown',e=>{ if(e.key==='Enter'){ e.preventDefault(); addTodoItem(); } });
+document.getElementById('todo-close').onclick=closeTodoModal;
+todoModal.onclick=e=>{ if(e.target===todoModal)closeTodoModal(); };
 
 // タブを離れた瞬間・閉じる直前は間引きなしで確実に保存
 document.addEventListener('visibilitychange',()=>{
