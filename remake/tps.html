@@ -571,6 +571,11 @@ function buildHeroine() {
 }
 const heroine = buildHeroine();
 scene.add(heroine.root);
+// All of her materials are transparent-capable so she can fade out when something is behind her
+heroine.mats = new Set();
+heroine.root.traverse(o => { if (o.isMesh) heroine.mats.add(o.material); });
+heroine.mats.forEach(m => { m.transparent = true; });
+heroine.opacity = 1;
 const sword = { userData: { blade: heroine.blade } };
 
 const slashMesh = new THREE.Mesh(new THREE.PlaneGeometry(1.6, 1.6),
@@ -1621,10 +1626,42 @@ function animateHeroine(dt, idleOnly) {
   h.blade.material.emissive.setRGB(player.chargedReady ? 0.45 + 0.3 * Math.sin(t * 20) : charge * 0.25, player.chargedReady ? 0.6 : charge * 0.3, player.chargedReady ? 0.9 : charge * 0.4);
 }
 
+// Fade the heroine only while an enemy or item behind her overlaps her on screen
+const _v = new THREE.Vector3();
+function screenRect(x, y, z, halfW, halfH, rx, rz) {
+  let x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9, front = true;
+  for (const [sx, sy] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) {
+    _v.set(x + rx * halfW * sx, y + halfH * sy, z + rz * halfW * sx).project(camera);
+    if (_v.z > 1) front = false;
+    x0 = Math.min(x0, _v.x); x1 = Math.max(x1, _v.x); y0 = Math.min(y0, _v.y); y1 = Math.max(y1, _v.y);
+  }
+  return front ? [x0, y0, x1, y1] : null;
+}
+function updateHeroineFade(dt) {
+  camera.updateMatrixWorld();
+  const rx = Math.cos(player.yaw), rz = -Math.sin(player.yaw);
+  const me = screenRect(player.x, 0.72, player.z, 0.2, 0.3, rx, rz);
+  const myDist = Math.hypot(player.x - camera.position.x, player.z - camera.position.z);
+  let hidden = false;
+  const test = (x, y, z, hw, hh) => {
+    if (hidden || !me) return;
+    if (Math.hypot(x - camera.position.x, z - camera.position.z) <= myDist + 0.1) return; // only things behind her
+    const r = screenRect(x, y, z, hw, hh, rx, rz);
+    if (r && r[0] < me[2] && r[2] > me[0] && r[1] < me[3] && r[3] > me[1]) hidden = true;
+  };
+  for (const e of enemies) { if (!e.dead && Math.hypot(e.x - player.x, e.z - player.z) < 10) test(e.x, e.sprite.position.y, e.z, e.sprite.scale.x * 0.4, e.sprite.scale.y * 0.5); }
+  for (const it of items) { if (Math.hypot(it.x - player.x, it.z - player.z) < 8) test(it.x, it.sprite.position.y, it.z, 0.21, 0.21); }
+  const target = hidden ? 0.3 : 1;
+  heroine.opacity = lerp(heroine.opacity, target, Math.min(1, dt * 10));
+  const op = heroine.opacity > 0.98 ? 1 : heroine.opacity;
+  heroine.mats.forEach(m => { m.opacity = op; m.depthWrite = op === 1; });
+}
+
 function renderScene(dt) {
   player.swingT = Math.min(1, player.swingT + dt / (player.swingCharged ? 0.42 : 0.3));
   animateHeroine(dt, false);
   updateCamera(dt);
+  updateHeroineFade(dt);
   torch.intensity = 2.6 + Math.sin(stats.time * 13) * 0.12 + Math.sin(stats.time * 7.3) * 0.1;
   if (slashMesh.visible) {
     const ch = slashMesh.userData.charged;
@@ -1837,7 +1874,7 @@ function startGame() {
   loadFloor();
   state = 'play';
   if (!document.body.classList.contains('touch')) requestLock();
-  if (!hasSeenHint()) addMsg(document.body.classList.contains('touch') ? '左側をなぞって移動、右側で視点' : 'WASDで移動、マウスで視点、クリックで攻撃');
+  if (!hasSeenHint()) addMsg(document.body.classList.contains('touch') ? '下のパッドで移動、他の場所をなぞって視点' : 'WASDで移動、マウスで視点、クリックで攻撃');
 }
 function hasSeenHint() { try { const v = localStorage.getItem('ddr_hint'); localStorage.setItem('ddr_hint', '1'); return !!v; } catch (e) { return false; } }
 function pause() {
