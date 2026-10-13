@@ -1,0 +1,1792 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#07060a">
+<title>Deep Dungeon Remake</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DotGothic16&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#07060a; --panel:rgba(18,14,24,.86); --line:#3a3046; --text:#efe6d6; --dim:#9a8f86;
+  --gold:#e8b85a; --hp:#d8433a; --food:#d99a3a; --exp:#5aa6e8; --accent:#c9673a;
+  --safe-l:env(safe-area-inset-left,0px); --safe-r:env(safe-area-inset-right,0px);
+  --safe-t:env(safe-area-inset-top,0px); --safe-b:env(safe-area-inset-bottom,0px);
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;height:100%;background:var(--bg);color:var(--text);overflow:hidden;
+  font-family:"DotGothic16","Hiragino Kaku Gothic ProN","Yu Gothic",sans-serif;
+  -webkit-user-select:none;user-select:none;-webkit-touch-callout:none;touch-action:none;overscroll-behavior:none}
+button{font:inherit;color:inherit}
+#view,#fx{position:fixed;inset:0;width:100%;height:100%;display:block}
+#fx{pointer-events:none;z-index:2}
+#touchLayer{position:fixed;inset:0;z-index:3;touch-action:none}
+#vignette{position:fixed;inset:0;z-index:2;pointer-events:none;opacity:0;
+  background:radial-gradient(ellipse at center,transparent 45%,rgba(200,0,0,.55) 100%)}
+#fade{position:fixed;inset:0;z-index:20;background:#000;opacity:0;pointer-events:none;transition:opacity .35s}
+#fade.on{opacity:1}
+
+/* ---------- HUD ---------- */
+#hud{position:fixed;inset:0;z-index:4;pointer-events:none;display:none}
+body.playing #hud{display:block}
+#topbar{position:absolute;top:calc(8px + var(--safe-t));left:calc(8px + var(--safe-l));right:calc(8px + var(--safe-r));
+  display:flex;gap:10px;align-items:flex-start}
+#mapWrap{position:relative;pointer-events:auto;cursor:pointer;flex:none}
+#minimap{display:block;width:112px;height:112px;border:2px solid var(--line);border-radius:8px;background:rgba(0,0,0,.55)}
+#floorLabel{position:absolute;left:4px;bottom:3px;font-size:13px;color:var(--gold);text-shadow:0 1px 2px #000}
+#stats{display:flex;flex-direction:column;gap:5px;min-width:0;flex:0 1 260px;
+  background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:7px 9px}
+.bar{position:relative;height:14px;background:#1b1520;border-radius:7px;overflow:hidden;border:1px solid #000}
+.bar>i{position:absolute;inset:0;transform-origin:left;transition:transform .15s}
+.bar>span{position:absolute;inset:0;font-size:11px;line-height:13px;padding-left:6px;text-shadow:0 1px 1px #000;white-space:nowrap}
+#hpBar>i{background:linear-gradient(#ee6a5e,var(--hp))}
+#foodBar>i{background:linear-gradient(#f1bd63,var(--food))}
+#expBar{height:5px;border-radius:3px}
+#expBar>i{background:var(--exp)}
+#statLine{font-size:12px;color:var(--dim);display:flex;gap:10px;white-space:nowrap;overflow:hidden}
+#statLine b{color:var(--text);font-weight:normal}
+#topRight{margin-left:auto;display:flex;gap:8px;pointer-events:auto}
+.iconBtn{width:44px;height:44px;border-radius:10px;border:1px solid var(--line);background:var(--panel);font-size:18px;cursor:pointer}
+
+#items{position:absolute;left:50%;transform:translateX(-50%);bottom:calc(10px + var(--safe-b));
+  display:flex;gap:6px;pointer-events:auto}
+.slot{position:relative;width:50px;height:50px;border-radius:10px;border:1px solid var(--line);background:var(--panel);
+  display:flex;align-items:center;justify-content:center;font-size:26px;cursor:pointer;touch-action:none}
+.slot.sel{border-color:var(--gold);box-shadow:0 0 0 2px rgba(232,184,90,.4)}
+.slot .k{position:absolute;left:4px;top:2px;font-size:10px;color:var(--dim)}
+.slot.empty{opacity:.45}
+.slot:active{transform:scale(.94)}
+#equip{position:absolute;left:calc(8px + var(--safe-l));bottom:calc(10px + var(--safe-b));font-size:12px;color:var(--dim);
+  background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:5px 8px;line-height:1.5}
+body.touch #equip{display:none}
+
+#msgs{position:absolute;left:calc(10px + var(--safe-l));top:calc(140px + var(--safe-t));display:flex;flex-direction:column;gap:4px;max-width:70vw}
+.msg{font-size:14px;background:rgba(0,0,0,.55);padding:3px 8px;border-radius:6px;width:fit-content;transition:opacity .6s}
+#prompt{position:absolute;left:50%;top:62%;transform:translateX(-50%);font-size:16px;background:rgba(0,0,0,.6);
+  padding:6px 14px;border-radius:8px;border:1px solid var(--gold);color:var(--gold);display:none;white-space:nowrap}
+body.touch #prompt{display:none!important}
+#banner{position:absolute;left:0;right:0;top:30%;text-align:center;font-size:44px;color:var(--gold);
+  text-shadow:0 2px 0 #000,0 0 18px rgba(232,184,90,.5);opacity:0;transition:opacity .5s}
+#banner small{display:block;font-size:16px;color:var(--text);margin-top:4px}
+#crosshair{position:absolute;left:50%;top:50%;width:4px;height:4px;margin:-2px 0 0 -2px;border-radius:50%;background:rgba(255,255,255,.7)}
+#bigmap{position:absolute;inset:0;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.6);pointer-events:auto}
+#bigmap canvas{width:min(86vw,86vh);height:min(86vw,86vh);border:2px solid var(--line);border-radius:10px;background:rgba(0,0,0,.6)}
+#bigmap.on{display:flex}
+
+/* ---------- Touch controls ---------- */
+#touchUI{position:fixed;inset:0;z-index:5;pointer-events:none;display:none}
+body.touch.playing #touchUI{display:block}
+#joyBase{position:absolute;width:120px;height:120px;margin:-60px 0 0 -60px;border-radius:50%;
+  border:2px solid rgba(255,255,255,.25);background:rgba(255,255,255,.06);opacity:.0;transition:opacity .15s}
+#joyBase.on{opacity:1}
+#joyKnob{position:absolute;left:50%;top:50%;width:54px;height:54px;margin:-27px 0 0 -27px;border-radius:50%;
+  background:rgba(255,255,255,.28);border:2px solid rgba(255,255,255,.45)}
+#joyHint{position:absolute;left:calc(14% + var(--safe-l));bottom:calc(90px + var(--safe-b));font-size:12px;color:rgba(255,255,255,.35)}
+.tbtn{position:absolute;pointer-events:auto;border-radius:50%;touch-action:none;display:flex;align-items:center;justify-content:center;
+  border:2px solid rgba(255,255,255,.35);background:rgba(30,20,30,.55);color:#fff;font-size:30px;cursor:pointer}
+#btnAttack{width:96px;height:96px;right:calc(22px + var(--safe-r));bottom:calc(26px + var(--safe-b))}
+#btnAttack.down{background:rgba(201,103,58,.6);transform:scale(.95)}
+#btnAction{width:84px;height:62px;border-radius:14px;right:calc(30px + var(--safe-r));bottom:calc(140px + var(--safe-b));
+  font-size:15px;display:none;border-color:var(--gold);color:var(--gold);background:rgba(40,30,10,.7)}
+#btnAction.on{display:flex}
+#btnThrow{width:56px;height:56px;right:calc(130px + var(--safe-r));bottom:calc(30px + var(--safe-b));font-size:22px}
+body.left #btnAttack{right:auto;left:calc(22px + var(--safe-l))}
+body.left #btnAction{right:auto;left:calc(30px + var(--safe-l))}
+body.left #btnThrow{right:auto;left:calc(130px + var(--safe-l))}
+body.left #joyHint{left:auto;right:calc(14% + var(--safe-r))}
+
+@media (orientation:portrait){
+  #items{bottom:auto;top:calc(130px + var(--safe-t));left:auto;right:calc(8px + var(--safe-r));transform:none;flex-direction:column}
+  body.left #items{right:auto;left:calc(8px + var(--safe-l))}
+  .slot{width:44px;height:44px;font-size:22px}
+  #msgs{top:calc(130px + var(--safe-t))}
+  #stats{flex-basis:auto;flex:1}
+}
+
+/* ---------- Screens ---------- */
+.screen{position:fixed;inset:0;z-index:10;display:none;align-items:center;justify-content:center;padding:20px;
+  background:radial-gradient(ellipse at center,rgba(30,18,28,.88),rgba(5,4,8,.96))}
+.screen.on{display:flex}
+.card{width:min(520px,100%);max-height:100%;overflow:auto;background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:22px;text-align:center}
+h1{margin:0 0 4px;font-size:clamp(34px,8vw,56px);font-weight:normal;color:var(--gold);letter-spacing:2px;
+  text-shadow:0 3px 0 #3a2210,0 0 24px rgba(232,184,90,.35)}
+h2{margin:0 0 14px;font-weight:normal;color:var(--gold)}
+.sub{color:var(--dim);margin-bottom:22px}
+.menu{display:flex;flex-direction:column;gap:10px;align-items:stretch;max-width:300px;margin:0 auto}
+.mbtn{padding:13px 16px;font-size:18px;border-radius:10px;border:1px solid var(--line);background:#231a2b;cursor:pointer}
+.mbtn.primary{background:linear-gradient(#b8612f,#8a3f1c);border-color:#d88a50}
+.mbtn:hover{filter:brightness(1.15)}
+.record{margin-top:16px;color:var(--dim);font-size:13px}
+.help{text-align:left;font-size:14px;line-height:1.7}
+.help h3{margin:12px 0 4px;color:var(--gold);font-weight:normal;font-size:15px}
+.help kbd{display:inline-block;min-width:22px;padding:0 5px;border:1px solid var(--line);border-bottom-width:2px;border-radius:4px;background:#17111c;text-align:center;font-family:inherit;font-size:12px}
+.setrow{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 0;border-bottom:1px solid #2a2232;text-align:left}
+.setrow input[type=range]{width:150px;accent-color:var(--accent)}
+.setrow select{font:inherit;background:#17111c;color:var(--text);border:1px solid var(--line);border-radius:6px;padding:4px}
+.toggle{width:52px;height:28px;border-radius:14px;border:1px solid var(--line);background:#17111c;position:relative;cursor:pointer;flex:none}
+.toggle::after{content:"";position:absolute;top:3px;left:3px;width:20px;height:20px;border-radius:50%;background:#776b80;transition:left .15s}
+.toggle.on{background:#7a3d1f}
+.toggle.on::after{left:27px;background:var(--gold)}
+.stats{display:grid;grid-template-columns:1fr 1fr;gap:6px 14px;text-align:left;margin:10px auto 18px;max-width:300px;color:var(--dim)}
+.stats b{color:var(--text);font-weight:normal;text-align:right}
+#loading{position:fixed;inset:0;z-index:30;display:flex;align-items:center;justify-content:center;background:var(--bg);color:var(--dim)}
+</style>
+</head>
+<body>
+<canvas id="view"></canvas>
+<canvas id="fx"></canvas>
+<div id="vignette"></div>
+<div id="touchLayer"></div>
+
+<div id="hud">
+  <div id="topbar">
+    <div id="mapWrap" title="マップ (M)"><canvas id="minimap" width="224" height="224"></canvas><div id="floorLabel">B1F</div></div>
+    <div id="stats">
+      <div class="bar" id="hpBar"><i></i><span></span></div>
+      <div class="bar" id="foodBar"><i></i><span></span></div>
+      <div class="bar" id="expBar"><i></i></div>
+      <div id="statLine"></div>
+    </div>
+    <div id="topRight"><button class="iconBtn" id="btnPause" aria-label="ポーズ">❚❚</button></div>
+  </div>
+  <div id="msgs"></div>
+  <div id="crosshair"></div>
+  <div id="prompt"></div>
+  <div id="banner"></div>
+  <div id="items"></div>
+  <div id="equip"></div>
+  <div id="bigmap"><canvas id="bigmapCanvas" width="640" height="640"></canvas></div>
+</div>
+
+<div id="touchUI">
+  <div id="joyBase"><div id="joyKnob"></div></div>
+  <div id="joyHint">ここをなぞって移動</div>
+  <button class="tbtn" id="btnAction">降りる</button>
+  <button class="tbtn" id="btnThrow" aria-label="爆弾を投げる">💣</button>
+  <button class="tbtn" id="btnAttack" aria-label="攻撃">⚔</button>
+</div>
+
+<div class="screen on" id="scrTitle"><div class="card">
+  <h1>DEEP DUNGEON</h1>
+  <div class="sub">ローグライクFPS ― リメイク</div>
+  <div class="menu">
+    <button class="mbtn primary" data-act="start">冒険をはじめる</button>
+    <button class="mbtn" data-act="help">操作説明</button>
+    <button class="mbtn" data-act="settings">設定</button>
+  </div>
+  <div class="record" id="record"></div>
+</div></div>
+
+<div class="screen" id="scrPause"><div class="card">
+  <h2>ポーズ</h2>
+  <div class="menu">
+    <button class="mbtn primary" data-act="resume">つづける</button>
+    <button class="mbtn" data-act="help">操作説明</button>
+    <button class="mbtn" data-act="settings">設定</button>
+    <button class="mbtn" data-act="quit">タイトルへ</button>
+  </div>
+</div></div>
+
+<div class="screen" id="scrHelp"><div class="card">
+  <h2>操作説明</h2>
+  <div class="help">
+    <h3>📱 スマホ・タブレット</h3>
+    画面の<b>左半分</b>をなぞる → 移動（どこから触ってもOK、端まで倒すとダッシュ）<br>
+    画面の<b>右半分</b>をなぞる → 視点移動<br>
+    <b>⚔ボタン</b> → 攻撃（押したまま指をずらすと視点も動く）<br>
+    <b>⚔長押し</b> → ゲージが溜まったら離して「斬撃」<br>
+    アイテム枠をタップ → 使う ／ 💣 → 爆弾を投げる<br>
+    階段の上で <b>降りる</b> ボタン<br>
+    設定の「左利きモード」でボタン配置を左右反転できます。
+    <h3>⌨️ PC</h3>
+    <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> 移動 ／ マウス 視点 ／ <kbd>Shift</kbd> ダッシュ<br>
+    <kbd>左クリック</kbd> または <kbd>Space</kbd> 攻撃（長押しで斬撃）<br>
+    <kbd>←</kbd><kbd>→</kbd> でも旋回できます<br>
+    <kbd>E</kbd> 階段を降りる ／ <kbd>1</kbd>〜<kbd>6</kbd> アイテム使用 ／ <kbd>G</kbd> 爆弾<br>
+    <kbd>M</kbd> マップ ／ <kbd>Esc</kbd> ポーズ
+    <h3>🎮 ゲームパッド</h3>
+    左スティック 移動 ／ 右スティック 視点 ／ <kbd>RT</kbd><kbd>X</kbd> 攻撃<br>
+    <kbd>A</kbd> 階段 ／ <kbd>LB</kbd><kbd>RB</kbd> アイテム選択 ／ <kbd>Y</kbd> 使用 ／ <kbd>B</kbd> 爆弾 ／ <kbd>Back</kbd> マップ ／ <kbd>Start</kbd> ポーズ
+    <h3>🗺 ルール</h3>
+    地下10階に潜むドラゴンを倒すのが目的。歩くと満腹度が減り、0になるとHPが減っていきます。
+    敵は攻撃の直前に<b>赤く光る</b>ので、そのタイミングで下がれば避けられます。
+  </div>
+  <div class="menu" style="margin-top:16px"><button class="mbtn primary" data-act="back">もどる</button></div>
+</div></div>
+
+<div class="screen" id="scrSettings"><div class="card">
+  <h2>設定</h2>
+  <div class="setrow"><span>視点感度 <small id="sensVal"></small></span><input type="range" id="setSens" min="0.3" max="3" step="0.1"></div>
+  <div class="setrow"><span>上下の視点移動</span><div class="toggle" id="setPitch"></div></div>
+  <div class="setrow"><span>上下反転</span><div class="toggle" id="setInvert"></div></div>
+  <div class="setrow"><span>左利きモード（タッチ）</span><div class="toggle" id="setLeft"></div></div>
+  <div class="setrow"><span>効果音</span><div class="toggle" id="setSfx"></div></div>
+  <div class="setrow"><span>振動（対応端末）</span><div class="toggle" id="setVibe"></div></div>
+  <div class="setrow"><span>画質</span><select id="setQuality"><option value="low">軽量</option><option value="auto">標準</option><option value="high">高画質</option></select></div>
+  <div class="menu" style="margin-top:16px"><button class="mbtn primary" data-act="back">もどる</button></div>
+</div></div>
+
+<div class="screen" id="scrDead"><div class="card">
+  <h2 id="deadTitle">力尽きた…</h2>
+  <div class="stats" id="deadStats"></div>
+  <div class="menu">
+    <button class="mbtn primary" data-act="start">もう一度挑む</button>
+    <button class="mbtn" data-act="quit">タイトルへ</button>
+  </div>
+</div></div>
+
+<div id="fade"></div>
+<div id="loading">読み込み中…</div>
+
+<script src="https://cdn.jsdelivr.net/npm/three@0.158.0/build/three.min.js"></script>
+<script>
+'use strict';
+if (!window.THREE) {
+  document.getElementById('loading').textContent = '3Dエンジンを読み込めませんでした。通信環境を確認して再読み込みしてください。';
+  throw new Error('three.js not loaded');
+}
+
+/* =========================================================
+   Utilities
+   ========================================================= */
+const $ = s => document.querySelector(s);
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+const rand = (a, b) => a + Math.random() * (b - a);
+const randi = (a, b) => Math.floor(rand(a, b + 1));
+const pick = a => a[Math.floor(Math.random() * a.length)];
+const lerp = (a, b, t) => a + (b - a) * t;
+
+const LAST_FLOOR = 10;
+const WALL_H = 1.5;
+const EYE_H = 0.62;
+const PLAYER_R = 0.24;
+const INV_SIZE = 6;
+
+/* =========================================================
+   Settings (per-browser)
+   ========================================================= */
+const DEFAULT_SETTINGS = { sens: 1, pitch: true, invertY: false, leftHanded: false, sfx: true, vibrate: true, quality: 'auto' };
+const settings = (() => {
+  try { return Object.assign({}, DEFAULT_SETTINGS, JSON.parse(localStorage.getItem('ddr_settings') || '{}')); }
+  catch (e) { return Object.assign({}, DEFAULT_SETTINGS); }
+})();
+function saveSettings() { try { localStorage.setItem('ddr_settings', JSON.stringify(settings)); } catch (e) {} }
+function loadRecord() { try { return JSON.parse(localStorage.getItem('ddr_record') || '{}'); } catch (e) { return {}; } }
+function saveRecord(r) { try { localStorage.setItem('ddr_record', JSON.stringify(r)); } catch (e) {} }
+
+/* =========================================================
+   Audio (synthesized, no files)
+   ========================================================= */
+let actx = null, noiseBuf = null;
+function audioUnlock() {
+  if (!actx) {
+    try {
+      actx = new (window.AudioContext || window.webkitAudioContext)();
+      noiseBuf = actx.createBuffer(1, actx.sampleRate * 0.5, actx.sampleRate);
+      const d = noiseBuf.getChannelData(0);
+      for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+    } catch (e) { actx = null; }
+  }
+  if (actx && actx.state === 'suspended') actx.resume();
+}
+function tone(f, f2, dur, type = 'square', vol = 0.12, delay = 0) {
+  if (!actx || !settings.sfx) return;
+  const t = actx.currentTime + delay;
+  const o = actx.createOscillator(), g = actx.createGain();
+  o.type = type; o.frequency.setValueAtTime(f, t);
+  if (f2) o.frequency.exponentialRampToValueAtTime(f2, t + dur);
+  g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+  o.connect(g).connect(actx.destination); o.start(t); o.stop(t + dur + 0.02);
+}
+function noise(dur, vol = 0.15, freq = 1200, q = 1, delay = 0, freq2 = null) {
+  if (!actx || !settings.sfx) return;
+  const t = actx.currentTime + delay;
+  const s = actx.createBufferSource(); s.buffer = noiseBuf;
+  const f = actx.createBiquadFilter(); f.type = 'bandpass'; f.Q.value = q; f.frequency.setValueAtTime(freq, t);
+  if (freq2) f.frequency.exponentialRampToValueAtTime(freq2, t + dur);
+  const g = actx.createGain(); g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+  s.connect(f).connect(g).connect(actx.destination); s.start(t); s.stop(t + dur + 0.02);
+}
+const SFX = {
+  swing: () => noise(0.12, 0.12, 2400, 1.2, 0, 700),
+  slash: () => { noise(0.3, 0.22, 3000, 0.8, 0, 400); tone(220, 80, 0.3, 'sawtooth', 0.06); },
+  hit: () => { noise(0.08, 0.25, 900, 1); tone(160, 60, 0.1, 'square', 0.08); },
+  crit: () => { noise(0.1, 0.3, 1400, 1); tone(500, 120, 0.15, 'square', 0.07); },
+  kill: () => { tone(300, 40, 0.3, 'sawtooth', 0.08); noise(0.25, 0.1, 500, 1); },
+  hurt: () => { tone(120, 50, 0.22, 'sawtooth', 0.14); noise(0.15, 0.15, 600, 1); },
+  pickup: () => { tone(660, null, 0.07, 'square', 0.07); tone(990, null, 0.1, 'square', 0.07, 0.07); },
+  use: () => { tone(440, 880, 0.18, 'triangle', 0.1); },
+  equip: () => { tone(330, null, 0.08, 'square', 0.08); tone(495, null, 0.08, 'square', 0.08, 0.08); tone(660, null, 0.14, 'square', 0.08, 0.16); },
+  stairs: () => { for (let i = 0; i < 5; i++) tone(520 - i * 70, null, 0.1, 'triangle', 0.08, i * 0.08); },
+  levelup: () => { [523, 659, 784, 1046].forEach((f, i) => tone(f, null, 0.14, 'square', 0.07, i * 0.09)); },
+  charged: () => tone(880, 1320, 0.12, 'sine', 0.08),
+  explode: () => { noise(0.6, 0.35, 300, 0.6, 0, 60); tone(90, 30, 0.5, 'sawtooth', 0.12); },
+  fire: () => noise(0.35, 0.12, 700, 0.7, 0, 200),
+  windup: () => tone(200, 260, 0.15, 'square', 0.03),
+  deny: () => tone(150, null, 0.12, 'square', 0.06),
+};
+function vibrate(ms) { if (settings.vibrate && navigator.vibrate) try { navigator.vibrate(ms); } catch (e) {} }
+
+/* =========================================================
+   Renderer / scene
+   ========================================================= */
+const viewCanvas = $('#view');
+const renderer = new THREE.WebGLRenderer({ canvas: viewCanvas, antialias: false, powerPreference: 'high-performance' });
+const scene = new THREE.Scene();
+const FOG_COLOR = 0x060508;
+scene.background = new THREE.Color(FOG_COLOR);
+scene.fog = new THREE.FogExp2(FOG_COLOR, 0.17);
+const camera = new THREE.PerspectiveCamera(72, 1, 0.03, 60);
+camera.rotation.order = 'YXZ';
+scene.add(camera);
+const ambient = new THREE.AmbientLight(0x8070a0, 0.55);
+scene.add(ambient);
+const torch = new THREE.PointLight(0xffb070, 2.6, 11, 1.1);
+torch.position.set(0.15, 0.05, 0);
+camera.add(torch);
+const flashLight = new THREE.PointLight(0xff8a30, 0, 7, 1.2);
+scene.add(flashLight);
+
+const fx = $('#fx'), fctx = fx.getContext('2d');
+let W = innerWidth, H = innerHeight, DPR = 1;
+
+function resize() {
+  W = innerWidth; H = innerHeight;
+  const cap = settings.quality === 'low' ? 0.75 : settings.quality === 'high' ? 2 : 1.25;
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, cap));
+  renderer.setSize(W, H, false);
+  const aspect = W / H;
+  camera.aspect = aspect;
+  // Keep horizontal FOV comfortable in portrait without extreme distortion
+  if (aspect >= 1) camera.fov = 72;
+  else camera.fov = Math.min(100, 2 * Math.atan(Math.tan(THREE.MathUtils.degToRad(42)) / aspect) * 180 / Math.PI);
+  camera.updateProjectionMatrix();
+  DPR = Math.min(window.devicePixelRatio || 1, 2);
+  fx.width = W * DPR; fx.height = H * DPR;
+}
+addEventListener('resize', resize);
+
+/* ---------- Procedural textures ---------- */
+function canvasTex(size, draw, nearest = true) {
+  const c = document.createElement('canvas'); c.width = c.height = size;
+  draw(c.getContext('2d'), size);
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  t.wrapS = t.wrapT = THREE.RepeatWrapping;
+  if (nearest) { t.magFilter = THREE.NearestFilter; t.minFilter = THREE.NearestMipmapLinearFilter; }
+  return t;
+}
+function speckle(g, s, n, alpha) {
+  for (let i = 0; i < n; i++) {
+    const v = Math.random() < 0.5 ? 0 : 255;
+    g.fillStyle = `rgba(${v},${v},${v},${Math.random() * alpha})`;
+    g.fillRect(randi(0, s - 1), randi(0, s - 1), 1, 1);
+  }
+}
+const wallTex = canvasTex(64, (g, s) => {
+  g.fillStyle = '#211b1c'; g.fillRect(0, 0, s, s);
+  for (let row = 0; row < 8; row++) {
+    const off = row % 2 ? 8 : 0;
+    for (let col = -1; col < 4; col++) {
+      const x = col * 16 + off, y = row * 8;
+      const b = randi(70, 100);
+      g.fillStyle = `rgb(${b + 12},${b},${b - 8})`;
+      g.fillRect(x + 1, y + 1, 15, 7);
+      g.fillStyle = 'rgba(255,255,255,.08)'; g.fillRect(x + 1, y + 1, 15, 1);
+      g.fillStyle = 'rgba(0,0,0,.25)'; g.fillRect(x + 1, y + 7, 15, 1);
+    }
+  }
+  speckle(g, s, 500, 0.25);
+});
+const floorTex = canvasTex(64, (g, s) => {
+  g.fillStyle = '#1a1716'; g.fillRect(0, 0, s, s);
+  for (let i = 0; i < 2; i++) for (let j = 0; j < 2; j++) {
+    const b = randi(58, 78);
+    g.fillStyle = `rgb(${b},${b - 4},${b - 8})`; g.fillRect(i * 32 + 1, j * 32 + 1, 30, 30);
+    g.fillStyle = 'rgba(255,255,255,.06)'; g.fillRect(i * 32 + 1, j * 32 + 1, 30, 1);
+  }
+  g.strokeStyle = 'rgba(0,0,0,.35)'; g.beginPath(); g.moveTo(6, 10); g.lineTo(14, 18); g.lineTo(12, 26); g.stroke();
+  speckle(g, s, 700, 0.22);
+});
+const ceilTex = canvasTex(64, (g, s) => {
+  g.fillStyle = '#121014'; g.fillRect(0, 0, s, s);
+  g.fillStyle = '#1b181d'; for (let i = 0; i < 4; i++) g.fillRect(0, i * 16, s, 15);
+  speckle(g, s, 400, 0.2);
+});
+const stairsTex = canvasTex(64, (g, s) => {
+  g.fillStyle = '#050608'; g.fillRect(0, 0, s, s);
+  for (let i = 0; i < 6; i++) {
+    const v = 120 - i * 18;
+    g.fillStyle = `rgb(${v - 30},${v - 10},${v + 30})`;
+    g.fillRect(4 + i * 3, 4 + i * 9, s - 8 - i * 6, 7);
+  }
+  g.strokeStyle = '#7fb6ff'; g.lineWidth = 2; g.strokeRect(2, 2, s - 4, s - 4);
+});
+function radialTex(inner, outer) {
+  return canvasTex(64, (g, s) => {
+    const gr = g.createRadialGradient(32, 32, 0, 32, 32, 32);
+    gr.addColorStop(0, inner); gr.addColorStop(0.4, outer); gr.addColorStop(1, 'rgba(0,0,0,0)');
+    g.fillStyle = gr; g.fillRect(0, 0, s, s);
+  }, false);
+}
+const fireTex = radialTex('#fff6c0', 'rgba(255,110,20,.85)');
+const beamTex = canvasTex(32, (g, s) => {
+  const gr = g.createLinearGradient(0, 0, 0, s);
+  gr.addColorStop(0, 'rgba(120,180,255,0)'); gr.addColorStop(1, 'rgba(120,180,255,.6)');
+  g.fillStyle = gr; g.fillRect(0, 0, s, s);
+}, false);
+const slashTex = canvasTex(128, (g, s) => {
+  g.translate(64, 100);
+  for (let i = 0; i < 14; i++) {
+    g.strokeStyle = `rgba(${200 + i * 4},${230},255,${0.05 + i * 0.05})`;
+    g.lineWidth = 16 - i;
+    g.beginPath(); g.arc(0, 0, 70 - i * 0.8, Math.PI * 1.1, Math.PI * 1.9); g.stroke();
+  }
+}, false);
+
+const emojiCache = {};
+function emojiTex(ch) {
+  if (emojiCache[ch]) return emojiCache[ch];
+  const t = canvasTex(128, (g) => {
+    g.font = '100px "Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif';
+    g.textAlign = 'center'; g.textBaseline = 'middle';
+    g.fillText(ch, 64, 70);
+  }, false);
+  return (emojiCache[ch] = t);
+}
+const texLoader = new THREE.TextureLoader();
+function imgTex(src) {
+  const t = texLoader.load(src);
+  t.colorSpace = THREE.SRGBColorSpace; t.magFilter = THREE.NearestFilter;
+  return t;
+}
+const zombieTex = imgTex('zombie.png');
+const mummyTex = imgTex('mummy.png');
+
+const wallMat = new THREE.MeshLambertMaterial({ map: wallTex });
+const floorMat = new THREE.MeshLambertMaterial({ map: floorTex });
+const ceilMat = new THREE.MeshLambertMaterial({ map: ceilTex });
+const THEMES = [
+  { upTo: 3, wall: 0xffffff, floor: 0xffffff, fog: 0.17, name: '朽ちた地下道' },
+  { upTo: 6, wall: 0xb8d0a8, floor: 0xc8d8b8, fog: 0.19, name: '苔むした回廊' },
+  { upTo: 9, wall: 0xa8b8e0, floor: 0xb0bce0, fog: 0.2, name: '凍える霊廟' },
+  { upTo: 10, wall: 0xe8a090, floor: 0xe0a898, fog: 0.15, name: '竜の巣' },
+];
+
+/* ---------- Sword view model ---------- */
+const sword = new THREE.Group();
+{
+  const mk = (w, h, d, color, emissive = 0) => {
+    const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d),
+      new THREE.MeshLambertMaterial({ color, emissive, depthTest: false, depthWrite: false }));
+    m.renderOrder = 999; return m;
+  };
+  const blade = mk(0.045, 0.52, 0.012, 0xcfd6de); blade.position.y = 0.33; blade.name = 'blade';
+  const tip = mk(0.03, 0.06, 0.012, 0xcfd6de); tip.position.y = 0.61; tip.rotation.z = Math.PI / 4; tip.scale.set(0.8, 0.8, 1);
+  const guard = mk(0.16, 0.03, 0.04, 0xb08a3a);
+  const grip = mk(0.03, 0.13, 0.03, 0x4a2c18); grip.position.y = -0.08;
+  const pommel = mk(0.045, 0.04, 0.045, 0xb08a3a); pommel.position.y = -0.16;
+  sword.add(blade, tip, guard, grip, pommel);
+  sword.userData.blade = blade;
+}
+const swordPivot = new THREE.Group();
+swordPivot.add(sword);
+camera.add(swordPivot);
+
+const slashMesh = new THREE.Mesh(new THREE.PlaneGeometry(1.6, 1.6),
+  new THREE.MeshBasicMaterial({ map: slashTex, transparent: true, depthTest: false, depthWrite: false, blending: THREE.AdditiveBlending, opacity: 0 }));
+slashMesh.renderOrder = 998; slashMesh.position.set(0, 0, -0.9); slashMesh.visible = false;
+camera.add(slashMesh);
+
+/* ---------- Particles (single Points object) ---------- */
+const MAX_P = 400;
+const pGeo = new THREE.BufferGeometry();
+const pPos = new Float32Array(MAX_P * 3), pCol = new Float32Array(MAX_P * 3);
+pGeo.setAttribute('position', new THREE.BufferAttribute(pPos, 3));
+pGeo.setAttribute('color', new THREE.BufferAttribute(pCol, 3));
+const pMat = new THREE.PointsMaterial({ size: 0.05, vertexColors: true, transparent: true, depthWrite: false });
+const pPoints = new THREE.Points(pGeo, pMat); pPoints.frustumCulled = false;
+scene.add(pPoints);
+const particles = [];
+function burst(x, y, z, color, n = 12, spd = 2.2, life = 0.6, grav = 6) {
+  const c = new THREE.Color(color);
+  for (let i = 0; i < n; i++) {
+    if (particles.length >= MAX_P) particles.shift();
+    const a = Math.random() * Math.PI * 2, e = rand(-0.3, 1.2), s = rand(0.3, 1) * spd;
+    particles.push({ x, y, z, vx: Math.cos(a) * s, vy: e * s, vz: Math.sin(a) * s, life, max: life, r: c.r, g: c.g, b: c.b, grav });
+  }
+}
+function updateParticles(dt) {
+  for (let i = particles.length - 1; i >= 0; i--) {
+    const p = particles[i];
+    p.life -= dt;
+    if (p.life <= 0) { particles.splice(i, 1); continue; }
+    p.vy -= p.grav * dt; p.x += p.vx * dt; p.y += p.vy * dt; p.z += p.vz * dt;
+    if (p.y < 0.02) { p.y = 0.02; p.vy *= -0.3; p.vx *= 0.6; p.vz *= 0.6; }
+  }
+  for (let i = 0; i < MAX_P; i++) {
+    const p = particles[i];
+    if (p) {
+      pPos[i * 3] = p.x; pPos[i * 3 + 1] = p.y; pPos[i * 3 + 2] = p.z;
+      const k = p.life / p.max;
+      pCol[i * 3] = p.r * k; pCol[i * 3 + 1] = p.g * k; pCol[i * 3 + 2] = p.b * k;
+    } else { pPos[i * 3 + 1] = -100; }
+  }
+  pGeo.attributes.position.needsUpdate = true; pGeo.attributes.color.needsUpdate = true;
+}
+
+/* =========================================================
+   Data: enemies & items
+   ========================================================= */
+const ENEMY_DEFS = {
+  zombie: { name: 'ゾンビ', hp: 18, atk: 5, speed: 1.15, exp: 4, scale: 0.95, r: 0.28, range: 0.95, windup: 0.45, cd: 1.1, tex: () => zombieTex, color: 0x6ea84a },
+  bat:    { name: 'コウモリ', hp: 8, atk: 3, speed: 2.7, exp: 3, scale: 0.5, r: 0.2, range: 0.8, windup: 0.3, cd: 0.9, fly: 0.75, erratic: true, tex: () => emojiTex('🦇'), color: 0x8a6aa0 },
+  mummy:  { name: 'マミー', hp: 42, atk: 9, speed: 1.45, exp: 10, scale: 1.05, r: 0.3, range: 1.0, windup: 0.55, cd: 1.3, tex: () => mummyTex, color: 0xc8a870 },
+  dragon: { name: 'ドラゴン', hp: 420, atk: 14, speed: 1.1, exp: 0, scale: 2.4, r: 0.75, range: 1.7, windup: 0.7, cd: 1.6, boss: true, fire: 2.4, tex: () => emojiTex('🐉'), color: 0xd85030 },
+};
+const ITEM_DEFS = {
+  bread:   { name: 'パン', icon: '🍞', kind: 'food', food: 45 },
+  meat:    { name: '骨付き肉', icon: '🍖', kind: 'food', food: 80, heal: 8 },
+  potion:  { name: '回復薬', icon: '🧪', kind: 'heal', heal: 35 },
+  elixir:  { name: '霊薬', icon: '💖', kind: 'heal', heal: 999 },
+  bomb:    { name: '爆弾', icon: '💣', kind: 'bomb', dmg: 45 },
+  scroll:  { name: '地図の巻物', icon: '📜', kind: 'map' },
+};
+const WEAPONS = [
+  { name: '錆びた剣', atk: 0, color: 0x9a9088 },
+  { name: '銅の剣', atk: 3, color: 0xd09060 },
+  { name: '鉄の剣', atk: 6, color: 0xcfd6de },
+  { name: '鋼の剣', atk: 10, color: 0xe6f0ff },
+  { name: 'ミスリルの剣', atk: 15, color: 0x9ff0ff },
+  { name: '竜殺しの剣', atk: 22, color: 0xffa0a0 },
+];
+const ARMORS = [
+  { name: 'なし', def: 0 },
+  { name: '木の盾', def: 1 },
+  { name: '鉄の盾', def: 3 },
+  { name: '騎士の盾', def: 5 },
+  { name: '聖なる盾', def: 8 },
+];
+
+/* =========================================================
+   Game state
+   ========================================================= */
+let state = 'title';          // title | play | pause | dead | transition
+let floor = 1;
+let dun = null;               // dungeon data
+let levelGroup = null;
+let enemies = [], items = [], projectiles = [], dmgTexts = [];
+let explored = null;
+let flowDist = null, flowTile = -1;
+let hitstop = 0, shake = 0, hurtFlash = 0, hurtDir = null, hurtDirT = 0;
+let stairsMesh = null, stairsBeam = null, stairsLight = null;
+let bossDefeated = false;
+let stats = { kills: 0, time: 0 };
+
+const player = {
+  x: 0, z: 0, yaw: 0, pitch: 0, vx: 0, vz: 0, bob: 0,
+  hp: 40, maxHp: 40, food: 100, lv: 1, exp: 0, baseAtk: 6,
+  weapon: 0, armor: 0, inv: [], sel: 0,
+  attackCd: 0, swingT: 1, charging: false, chargeT: 0, chargedReady: false,
+  foodTick: 0, starveTick: 0, hungryWarned: false,
+};
+const expNeed = lv => Math.floor(8 * Math.pow(lv, 1.6));
+const atkOf = () => player.baseAtk + WEAPONS[player.weapon].atk;
+const defOf = () => ARMORS[player.armor].def;
+
+/* =========================================================
+   Dungeon generation
+   ========================================================= */
+function genDungeon(fl) {
+  const boss = fl === LAST_FLOOR;
+  const size = boss ? 30 : Math.min(30 + fl * 2, 46);
+  const w = size, h = size;
+  const g = []; for (let y = 0; y < h; y++) g.push(new Uint8Array(w).fill(1));
+  const rooms = [];
+  if (boss) {
+    rooms.push({ x: 3, y: 12, w: 5, h: 5 });
+    rooms.push({ x: 12, y: 5, w: 15, h: 19 });
+  } else {
+    const target = randi(6, 8) + Math.floor(fl / 2);
+    for (let t = 0; t < 400 && rooms.length < target; t++) {
+      const rw = randi(4, 9), rh = randi(4, 8), rx = randi(1, w - rw - 2), ry = randi(1, h - rh - 2);
+      if (rooms.some(r => rx < r.x + r.w + 2 && rx + rw + 2 > r.x && ry < r.y + r.h + 2 && ry + rh + 2 > r.y)) continue;
+      rooms.push({ x: rx, y: ry, w: rw, h: rh });
+    }
+  }
+  for (const r of rooms) {
+    r.cx = Math.floor(r.x + r.w / 2); r.cy = Math.floor(r.y + r.h / 2);
+    for (let y = r.y; y < r.y + r.h; y++) for (let x = r.x; x < r.x + r.w; x++) g[y][x] = 0;
+  }
+  const carve = (x, y) => { if (x > 0 && y > 0 && x < w - 1 && y < h - 1) g[y][x] = 0; };
+  const corridor = (a, b) => {
+    let x = a.cx, y = a.cy;
+    const hFirst = Math.random() < 0.5;
+    const stepX = () => { while (x !== b.cx) { x += Math.sign(b.cx - x); carve(x, y); } };
+    const stepY = () => { while (y !== b.cy) { y += Math.sign(b.cy - y); carve(x, y); } };
+    if (hFirst) { stepX(); stepY(); } else { stepY(); stepX(); }
+  };
+  const connected = [rooms[0]];
+  for (let i = 1; i < rooms.length; i++) {
+    const r = rooms[i];
+    let best = connected[0], bd = 1e9;
+    for (const c of connected) { const d = Math.abs(c.cx - r.cx) + Math.abs(c.cy - r.cy); if (d < bd) { bd = d; best = c; } }
+    corridor(r, best); connected.push(r);
+  }
+  if (!boss) for (let k = 0; k < Math.floor(rooms.length / 3); k++) {
+    const a = pick(rooms), b = pick(rooms); if (a !== b) corridor(a, b);
+  }
+  const roomAt = (x, y) => rooms.find(r => x >= r.x && x < r.x + r.w && y >= r.y && y < r.y + r.h);
+  // stairs: room farthest (by path) from the start room
+  const dist = bfs(g, w, h, rooms[0].cx, rooms[0].cy);
+  let stairs = null;
+  if (!boss) {
+    let best = rooms[1] || rooms[0], bd = -1;
+    for (const r of rooms.slice(1)) { const d = dist[r.cy * w + r.cx]; if (d > bd) { bd = d; best = r; } }
+    stairs = { x: best.cx, y: best.cy, room: best };
+  }
+  return { g, w, h, rooms, start: rooms[0], stairs, boss, roomAt };
+}
+function bfs(g, w, h, sx, sy, maxD = 1e9) {
+  const d = new Int16Array(w * h).fill(-1);
+  const q = new Int32Array(w * h); let qh = 0, qt = 0;
+  d[sy * w + sx] = 0; q[qt++] = sy * w + sx;
+  while (qh < qt) {
+    const i = q[qh++], x = i % w, y = (i / w) | 0, nd = d[i] + 1;
+    if (nd > maxD) continue;
+    const nb = [i - 1, i + 1, i - w, i + w];
+    const ok = [x > 0, x < w - 1, y > 0, y < h - 1];
+    for (let k = 0; k < 4; k++) if (ok[k] && d[nb[k]] < 0 && g[(nb[k] / w) | 0][nb[k] % w] === 0) { d[nb[k]] = nd; q[qt++] = nb[k]; }
+  }
+  return d;
+}
+const isWall = (x, z) => {
+  const tx = Math.floor(x), tz = Math.floor(z);
+  if (tx < 0 || tz < 0 || tx >= dun.w || tz >= dun.h) return true;
+  return dun.g[tz][tx] === 1;
+};
+function hitsWall(x, z, r) {
+  return isWall(x - r, z - r) || isWall(x + r, z - r) || isWall(x - r, z + r) || isWall(x + r, z + r);
+}
+function moveWithCollision(o, dx, dz, r) {
+  if (dx && !hitsWall(o.x + dx, o.z, r)) o.x += dx;
+  else if (dx) o.vx = 0;
+  if (dz && !hitsWall(o.x, o.z + dz, r)) o.z += dz;
+  else if (dz) o.vz = 0;
+}
+function los(x0, z0, x1, z1) {
+  const dx = x1 - x0, dz = z1 - z0, d = Math.hypot(dx, dz);
+  const n = Math.ceil(d / 0.15);
+  for (let i = 1; i < n; i++) { if (isWall(x0 + dx * i / n, z0 + dz * i / n)) return false; }
+  return true;
+}
+
+/* =========================================================
+   Level building
+   ========================================================= */
+function disposeLevel() {
+  if (!levelGroup) return;
+  scene.remove(levelGroup);
+  levelGroup.traverse(o => {
+    if (o.geometry && !o.isSprite) o.geometry.dispose();
+    if (o.material && o.material !== wallMat && o.material !== floorMat && o.material !== ceilMat) o.material.dispose();
+  });
+  levelGroup = null;
+}
+function themeFor(fl) { return THEMES.find(t => fl <= t.upTo); }
+function buildLevel() {
+  disposeLevel();
+  levelGroup = new THREE.Group();
+  const th = themeFor(floor);
+  wallMat.color.set(th.wall); floorMat.color.set(th.floor); ceilMat.color.set(th.floor);
+  scene.fog.density = th.fog;
+  const { g, w, h } = dun;
+  const cells = [];
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    if (g[y][x] !== 1) continue;
+    let near = false;
+    for (let dy = -1; dy <= 1 && !near; dy++) for (let dx = -1; dx <= 1; dx++) {
+      const yy = y + dy, xx = x + dx;
+      if (yy >= 0 && xx >= 0 && yy < h && xx < w && g[yy][xx] === 0) { near = true; break; }
+    }
+    if (near) cells.push([x, y]);
+  }
+  const walls = new THREE.InstancedMesh(new THREE.BoxGeometry(1, WALL_H, 1), wallMat, cells.length);
+  const m = new THREE.Matrix4();
+  cells.forEach(([x, y], i) => { m.makeTranslation(x + 0.5, WALL_H / 2, y + 0.5); walls.setMatrixAt(i, m); });
+  levelGroup.add(walls);
+  floorTex.repeat.set(w, h); ceilTex.repeat.set(w, h);
+  const fl = new THREE.Mesh(new THREE.PlaneGeometry(w, h), floorMat);
+  fl.rotation.x = -Math.PI / 2; fl.position.set(w / 2, 0, h / 2);
+  const cl = new THREE.Mesh(new THREE.PlaneGeometry(w, h), ceilMat);
+  cl.rotation.x = Math.PI / 2; cl.position.set(w / 2, WALL_H, h / 2);
+  levelGroup.add(fl, cl);
+  stairsMesh = stairsBeam = stairsLight = null;
+  if (dun.stairs) placeStairs(dun.stairs.x, dun.stairs.y);
+  scene.add(levelGroup);
+}
+function placeStairs(x, y) {
+  dun.stairs = Object.assign(dun.stairs || {}, { x, y });
+  stairsMesh = new THREE.Mesh(new THREE.PlaneGeometry(0.96, 0.96), new THREE.MeshBasicMaterial({ map: stairsTex }));
+  stairsMesh.rotation.x = -Math.PI / 2; stairsMesh.position.set(x + 0.5, 0.005, y + 0.5);
+  stairsBeam = new THREE.Mesh(new THREE.CylinderGeometry(0.42, 0.42, WALL_H, 16, 1, true),
+    new THREE.MeshBasicMaterial({ map: beamTex, transparent: true, depthWrite: false, side: THREE.DoubleSide, blending: THREE.AdditiveBlending,
+      color: floor === LAST_FLOOR ? 0xffe08a : 0xffffff }));
+  stairsBeam.position.set(x + 0.5, WALL_H / 2, y + 0.5);
+  stairsLight = new THREE.PointLight(floor === LAST_FLOOR ? 0xffd070 : 0x6fa8ff, 1.6, 5, 1.2);
+  stairsLight.position.set(x + 0.5, 0.8, y + 0.5);
+  levelGroup.add(stairsMesh, stairsBeam, stairsLight);
+}
+
+/* =========================================================
+   Entities
+   ========================================================= */
+class Enemy {
+  constructor(type, x, z) {
+    const d = ENEMY_DEFS[type];
+    this.type = type; this.d = d;
+    const m = 1 + 0.22 * (floor - 1);
+    this.maxHp = this.hp = Math.round(d.hp * (d.boss ? 1 : m));
+    this.atk = Math.round(d.atk * (d.boss ? 1 : 1 + 0.13 * (floor - 1)));
+    this.x = x; this.z = z; this.vx = 0; this.vz = 0; this.kx = 0; this.kz = 0;
+    this.aggro = !!d.boss; this.cd = rand(0.3, 1); this.windup = 0; this.fireCd = 2;
+    this.wanderT = 0; this.wdx = 0; this.wdz = 0; this.flash = 0; this.t = Math.random() * 10; this.seen = false;
+    this.mat = new THREE.SpriteMaterial({ map: d.tex(), transparent: true, alphaTest: 0.35 });
+    this.sprite = new THREE.Sprite(this.mat);
+    this.sprite.scale.set(d.scale, d.scale, 1);
+    levelGroup.add(this.sprite);
+    this.sync();
+  }
+  sync() {
+    const d = this.d;
+    let y = d.fly ? d.fly + Math.sin(this.t * 6) * 0.08 : d.scale / 2 + Math.abs(Math.sin(this.t * 7)) * 0.025;
+    let s = d.scale;
+    if (this.windup > 0) s *= 1 + 0.12 * (1 - this.windup / d.windup);
+    this.sprite.scale.set(s, s, 1);
+    this.sprite.position.set(this.x, y, this.z);
+    if (this.flash > 0) this.mat.color.setRGB(1, 0.35, 0.35);
+    else if (this.windup > 0) { const k = 0.5 + 0.5 * Math.sin(this.t * 40); this.mat.color.setRGB(1, 0.45 + 0.3 * k, 0.4 * k); }
+    else this.mat.color.setRGB(1, 1, 1);
+  }
+  damage(n, kx, kz, crit) {
+    this.hp -= n; this.flash = 0.12; this.aggro = true;
+    const kb = this.d.boss ? 0.15 : 1;
+    this.kx += kx * 3.2 * kb; this.kz += kz * 3.2 * kb;
+    if (!this.d.boss) this.windup = Math.max(0, this.windup - 0.15);
+    const y = this.d.fly ? this.d.fly : this.d.scale * 0.7;
+    dmgTexts.push({ x: this.x, y: y + 0.2, z: this.z, text: String(n), t: 0, crit, color: crit ? '#ffd24a' : '#fff' });
+    burst(this.x, y, this.z, this.d.color, crit ? 16 : 9, 2.4, 0.5);
+    if (this.hp <= 0) this.die();
+  }
+  die() {
+    this.dead = true;
+    levelGroup.remove(this.sprite); this.mat.dispose();
+    burst(this.x, this.d.scale * 0.5, this.z, this.d.color, 28, 3, 0.9);
+    SFX.kill(); stats.kills++;
+    if (this.d.boss) { onBossDefeated(this); return; }
+    gainExp(this.d.exp + Math.floor(floor / 2));
+    if (Math.random() < 0.28) dropRandomItem(this.x, this.z);
+  }
+  update(dt) {
+    const d = this.d;
+    this.t += dt; this.flash -= dt;
+    const dx = player.x - this.x, dz = player.z - this.z, dist = Math.hypot(dx, dz) || 0.001;
+    const canSee = dist < 9 && los(this.x, this.z, player.x, player.z);
+    if (canSee) this.seen = true;
+    if (!this.aggro && canSee && dist < 7) { this.aggro = true; }
+    let mx = 0, mz = 0;
+    if (this.windup > 0) {
+      this.windup -= dt;
+      if (this.windup <= 0) {
+        if (dist < d.range + PLAYER_R + 0.15 && canSee) hurtPlayer(this.atk, this);
+        this.cd = d.cd;
+      }
+    } else if (this.aggro) {
+      this.cd -= dt;
+      if (dist < d.range + PLAYER_R && this.cd <= 0 && canSee) { this.windup = d.windup; SFX.windup(); }
+      else if (dist > d.range * 0.75 + PLAYER_R) {
+        if (canSee) { mx = dx / dist; mz = dz / dist; }
+        else { const f = flowDirFor(this); mx = f[0]; mz = f[1]; }
+        if (d.erratic) { const a = Math.sin(this.t * 3.1) * 0.9; const c = Math.cos(a), s = Math.sin(a); [mx, mz] = [mx * c - mz * s, mx * s + mz * c]; }
+      }
+      if (d.fire) {
+        this.fireCd -= dt;
+        if (this.fireCd <= 0 && canSee && dist > 1.8) { this.fireCd = d.fire * rand(0.8, 1.2); shootFire(this); }
+      }
+    } else {
+      this.wanderT -= dt;
+      if (this.wanderT <= 0) { this.wanderT = rand(1, 3); const a = rand(0, Math.PI * 2); const go = Math.random() < 0.6; this.wdx = go ? Math.cos(a) : 0; this.wdz = go ? Math.sin(a) : 0; }
+      mx = this.wdx * 0.4; mz = this.wdz * 0.4;
+    }
+    // separation
+    for (const o of enemies) {
+      if (o === this || o.dead) continue;
+      const ox = this.x - o.x, oz = this.z - o.z, od = Math.hypot(ox, oz), min = this.d.r + o.d.r;
+      if (od < min && od > 0.001) { mx += ox / od * 0.8; mz += oz / od * 0.8; }
+    }
+    const sp = d.speed * (this.aggro ? 1 : 0.5);
+    this.vx = lerp(this.vx, mx * sp, Math.min(1, dt * 8));
+    this.vz = lerp(this.vz, mz * sp, Math.min(1, dt * 8));
+    const kd = Math.exp(-dt * 9);
+    this.kx *= kd; this.kz *= kd;
+    moveWithCollision(this, (this.vx + this.kx) * dt, (this.vz + this.kz) * dt, d.r * (d.boss ? 1 : 0.85));
+    // don't overlap the player
+    const pdx = this.x - player.x, pdz = this.z - player.z, pd = Math.hypot(pdx, pdz), pmin = d.r + PLAYER_R;
+    if (pd < pmin && pd > 0.001) moveWithCollision(this, pdx / pd * (pmin - pd), pdz / pd * (pmin - pd), d.r * 0.85);
+    this.sync();
+  }
+}
+class Item {
+  constructor(key, x, z, extra = {}) {
+    this.key = key; this.x = x; this.z = z; Object.assign(this, extra);
+    this.icon = extra.icon || ITEM_DEFS[key]?.icon;
+    this.mat = new THREE.SpriteMaterial({ map: emojiTex(this.icon), transparent: true, alphaTest: 0.3 });
+    this.sprite = new THREE.Sprite(this.mat); this.sprite.scale.set(0.42, 0.42, 1);
+    this.t = Math.random() * 6;
+    levelGroup.add(this.sprite); this.sync();
+  }
+  get label() { return this.key === 'weapon' ? WEAPONS[this.tier].name : this.key === 'armor' ? ARMORS[this.tier].name : ITEM_DEFS[this.key].name; }
+  sync() { this.sprite.position.set(this.x, 0.26 + Math.sin(this.t * 2.5) * 0.05, this.z); }
+  remove() { this.gone = true; levelGroup.remove(this.sprite); this.mat.dispose(); }
+}
+function makeLoot(x, z) {
+  const r = Math.random();
+  const tierCap = Math.min(WEAPONS.length - 1, 1 + Math.floor(floor / 2));
+  if (r < 0.1) return new Item('weapon', x, z, { tier: clamp(randi(Math.max(1, tierCap - 2), tierCap), 1, WEAPONS.length - 1), icon: '🗡️' });
+  if (r < 0.18) return new Item('armor', x, z, { tier: clamp(randi(1, Math.min(ARMORS.length - 1, 1 + Math.floor(floor / 3))), 1, ARMORS.length - 1), icon: '🛡️' });
+  const table = ['bread', 'bread', 'potion', 'potion', 'meat', 'bomb', 'bomb', 'scroll', floor >= 4 ? 'elixir' : 'potion'];
+  return new Item(pick(table), x, z);
+}
+function dropRandomItem(x, z) { items.push(makeLoot(x, z)); }
+
+function shootFire(e) {
+  const dx = player.x - e.x, dz = player.z - e.z, d = Math.hypot(dx, dz);
+  const sp = 4.2;
+  const mat = new THREE.SpriteMaterial({ map: fireTex, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending });
+  const s = new THREE.Sprite(mat); s.scale.set(0.55, 0.55, 1);
+  levelGroup.add(s);
+  projectiles.push({ kind: 'fire', x: e.x + dx / d * 0.8, z: e.z + dz / d * 0.8, y: 0.9, vx: dx / d * sp, vz: dz / d * sp, vy: (EYE_H - 0.9) / (d / sp), sprite: s, life: 4, dmg: Math.round(e.atk * 0.9), owner: e });
+  SFX.fire();
+}
+function throwBomb() {
+  const idx = player.inv.findIndex(i => i.key === 'bomb');
+  if (idx < 0) { addMsg('爆弾を持っていない', '#aaa'); SFX.deny(); return; }
+  player.inv.splice(idx, 1); refreshItems();
+  const fwd = forward(), sp = 6;
+  const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: emojiTex('💣'), transparent: true, alphaTest: 0.3 }));
+  s.scale.set(0.3, 0.3, 1); levelGroup.add(s);
+  const pitchUp = settings.pitch ? player.pitch : 0;
+  projectiles.push({ kind: 'bomb', x: player.x + fwd[0] * 0.3, z: player.z + fwd[1] * 0.3, y: EYE_H - 0.1,
+    vx: fwd[0] * sp * Math.cos(pitchUp), vz: fwd[1] * sp * Math.cos(pitchUp), vy: 2.2 + Math.sin(pitchUp) * sp, sprite: s, life: 1.6, dmg: ITEM_DEFS.bomb.dmg + floor * 3 });
+  SFX.swing();
+}
+function explode(x, y, z, dmg) {
+  SFX.explode(); shake = Math.max(shake, 0.35); hitstop = 0.05;
+  burst(x, y, z, 0xffa040, 40, 4.5, 0.8, 3); burst(x, y, z, 0x555555, 20, 2, 1.2, -0.5);
+  flashLight.position.set(x, y + 0.3, z); flashLight.intensity = 6;
+  for (const e of enemies) {
+    if (e.dead) continue;
+    const d = Math.hypot(e.x - x, e.z - z);
+    if (d < 2.2 && los(x, z, e.x, e.z)) { const k = 1 - d / 2.6; e.damage(Math.round(dmg * k), (e.x - x) / (d || 1), (e.z - z) / (d || 1), false); }
+  }
+  const pd = Math.hypot(player.x - x, player.z - z);
+  if (pd < 1.6) hurtPlayer(Math.round(dmg * 0.25 * (1 - pd / 1.6)) + 1, { x, z }, true);
+}
+function updateProjectiles(dt) {
+  for (let i = projectiles.length - 1; i >= 0; i--) {
+    const p = projectiles[i];
+    p.life -= dt;
+    let boom = p.life <= 0;
+    if (p.kind === 'bomb') p.vy -= 9 * dt;
+    const nx = p.x + p.vx * dt, nz = p.z + p.vz * dt;
+    if (isWall(nx, p.z)) { p.vx *= -0.4; if (p.kind === 'fire') boom = true; } else p.x = nx;
+    if (isWall(p.x, nz)) { p.vz *= -0.4; if (p.kind === 'fire') boom = true; } else p.z = nz;
+    p.y += p.vy * dt;
+    if (p.y < 0.12) { p.y = 0.12; p.vy *= -0.35; p.vx *= 0.6; p.vz *= 0.6; if (p.kind === 'fire') boom = true; }
+    p.sprite.position.set(p.x, p.y, p.z);
+    if (p.kind === 'fire') {
+      if (Math.random() < 0.6) burst(p.x, p.y, p.z, 0xff7020, 1, 0.5, 0.35, -1);
+      if (Math.hypot(player.x - p.x, player.z - p.z) < PLAYER_R + 0.25) { hurtPlayer(p.dmg, { x: p.x, z: p.z, d: p.owner.d }); boom = true; }
+    } else {
+      p.sprite.material.rotation += dt * 8;
+      for (const e of enemies) if (!e.dead && Math.hypot(e.x - p.x, e.z - p.z) < e.d.r + 0.15) boom = true;
+    }
+    if (boom) {
+      if (p.kind === 'bomb') explode(p.x, p.y, p.z, p.dmg);
+      else burst(p.x, p.y, p.z, 0xff8030, 14, 2, 0.4);
+      levelGroup.remove(p.sprite); p.sprite.material.dispose();
+      projectiles.splice(i, 1);
+    }
+  }
+}
+
+/* ---------- Flow field toward the player ---------- */
+function updateFlow() {
+  const tx = Math.floor(player.x), tz = Math.floor(player.z), ti = tz * dun.w + tx;
+  if (ti === flowTile) return;
+  flowTile = ti;
+  flowDist = bfs(dun.g, dun.w, dun.h, tx, tz, 40);
+}
+function flowDirFor(e) {
+  const tx = Math.floor(e.x), tz = Math.floor(e.z), w = dun.w;
+  const here = flowDist[tz * w + tx];
+  if (here < 0) return [0, 0];
+  let best = null, bd = here;
+  for (const [ox, oz] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+    const nx = tx + ox, nz = tz + oz;
+    if (nx < 0 || nz < 0 || nx >= w || nz >= dun.h) continue;
+    const d = flowDist[nz * w + nx];
+    if (d >= 0 && d < bd) { bd = d; best = [nx + 0.5, nz + 0.5]; }
+  }
+  if (!best) return [0, 0];
+  const dx = best[0] - e.x, dz = best[1] - e.z, dd = Math.hypot(dx, dz) || 1;
+  return [dx / dd, dz / dd];
+}
+
+/* =========================================================
+   Floor setup
+   ========================================================= */
+function randomFloorTile(exclude) {
+  for (let t = 0; t < 500; t++) {
+    const r = pick(dun.rooms);
+    if (exclude && exclude.includes(r)) continue;
+    const x = randi(r.x, r.x + r.w - 1), y = randi(r.y, r.y + r.h - 1);
+    if (dun.stairs && x === dun.stairs.x && y === dun.stairs.y) continue;
+    if (items.some(i => Math.floor(i.x) === x && Math.floor(i.z) === y)) continue;
+    return [x + 0.5, y + 0.5];
+  }
+  return [dun.start.cx + 0.5, dun.start.cy + 0.5];
+}
+function loadFloor() {
+  for (const p of projectiles) p.sprite.material.dispose();
+  enemies = []; items = []; projectiles = []; dmgTexts = []; particles.length = 0;
+  bossDefeated = false;
+  dun = genDungeon(floor);
+  buildLevel();
+  explored = new Uint8Array(dun.w * dun.h);
+  flowTile = -1;
+  player.x = dun.start.cx + 0.5; player.z = dun.start.cy + 0.5; player.vx = player.vz = 0;
+  // face toward the room's longer side / an exit
+  player.yaw = pick([0, Math.PI / 2, Math.PI, -Math.PI / 2]); player.pitch = 0;
+  if (dun.boss) {
+    player.yaw = -Math.PI / 2; // face +x toward the arena
+    const arena = dun.rooms[1];
+    enemies.push(new Enemy('dragon', arena.cx + 0.5, arena.cy + 0.5));
+    items.push(new Item('potion', dun.start.x + 0.5, dun.start.y + 0.5));
+    items.push(new Item('bomb', dun.start.x + dun.start.w - 0.5, dun.start.y + 0.5));
+    items.push(new Item('meat', dun.start.x + 0.5, dun.start.y + dun.start.h - 0.5));
+  } else {
+    const pool = ['zombie'];
+    if (floor >= 2) pool.push('bat');
+    if (floor >= 3) pool.push('mummy');
+    if (floor >= 6) pool.push('mummy', 'bat');
+    for (const r of dun.rooms) {
+      if (r === dun.start) continue;
+      const n = randi(1, 2) + Math.floor(floor / 3) + (r.w * r.h > 40 ? 1 : 0);
+      for (let i = 0; i < n; i++) {
+        const x = randi(r.x, r.x + r.w - 1) + 0.5, z = randi(r.y, r.y + r.h - 1) + 0.5;
+        enemies.push(new Enemy(pick(pool), x, z));
+      }
+    }
+    const nItems = 4 + Math.floor(floor / 2) + randi(0, 2);
+    for (let i = 0; i < nItems; i++) { const [x, z] = randomFloorTile(); items.push(makeLoot(x, z)); }
+    // always at least one food per floor
+    const [fx2, fz2] = randomFloorTile(); items.push(new Item(floor % 3 === 0 ? 'meat' : 'bread', fx2, fz2));
+  }
+  updateHud(true); refreshItems();
+  $('#floorLabel').textContent = `B${floor}F`;
+  showBanner(`B${floor}F`, themeFor(floor).name + (dun.boss ? ' ― 最深部' : ''));
+}
+function onBossDefeated(e) {
+  bossDefeated = true;
+  addMsg('ドラゴンを倒した！', '#ffd24a');
+  shake = 0.6; hitstop = 0.2;
+  showBanner('VICTORY', '脱出の光が現れた');
+  const sx = Math.floor(e.x), sz = Math.floor(e.z);
+  if (dun.g[sz] && dun.g[sz][sx] === 0) placeStairs(sx, sz); else placeStairs(dun.rooms[1].cx, dun.rooms[1].cy);
+  items.push(new Item('elixir', e.x + 0.6, e.z));
+}
+
+/* =========================================================
+   Player actions
+   ========================================================= */
+function forward() { return [-Math.sin(player.yaw), -Math.cos(player.yaw)]; }
+function rightVec() { return [Math.cos(player.yaw), -Math.sin(player.yaw)]; }
+
+function doAttack(charged) {
+  const range = charged ? 2.7 : 1.65;
+  const cosArc = Math.cos(THREE.MathUtils.degToRad(charged ? 75 : 50));
+  player.swingT = 0; player.swingCharged = charged;
+  player.attackCd = charged ? 0.5 : 0.36;
+  const [fx2, fz2] = forward();
+  let hits = 0;
+  for (const e of enemies) {
+    if (e.dead) continue;
+    const dx = e.x - player.x, dz = e.z - player.z, d = Math.hypot(dx, dz) || 0.001;
+    if (d - e.d.r > range) continue;
+    const dot = (dx * fx2 + dz * fz2) / d;
+    if (dot < cosArc && d > e.d.r + 0.35) continue;
+    if (!los(player.x, player.z, e.x, e.z)) continue;
+    const crit = Math.random() < (charged ? 0.25 : 0.1);
+    let dmg = atkOf() + randi(0, 2 + floor);
+    if (charged) dmg = Math.round(dmg * 2.6);
+    if (crit) dmg = Math.round(dmg * 1.5);
+    e.damage(dmg, dx / d, dz / d, crit);
+    hits++;
+  }
+  if (charged) {
+    SFX.slash(); slashMesh.visible = true; slashMesh.userData.t = 0;
+    shake = Math.max(shake, 0.15);
+  } else SFX.swing();
+  if (hits) {
+    hitstop = charged ? 0.09 : 0.045; shake = Math.max(shake, charged ? 0.22 : 0.1);
+    setTimeout(() => SFX.hit(), 0);
+    vibrate(charged ? 30 : 12);
+  }
+}
+function hurtPlayer(n, src, self) {
+  if (state !== 'play') return;
+  const dmg = Math.max(1, n - defOf());
+  player.hp -= dmg;
+  hurtFlash = 1; shake = Math.max(shake, 0.25); SFX.hurt(); vibrate(60);
+  if (src && !self) { hurtDir = Math.atan2(src.x - player.x, src.z - player.z); hurtDirT = 1.2; }
+  if (player.hp <= 0) { player.hp = 0; gameOver(src && src.d ? src.d.name : (self ? '自分の爆弾' : '飢え')); }
+  updateHud();
+}
+function gainExp(n) {
+  player.exp += n;
+  while (player.exp >= expNeed(player.lv)) {
+    player.exp -= expNeed(player.lv); player.lv++;
+    player.maxHp += 8; player.baseAtk += 1;
+    player.hp = Math.min(player.maxHp, player.hp + Math.ceil(player.maxHp * 0.5));
+    SFX.levelup(); addMsg(`レベルアップ！ Lv${player.lv}`, '#7fd0ff');
+    burst(player.x, 0.3, player.z, 0x7fd0ff, 30, 2, 1, -2);
+  }
+  updateHud();
+}
+function tryPickups() {
+  for (const it of items) {
+    if (it.gone) continue;
+    const d = Math.hypot(it.x - player.x, it.z - player.z);
+    if (d > 0.55) { if (d > 1.0) it.notified = false; continue; }
+    if (it.key === 'weapon' || it.key === 'armor') {
+      const cur = it.key === 'weapon' ? player.weapon : player.armor;
+      if (it.tier > cur) {
+        if (it.key === 'weapon') { player.weapon = it.tier; tintSword(); } else player.armor = it.tier;
+        addMsg(`${it.label}を装備した！`, '#ffd24a'); SFX.equip(); it.remove(); updateHud();
+      } else if (!it.notified) { it.notified = true; addMsg(`${it.label}…今の装備の方が強い`, '#999'); }
+      continue;
+    }
+    if (player.inv.length >= INV_SIZE) {
+      if (!it.notified) { it.notified = true; addMsg('持ち物がいっぱいだ', '#f88'); SFX.deny(); }
+      continue;
+    }
+    player.inv.push({ key: it.key }); it.remove();
+    addMsg(`${ITEM_DEFS[it.key].name}を拾った`); SFX.pickup(); refreshItems();
+  }
+  items = items.filter(i => !i.gone);
+}
+function useItem(idx) {
+  if (state !== 'play') return;
+  const it = player.inv[idx];
+  if (!it) return;
+  const def = ITEM_DEFS[it.key];
+  if (def.kind === 'bomb') { throwBomb(); return; }
+  if (def.kind === 'heal' && player.hp >= player.maxHp) { addMsg('HPは満タンだ', '#aaa'); SFX.deny(); return; }
+  if (def.kind === 'food' && player.food >= 100 && !def.heal) { addMsg('お腹はいっぱいだ', '#aaa'); SFX.deny(); return; }
+  if (def.food) { player.food = Math.min(100, player.food + def.food); player.hungryWarned = false; }
+  if (def.heal) player.hp = Math.min(player.maxHp, player.hp + def.heal);
+  if (def.kind === 'map') { explored.fill(1); addMsg('フロアの地図が明らかになった'); }
+  else addMsg(`${def.name}を使った`);
+  SFX.use(); burst(player.x, 0.4, player.z, def.kind === 'food' ? 0xffc060 : 0x80ff90, 14, 1.5, 0.7, -1.5);
+  player.inv.splice(idx, 1);
+  player.sel = clamp(player.sel, 0, Math.max(0, player.inv.length - 1));
+  refreshItems(); updateHud();
+}
+function onStairs() {
+  return dun && dun.stairs && stairsMesh && Math.floor(player.x) === dun.stairs.x && Math.floor(player.z) === dun.stairs.y;
+}
+function descend() {
+  if (state !== 'play' || !onStairs()) return;
+  if (floor === LAST_FLOOR) { victory(); return; }
+  SFX.stairs(); state = 'transition';
+  $('#fade').classList.add('on');
+  setTimeout(() => {
+    floor++; loadFloor();
+    $('#fade').classList.remove('on');
+    state = 'play';
+  }, 420);
+}
+function tintSword() {
+  sword.userData.blade.material.color.set(WEAPONS[player.weapon].color);
+}
+
+/* =========================================================
+   Input
+   ========================================================= */
+const keys = new Set();
+const input = {
+  mouseDX: 0, mouseDY: 0, touchDX: 0, touchDY: 0,
+  joyX: 0, joyY: 0, joyActive: false,
+  attackKey: false, attackMouse: false, attackTouch: false, attackPad: false,
+  padLX: 0, padLY: 0, padRX: 0, padRY: 0, padRun: false,
+  get attack() { return this.attackKey || this.attackMouse || this.attackTouch || this.attackPad; },
+};
+let attackPrev = false;
+let lockFailed = false;
+const isLocked = () => document.pointerLockElement === document.body;
+
+addEventListener('keydown', e => {
+  audioUnlock();
+  if (e.repeat) { if (state === 'play') e.preventDefault(); return; }
+  keys.add(e.code);
+  if (state === 'play') {
+    if (e.code === 'Space') { input.attackKey = true; e.preventDefault(); }
+    if (e.code === 'KeyE' || e.code === 'KeyF' || e.code === 'Enter') descend();
+    if (e.code === 'KeyG' || e.code === 'KeyQ') throwBomb();
+    if (e.code === 'KeyM' || e.code === 'Tab') { toggleBigMap(); e.preventDefault(); }
+    if (/^Digit[1-6]$/.test(e.code)) useItem(+e.code.slice(5) - 1);
+    if (e.code === 'Escape' || e.code === 'KeyP') pause();
+  } else if (state === 'pause' && (e.code === 'KeyP')) resume();
+  setTouchMode(false);
+});
+addEventListener('keyup', e => {
+  keys.delete(e.code);
+  if (e.code === 'Space') input.attackKey = false;
+});
+addEventListener('blur', () => { keys.clear(); input.attackKey = input.attackMouse = input.attackTouch = false; if (state === 'play') pause(); });
+document.addEventListener('visibilitychange', () => { if (document.hidden && state === 'play') pause(); });
+
+/* ---- Mouse / pointer lock ---- */
+function requestLock() {
+  if (lockFailed || !document.body.requestPointerLock) return;
+  try {
+    const p = document.body.requestPointerLock();
+    if (p && p.catch) p.catch(() => { lockFailed = true; });
+  } catch (e) { lockFailed = true; }
+}
+document.addEventListener('pointerlockerror', () => { lockFailed = true; });
+document.addEventListener('pointerlockchange', () => {
+  if (!isLocked()) { input.attackMouse = false; if (state === 'play' && !document.body.classList.contains('touch')) pause(); }
+});
+document.addEventListener('mousemove', e => {
+  if (isLocked()) { input.mouseDX += e.movementX; input.mouseDY += e.movementY; }
+});
+document.addEventListener('mousedown', e => {
+  if (!isLocked() || state !== 'play') return;
+  if (e.button === 0) input.attackMouse = true;
+  if (e.button === 2) descend();
+});
+document.addEventListener('mouseup', e => { if (e.button === 0) input.attackMouse = false; });
+document.addEventListener('contextmenu', e => e.preventDefault());
+
+/* ---- Touch: floating joystick on one side, look on the other ---- */
+const touchLayer = $('#touchLayer'), joyBase = $('#joyBase'), joyKnob = $('#joyKnob');
+const touch = { joyId: null, ox: 0, oy: 0, lookId: null, lx: 0, ly: 0, mouseDrag: null };
+const JOY_R = 56;
+function setTouchMode(on) {
+  document.body.classList.toggle('touch', on);
+}
+function inMoveZone(x) { return settings.leftHanded ? x > W * 0.5 : x < W * 0.5; }
+touchLayer.addEventListener('pointerdown', e => {
+  audioUnlock();
+  if (e.pointerType === 'mouse') {
+    setTouchMode(false);
+    if (state !== 'play') return;
+    if (!lockFailed && !isLocked()) { requestLock(); return; }
+    if (lockFailed) { // fallback: drag to look, click to attack
+      touch.mouseDrag = { x: e.clientX, y: e.clientY, moved: 0 };
+      if (e.button === 0) input.attackMouse = true;
+      touchLayer.setPointerCapture(e.pointerId);
+    }
+    return;
+  }
+  setTouchMode(true);
+  e.preventDefault();
+  if (state !== 'play') return;
+  if (inMoveZone(e.clientX) && touch.joyId === null) {
+    touch.joyId = e.pointerId; touch.ox = e.clientX; touch.oy = e.clientY;
+    joyBase.style.left = e.clientX + 'px'; joyBase.style.top = e.clientY + 'px';
+    joyBase.classList.add('on'); joyKnob.style.transform = 'translate(0,0)';
+    input.joyActive = true; input.joyX = input.joyY = 0;
+    $('#joyHint').style.display = 'none';
+  } else if (touch.lookId === null) {
+    touch.lookId = e.pointerId; touch.lx = e.clientX; touch.ly = e.clientY;
+  }
+  try { touchLayer.setPointerCapture(e.pointerId); } catch (_) {}
+}, { passive: false });
+touchLayer.addEventListener('pointermove', e => {
+  if (touch.mouseDrag && e.pointerType === 'mouse') {
+    input.touchDX += (e.clientX - touch.mouseDrag.x) * 0.55; input.touchDY += (e.clientY - touch.mouseDrag.y) * 0.55;
+    touch.mouseDrag.x = e.clientX; touch.mouseDrag.y = e.clientY;
+    return;
+  }
+  if (e.pointerId === touch.joyId) {
+    let dx = e.clientX - touch.ox, dy = e.clientY - touch.oy;
+    const d = Math.hypot(dx, dy);
+    if (d > JOY_R) { // drag the base along so the stick never "runs out"
+      const over = d - JOY_R;
+      touch.ox += dx / d * over; touch.oy += dy / d * over;
+      dx = e.clientX - touch.ox; dy = e.clientY - touch.oy;
+      joyBase.style.left = touch.ox + 'px'; joyBase.style.top = touch.oy + 'px';
+    }
+    joyKnob.style.transform = `translate(${dx}px,${dy}px)`;
+    let jx = dx / JOY_R, jy = -dy / JOY_R;
+    const m = Math.hypot(jx, jy);
+    if (m < 0.12) { jx = jy = 0; }
+    input.joyX = jx; input.joyY = jy;
+  } else if (e.pointerId === touch.lookId) {
+    input.touchDX += e.clientX - touch.lx; input.touchDY += e.clientY - touch.ly;
+    touch.lx = e.clientX; touch.ly = e.clientY;
+  }
+});
+function endTouch(e) {
+  if (touch.mouseDrag && e.pointerType === 'mouse') { touch.mouseDrag = null; input.attackMouse = false; return; }
+  if (e.pointerId === touch.joyId) {
+    touch.joyId = null; input.joyActive = false; input.joyX = input.joyY = 0; joyBase.classList.remove('on');
+  }
+  if (e.pointerId === touch.lookId) touch.lookId = null;
+}
+touchLayer.addEventListener('pointerup', endTouch);
+touchLayer.addEventListener('pointercancel', endTouch);
+touchLayer.addEventListener('lostpointercapture', endTouch);
+
+/* ---- On-screen buttons ---- */
+const btnAttack = $('#btnAttack');
+const atk = { id: null, x: 0, y: 0 };
+btnAttack.addEventListener('pointerdown', e => {
+  e.preventDefault(); e.stopPropagation(); audioUnlock();
+  atk.id = e.pointerId; atk.x = e.clientX; atk.y = e.clientY;
+  input.attackTouch = true; btnAttack.classList.add('down');
+  try { btnAttack.setPointerCapture(e.pointerId); } catch (_) {}
+});
+btnAttack.addEventListener('pointermove', e => {
+  if (e.pointerId !== atk.id) return;
+  // Sliding a finger on the attack button also aims
+  input.touchDX += e.clientX - atk.x; input.touchDY += e.clientY - atk.y;
+  atk.x = e.clientX; atk.y = e.clientY;
+});
+const atkUp = e => { if (e.pointerId !== atk.id) return; atk.id = null; input.attackTouch = false; btnAttack.classList.remove('down'); };
+btnAttack.addEventListener('pointerup', atkUp);
+btnAttack.addEventListener('pointercancel', atkUp);
+btnAttack.addEventListener('lostpointercapture', atkUp);
+const tap = (el, fn) => el.addEventListener('pointerdown', e => { e.preventDefault(); e.stopPropagation(); audioUnlock(); fn(e); });
+tap($('#btnAction'), () => descend());
+tap($('#btnThrow'), () => throwBomb());
+tap($('#btnPause'), () => pause());
+tap($('#mapWrap'), () => toggleBigMap());
+tap($('#bigmap'), () => toggleBigMap());
+
+/* ---- Gamepad ---- */
+const padPrev = [];
+function pollPad() {
+  input.padLX = input.padLY = input.padRX = input.padRY = 0; input.attackPad = false; input.padRun = false;
+  const pads = navigator.getGamepads ? navigator.getGamepads() : [];
+  for (const p of pads) {
+    if (!p || !p.connected) continue;
+    const dz = v => Math.abs(v) < 0.15 ? 0 : (v - Math.sign(v) * 0.15) / 0.85;
+    input.padLX = dz(p.axes[0] || 0); input.padLY = -dz(p.axes[1] || 0);
+    input.padRX = dz(p.axes[2] || 0); input.padRY = dz(p.axes[3] || 0);
+    const b = i => p.buttons[i] && (p.buttons[i].pressed || p.buttons[i].value > 0.4);
+    const pressed = i => b(i) && !padPrev[i];
+    input.attackPad = b(7) || b(2);
+    input.padRun = b(10) || Math.hypot(input.padLX, input.padLY) > 0.97;
+    if (state === 'play') {
+      if (pressed(0)) descend();
+      if (pressed(1)) throwBomb();
+      if (pressed(3)) useItem(player.sel);
+      if (pressed(4) || pressed(14)) { player.sel = (player.sel + INV_SIZE - 1) % INV_SIZE; refreshItems(); }
+      if (pressed(5) || pressed(15)) { player.sel = (player.sel + 1) % INV_SIZE; refreshItems(); }
+      if (pressed(8)) toggleBigMap();
+      if (pressed(9)) pause();
+    } else if (state === 'pause' && pressed(9)) resume();
+    else if ((state === 'title' || state === 'dead') && (pressed(0) || pressed(9))) startGame();
+    for (let i = 0; i < p.buttons.length; i++) padPrev[i] = b(i);
+    if (Math.abs(input.padLX) + Math.abs(input.padLY) + Math.abs(input.padRX) > 0) setTouchMode(false);
+    break;
+  }
+}
+
+/* =========================================================
+   Update
+   ========================================================= */
+let revealTimer = 0, mapTimer = 0;
+function updatePlayer(dt, worldDt) {
+  // --- look ---
+  const s = settings.sens;
+  const inv = settings.invertY ? -1 : 1;
+  let dyaw = input.mouseDX * 0.0024 * s + input.touchDX * 0.0058 * s;
+  let dpitch = input.mouseDY * 0.0024 * s + input.touchDY * 0.0058 * s;
+  input.mouseDX = input.mouseDY = input.touchDX = input.touchDY = 0;
+  const curve = v => Math.sign(v) * v * v;
+  dyaw += curve(input.padRX) * 3.0 * s * dt;
+  dpitch += curve(input.padRY) * 2.0 * s * dt;
+  if (keys.has('ArrowLeft')) dyaw -= 2.4 * dt * s;
+  if (keys.has('ArrowRight')) dyaw += 2.4 * dt * s;
+  player.yaw -= dyaw;
+  if (settings.pitch) player.pitch = clamp(player.pitch - dpitch * inv, -0.75, 0.75);
+  else player.pitch = lerp(player.pitch, 0, Math.min(1, dt * 10));
+
+  if (worldDt <= 0) return;
+  // --- move ---
+  let mx = 0, my = 0;
+  if (keys.has('KeyW') || keys.has('ArrowUp')) my += 1;
+  if (keys.has('KeyS') || keys.has('ArrowDown')) my -= 1;
+  if (keys.has('KeyD')) mx += 1;
+  if (keys.has('KeyA')) mx -= 1;
+  mx += input.joyX + input.padLX; my += input.joyY + input.padLY;
+  const mag = Math.hypot(mx, my);
+  if (mag > 1) { mx /= mag; my /= mag; }
+  const running = keys.has('ShiftLeft') || keys.has('ShiftRight') || input.padRun || (input.joyActive && Math.hypot(input.joyX, input.joyY) > 0.95);
+  const charging = player.charging && player.chargeT > 0.2;
+  const speed = (running && !charging ? 4.4 : 2.9) * (charging ? 0.55 : 1);
+  const [fx2, fz2] = forward(), [rx, rz] = rightVec();
+  const tvx = (fx2 * my + rx * mx) * speed, tvz = (fz2 * my + rz * mx) * speed;
+  const acc = Math.min(1, worldDt * (mag > 0.05 ? 14 : 10));
+  player.vx = lerp(player.vx, tvx, acc); player.vz = lerp(player.vz, tvz, acc);
+  moveWithCollision(player, player.vx * worldDt, player.vz * worldDt, PLAYER_R);
+  const sp = Math.hypot(player.vx, player.vz);
+  player.bob += sp * worldDt * 2.6;
+
+  // --- hunger ---
+  player.foodTick += worldDt * (sp > 0.3 ? (running ? 1.7 : 1) : 0.4);
+  if (player.foodTick > 2.6) { player.foodTick = 0; player.food = Math.max(0, player.food - 1); updateHud(); }
+  if (player.food <= 20 && !player.hungryWarned) { player.hungryWarned = true; addMsg('お腹が空いてきた…', '#f2b25c'); }
+  if (player.food <= 0) {
+    player.starveTick += worldDt;
+    if (player.starveTick > 1.4) { player.starveTick = 0; player.hp -= 1; hurtFlash = 0.4; if (player.hp <= 0) { player.hp = 0; gameOver('飢え'); } updateHud(); }
+  } else if (player.food > 50) {
+    // slow natural regen while well fed
+    player.starveTick += worldDt;
+    if (player.starveTick > 3.5) { player.starveTick = 0; if (player.hp < player.maxHp) { player.hp++; updateHud(); } }
+  }
+
+  // --- attack: press = immediate swing, hold = charge, release when full = charged slash ---
+  player.attackCd -= worldDt;
+  const a = input.attack;
+  if (a && !attackPrev) {
+    if (player.attackCd <= 0) doAttack(false);
+    player.charging = true; player.chargeT = 0; player.chargedReady = false;
+  }
+  if (a && player.charging) {
+    player.chargeT += worldDt;
+    if (!player.chargedReady && player.chargeT >= 1.0) { player.chargedReady = true; SFX.charged(); vibrate(15); }
+  }
+  if (!a && attackPrev && player.charging) {
+    if (player.chargedReady) doAttack(true);
+    player.charging = false; player.chargeT = 0; player.chargedReady = false;
+  }
+  attackPrev = a;
+
+  tryPickups();
+}
+
+function update(dt) {
+  stats.time += dt;
+  let worldDt = dt;
+  if (hitstop > 0) { hitstop -= dt; worldDt = 0; }
+  updatePlayer(dt, worldDt);
+  if (state !== 'play') return;
+  if (worldDt > 0) {
+    updateFlow();
+    for (const e of enemies) if (!e.dead) e.update(worldDt);
+    enemies = enemies.filter(e => !e.dead);
+    updateProjectiles(worldDt);
+    for (const it of items) { it.t += worldDt; it.sync(); }
+  }
+  updateParticles(dt);
+  revealTimer -= dt;
+  if (revealTimer <= 0) { revealTimer = 0.15; reveal(); }
+  // visuals
+  shake = Math.max(0, shake - dt * 1.6);
+  hurtFlash = Math.max(0, hurtFlash - dt * 2.2);
+  hurtDirT = Math.max(0, hurtDirT - dt);
+  flashLight.intensity = Math.max(0, flashLight.intensity - dt * 20);
+  if (stairsBeam) { stairsBeam.rotation.y += dt; stairsBeam.material.opacity = 0.7 + Math.sin(stats.time * 3) * 0.3; }
+  for (const t of dmgTexts) t.t += dt;
+  dmgTexts = dmgTexts.filter(t => t.t < 0.9);
+  const near = state === 'play' && onStairs();
+  setPrompt(near ? (floor === LAST_FLOOR ? '脱出する' : '階段を降りる') : null);
+}
+
+function reveal() {
+  const px = Math.floor(player.x), pz = Math.floor(player.z), R = 5;
+  for (let y = pz - R; y <= pz + R; y++) for (let x = px - R; x <= px + R; x++) {
+    if (x < 0 || y < 0 || x >= dun.w || y >= dun.h) continue;
+    const i = y * dun.w + x;
+    if (explored[i]) continue;
+    if ((x - px) ** 2 + (y - pz) ** 2 > R * R) continue;
+    // check LOS to the nearest point of the tile so walls get revealed too
+    const tx = clamp(player.x, x + 0.02, x + 0.98), tz = clamp(player.z, y + 0.02, y + 0.98);
+    const dx = tx - player.x, dz = tz - player.z, d = Math.hypot(dx, dz);
+    const n = Math.ceil(d / 0.2); let ok = true;
+    for (let k = 1; k < n; k++) { const sx = player.x + dx * k / n, sz = player.z + dz * k / n; if (Math.floor(sx) === x && Math.floor(sz) === y) break; if (isWall(sx, sz)) { ok = false; break; } }
+    if (ok) explored[i] = 1;
+  }
+}
+
+/* =========================================================
+   Render
+   ========================================================= */
+function renderScene(dt) {
+  const bobY = Math.sin(player.bob * 2) * 0.025, bobX = Math.cos(player.bob) * 0.015;
+  const sk = shake * shake * 0.12;
+  camera.position.set(player.x + rand(-sk, sk), EYE_H + bobY + rand(-sk, sk), player.z + rand(-sk, sk));
+  camera.rotation.y = player.yaw; camera.rotation.x = player.pitch;
+  torch.intensity = 2.5 + Math.sin(stats.time * 13) * 0.12 + Math.sin(stats.time * 7.3) * 0.1;
+
+  // sword animation
+  player.swingT = Math.min(1, player.swingT + dt / (player.swingCharged ? 0.32 : 0.22));
+  const st = player.swingT;
+  const charge = player.charging ? clamp((player.chargeT - 0.2) / 0.8, 0, 1) : 0;
+  let rz = -0.35, rx = 0.15, px = 0.34, py = -0.32, pz = -0.55;
+  if (st < 1) {
+    const k = Math.sin(st * Math.PI);
+    const e = st < 0.5 ? st * 2 : 1;
+    rz = lerp(0.9, -1.9, e) * (st < 1 ? 1 : 0); rx = -0.6 * k; px = lerp(0.4, -0.05, e); py = -0.3 + 0.08 * k;
+    if (st > 0.5) { const r = (st - 0.5) * 2; rz = lerp(-1.9, -0.35, r); px = lerp(-0.05, 0.34, r); rx = lerp(-0.6, 0.15, r); }
+  } else if (charge > 0) {
+    rz = lerp(-0.35, 0.8, charge); px = 0.36 + rand(-1, 1) * 0.006 * charge; py = -0.3 + rand(-1, 1) * 0.006 * charge; rx = lerp(0.15, 0.4, charge);
+  }
+  const ax = camera.aspect < 1 ? 0.55 : 1; // keep the blade on screen in portrait
+  swordPivot.scale.setScalar(camera.aspect < 1 ? 0.8 : 0.85);
+  swordPivot.position.set((px + bobX) * ax, py + bobY * 0.6, pz);
+  swordPivot.rotation.set(rx, 0, rz);
+  const blade = sword.userData.blade.material;
+  blade.emissive.setRGB(player.chargedReady ? 0.5 + 0.3 * Math.sin(stats.time * 20) : charge * 0.25, player.chargedReady ? 0.6 : charge * 0.3, player.chargedReady ? 0.9 : charge * 0.4);
+  if (slashMesh.visible) {
+    slashMesh.userData.t += dt / 0.28;
+    const t = slashMesh.userData.t;
+    slashMesh.material.opacity = Math.max(0, 1 - t);
+    slashMesh.scale.setScalar(0.8 + t * 1.2);
+    slashMesh.rotation.z = -0.4 + t * 0.6;
+    if (t >= 1) slashMesh.visible = false;
+  }
+  renderer.render(scene, camera);
+}
+
+function drawFx() {
+  const c = fctx;
+  c.setTransform(DPR, 0, 0, DPR, 0, 0);
+  c.clearRect(0, 0, W, H);
+  if (state !== 'play' && state !== 'transition' && state !== 'pause') { $('#vignette').style.opacity = 0; return; }
+  const v = new THREE.Vector3();
+  // damage numbers
+  c.textAlign = 'center'; c.textBaseline = 'middle';
+  for (const t of dmgTexts) {
+    v.set(t.x, t.y + t.t * 0.6, t.z).project(camera);
+    if (v.z > 1) continue;
+    const sx = (v.x + 1) / 2 * W, sy = (1 - v.y) / 2 * H;
+    const a = 1 - t.t / 0.9, size = (t.crit ? 30 : 22) * (1 + Math.max(0, 0.2 - t.t) * 2);
+    c.font = `${size}px DotGothic16, sans-serif`;
+    c.globalAlpha = a; c.lineWidth = 4; c.strokeStyle = '#000';
+    c.strokeText(t.text, sx, sy); c.fillStyle = t.color; c.fillText(t.text, sx, sy);
+  }
+  c.globalAlpha = 1;
+  // enemy health bars (only damaged and visible)
+  for (const e of enemies) {
+    if (e.hp >= e.maxHp || e.d.boss) continue;
+    v.set(e.x, (e.d.fly || e.d.scale) + 0.12, e.z).project(camera);
+    if (v.z > 1 || Math.abs(v.x) > 1.1) continue;
+    if (Math.hypot(e.x - player.x, e.z - player.z) > 7 || !los(player.x, player.z, e.x, e.z)) continue;
+    const sx = (v.x + 1) / 2 * W, sy = (1 - v.y) / 2 * H, bw = 40;
+    c.fillStyle = 'rgba(0,0,0,.6)'; c.fillRect(sx - bw / 2 - 1, sy - 1, bw + 2, 6);
+    c.fillStyle = '#e04a3a'; c.fillRect(sx - bw / 2, sy, bw * Math.max(0, e.hp / e.maxHp), 4);
+  }
+  // boss bar
+  const boss = enemies.find(e => e.d.boss);
+  if (boss && boss.aggro) {
+    const bw = Math.min(W * 0.6, 420), bx = (W - bw) / 2, by = H - 120;
+    c.fillStyle = 'rgba(0,0,0,.7)'; c.fillRect(bx - 3, by - 3, bw + 6, 16);
+    c.fillStyle = '#c0302a'; c.fillRect(bx, by, bw * boss.hp / boss.maxHp, 10);
+    c.font = '15px DotGothic16, sans-serif'; c.fillStyle = '#ffd0b0'; c.fillText('ドラゴン', W / 2, by - 14);
+  }
+  // off-screen threat indicators
+  const [fx2, fz2] = forward(), [rx, rz] = rightVec();
+  const hfov = Math.atan(Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)) * camera.aspect);
+  for (const e of enemies) {
+    if (!e.aggro) continue;
+    const dx = e.x - player.x, dz = e.z - player.z, d = Math.hypot(dx, dz);
+    if (d > 7) continue;
+    const lx = dx * rx + dz * rz, lz = dx * fx2 + dz * fz2;
+    const ang = Math.atan2(lx, lz);
+    if (Math.abs(ang) < hfov * 0.9) continue;
+    drawArrow(c, ang, e.windup > 0 ? '#ff3020' : 'rgba(255,90,60,.8)', 1 - d / 8);
+  }
+  if (hurtDirT > 0 && hurtDir !== null) {
+    // world angle -> relative to view
+    const lx = Math.sin(hurtDir) * rx + Math.cos(hurtDir) * rz, lz = Math.sin(hurtDir) * fx2 + Math.cos(hurtDir) * fz2;
+    const ang = Math.atan2(lx, lz);
+    c.save(); c.translate(W / 2, H / 2); c.rotate(ang);
+    c.strokeStyle = `rgba(255,40,30,${Math.min(1, hurtDirT) * 0.8})`; c.lineWidth = 10;
+    const R = Math.min(W, H) * 0.32;
+    c.beginPath(); c.arc(0, 0, R, -Math.PI / 2 - 0.35, -Math.PI / 2 + 0.35); c.stroke();
+    c.restore();
+  }
+  // charge gauge
+  if (player.charging && player.chargeT > 0.2) {
+    const k = clamp((player.chargeT - 0.2) / 0.8, 0, 1);
+    c.lineWidth = 5; c.strokeStyle = 'rgba(0,0,0,.5)';
+    c.beginPath(); c.arc(W / 2, H / 2, 26, 0, Math.PI * 2); c.stroke();
+    c.strokeStyle = player.chargedReady ? '#9fe8ff' : '#e8b85a';
+    c.beginPath(); c.arc(W / 2, H / 2, 26, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * k); c.stroke();
+    if (player.chargedReady) { c.font = '14px DotGothic16, sans-serif'; c.fillStyle = '#9fe8ff'; c.fillText('離して斬撃！', W / 2, H / 2 + 46); }
+  }
+  $('#vignette').style.opacity = Math.max(hurtFlash, player.hp / player.maxHp < 0.25 ? 0.35 + Math.sin(stats.time * 5) * 0.15 : 0);
+}
+function drawArrow(c, ang, color, alpha) {
+  const R = Math.min(W, H) * 0.36;
+  c.save(); c.translate(W / 2, H / 2); c.rotate(ang); c.translate(0, -R);
+  c.globalAlpha = clamp(alpha + 0.3, 0.3, 1);
+  c.fillStyle = color; c.beginPath(); c.moveTo(0, -14); c.lineTo(11, 6); c.lineTo(-11, 6); c.closePath(); c.fill();
+  c.restore(); c.globalAlpha = 1;
+}
+
+function drawMap(cv, big) {
+  const c = cv.getContext('2d');
+  const S = cv.width;
+  c.clearRect(0, 0, S, S);
+  let scale, ox, oy;
+  if (big) { scale = S / Math.max(dun.w, dun.h); ox = 0; oy = 0; }
+  else { scale = 9; ox = S / 2 - player.x * scale; oy = S / 2 - player.z * scale; }
+  for (let y = 0; y < dun.h; y++) for (let x = 0; x < dun.w; x++) {
+    if (!explored[y * dun.w + x]) continue;
+    const sx = ox + x * scale, sy = oy + y * scale;
+    if (sx < -scale || sy < -scale || sx > S || sy > S) continue;
+    c.fillStyle = dun.g[y][x] ? '#6a5a50' : '#2a2430';
+    c.fillRect(sx, sy, scale + 0.5, scale + 0.5);
+  }
+  if (dun.stairs && stairsMesh && explored[dun.stairs.y * dun.w + dun.stairs.x]) {
+    c.fillStyle = floor === LAST_FLOOR ? '#ffd070' : '#5fa0ff';
+    c.fillRect(ox + dun.stairs.x * scale, oy + dun.stairs.y * scale, scale, scale);
+  }
+  for (const it of items) {
+    if (!explored[Math.floor(it.z) * dun.w + Math.floor(it.x)]) continue;
+    c.fillStyle = it.key === 'weapon' || it.key === 'armor' ? '#ffd24a' : '#7fe08a';
+    c.fillRect(ox + it.x * scale - scale * 0.2, oy + it.z * scale - scale * 0.2, scale * 0.4, scale * 0.4);
+  }
+  for (const e of enemies) {
+    if (Math.hypot(e.x - player.x, e.z - player.z) > 7 || !los(player.x, player.z, e.x, e.z)) continue;
+    c.fillStyle = '#ff4a3a';
+    c.beginPath(); c.arc(ox + e.x * scale, oy + e.z * scale, Math.max(2, scale * (e.d.boss ? 0.6 : 0.3)), 0, Math.PI * 2); c.fill();
+  }
+  // player arrow
+  c.save(); c.translate(ox + player.x * scale, oy + player.z * scale); c.rotate(-player.yaw);
+  const a = Math.max(5, scale * 0.6);
+  c.fillStyle = '#fff'; c.beginPath(); c.moveTo(0, -a); c.lineTo(a * 0.7, a * 0.7); c.lineTo(0, a * 0.3); c.lineTo(-a * 0.7, a * 0.7); c.closePath(); c.fill();
+  c.restore();
+}
+function toggleBigMap() { $('#bigmap').classList.toggle('on'); }
+
+/* =========================================================
+   HUD
+   ========================================================= */
+let hudCache = {};
+function updateHud() {
+  const hpK = player.hp / player.maxHp;
+  $('#hpBar>i').style.transform = `scaleX(${clamp(hpK, 0, 1)})`;
+  $('#hpBar>span').textContent = `HP ${player.hp} / ${player.maxHp}`;
+  $('#foodBar>i').style.transform = `scaleX(${player.food / 100})`;
+  $('#foodBar>span').textContent = `満腹度 ${player.food}%`;
+  $('#expBar>i').style.transform = `scaleX(${player.exp / expNeed(player.lv)})`;
+  $('#statLine').innerHTML = `<span>Lv <b>${player.lv}</b></span><span>攻撃 <b>${atkOf()}</b></span><span>防御 <b>${defOf()}</b></span>`;
+  $('#equip').innerHTML = `🗡️ ${WEAPONS[player.weapon].name}<br>🛡️ ${ARMORS[player.armor].name}`;
+}
+function refreshItems() {
+  const box = $('#items');
+  if (!box.children.length) {
+    for (let i = 0; i < INV_SIZE; i++) {
+      const s = document.createElement('div'); s.className = 'slot';
+      s.innerHTML = `<span class="k">${i + 1}</span><span class="ic"></span>`;
+      s.addEventListener('pointerdown', e => { e.preventDefault(); e.stopPropagation(); audioUnlock(); player.sel = i; useItem(i); });
+      box.appendChild(s);
+    }
+  }
+  [...box.children].forEach((s, i) => {
+    const it = player.inv[i];
+    s.querySelector('.ic').textContent = it ? ITEM_DEFS[it.key].icon : '';
+    s.classList.toggle('empty', !it);
+    s.classList.toggle('sel', i === player.sel && !document.body.classList.contains('touch'));
+    s.title = it ? ITEM_DEFS[it.key].name : '';
+  });
+  const bombs = player.inv.filter(i => i.key === 'bomb').length;
+  $('#btnThrow').style.opacity = bombs ? 1 : 0.35;
+}
+function addMsg(text, color) {
+  const box = $('#msgs');
+  const d = document.createElement('div'); d.className = 'msg'; d.textContent = text;
+  if (color) d.style.color = color;
+  box.appendChild(d);
+  while (box.children.length > 4) box.firstChild.remove();
+  setTimeout(() => { d.style.opacity = 0; setTimeout(() => d.remove(), 700); }, 2600);
+}
+let bannerTimer = null;
+function showBanner(title, sub) {
+  const b = $('#banner');
+  b.innerHTML = `${title}<small>${sub || ''}</small>`; b.style.opacity = 1;
+  clearTimeout(bannerTimer); bannerTimer = setTimeout(() => b.style.opacity = 0, 1800);
+}
+let promptShown = null;
+function setPrompt(text) {
+  if (text === promptShown) return;
+  promptShown = text;
+  const p = $('#prompt'), b = $('#btnAction');
+  if (text) {
+    p.textContent = `[E] ${text}`; p.style.display = 'block';
+    b.textContent = floor === LAST_FLOOR ? '脱出' : '降りる'; b.classList.add('on');
+  } else { p.style.display = 'none'; b.classList.remove('on'); }
+}
+
+/* =========================================================
+   Screens / flow
+   ========================================================= */
+let screenStack = [];
+function showScreen(id) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('on'));
+  if (id) $('#' + id).classList.add('on');
+}
+function openSub(id) { screenStack.push(document.querySelector('.screen.on')?.id); showScreen(id); if (id === 'scrSettings') syncSettingsUI(); }
+function back() { showScreen(screenStack.pop() || 'scrTitle'); }
+
+function startGame() {
+  audioUnlock();
+  Object.assign(player, { hp: 40, maxHp: 40, food: 100, lv: 1, exp: 0, baseAtk: 6, weapon: 0, armor: 0, inv: [{ key: 'bread' }, { key: 'potion' }], sel: 0,
+    attackCd: 0, swingT: 1, charging: false, chargeT: 0, chargedReady: false, foodTick: 0, starveTick: 0, hungryWarned: false });
+  stats = { kills: 0, time: 0 };
+  tintSword();
+  floor = 1;
+  screenStack = [];
+  showScreen(null);
+  document.body.classList.add('playing');
+  $('#bigmap').classList.remove('on');
+  loadFloor();
+  state = 'play';
+  if (!document.body.classList.contains('touch')) requestLock();
+  if (!hasSeenHint()) addMsg(document.body.classList.contains('touch') ? '左側をなぞって移動、右側で視点' : 'WASDで移動、マウスで視点、クリックで攻撃');
+}
+function hasSeenHint() { try { const v = localStorage.getItem('ddr_hint'); localStorage.setItem('ddr_hint', '1'); return !!v; } catch (e) { return false; } }
+function pause() {
+  if (state !== 'play') return;
+  state = 'pause'; input.attackKey = input.attackMouse = input.attackTouch = false; attackPrev = false; player.charging = false;
+  keys.clear();
+  if (isLocked()) document.exitPointerLock();
+  showScreen('scrPause');
+}
+function resume() {
+  showScreen(null); screenStack = [];
+  state = 'play';
+  if (!document.body.classList.contains('touch')) requestLock();
+}
+function quitToTitle() {
+  state = 'title';
+  document.body.classList.remove('playing');
+  if (isLocked()) document.exitPointerLock();
+  screenStack = [];
+  showScreen('scrTitle'); renderRecord();
+}
+function endRun(title, cause) {
+  state = 'dead';
+  if (isLocked()) document.exitPointerLock();
+  input.attackKey = input.attackMouse = input.attackTouch = false;
+  const rec = loadRecord();
+  const cleared = title === 'clear';
+  const best = Math.max(rec.best || 0, floor);
+  saveRecord({ best, clears: (rec.clears || 0) + (cleared ? 1 : 0) });
+  const m = Math.floor(stats.time / 60), s = Math.floor(stats.time % 60);
+  $('#deadTitle').textContent = cleared ? '🏆 ダンジョン踏破！' : '力尽きた…';
+  $('#deadStats').innerHTML = `
+    <span>到達階層</span><b>B${floor}F</b>
+    <span>レベル</span><b>${player.lv}</b>
+    <span>倒した敵</span><b>${stats.kills}</b>
+    <span>プレイ時間</span><b>${m}分${String(s).padStart(2, '0')}秒</b>
+    ${cleared ? '' : `<span>死因</span><b>${cause}</b>`}
+    <span>最高記録</span><b>B${best}F</b>`;
+  setTimeout(() => { showScreen('scrDead'); }, cleared ? 300 : 900);
+}
+function gameOver(cause) { if (state === 'play') endRun('dead', cause); }
+function victory() { SFX.levelup(); endRun('clear'); }
+function renderRecord() {
+  const r = loadRecord();
+  $('#record').textContent = r.best ? `最高到達: B${r.best}F${r.clears ? ` ／ 踏破 ${r.clears}回` : ''}` : '';
+}
+
+document.querySelectorAll('[data-act]').forEach(b => b.addEventListener('click', () => {
+  audioUnlock();
+  const a = b.dataset.act;
+  if (a === 'start') startGame();
+  else if (a === 'resume') resume();
+  else if (a === 'help') openSub('scrHelp');
+  else if (a === 'settings') openSub('scrSettings');
+  else if (a === 'back') back();
+  else if (a === 'quit') quitToTitle();
+}));
+
+/* ---- settings UI ---- */
+function syncSettingsUI() {
+  $('#setSens').value = settings.sens; $('#sensVal').textContent = '×' + Number(settings.sens).toFixed(1);
+  $('#setPitch').classList.toggle('on', settings.pitch);
+  $('#setInvert').classList.toggle('on', settings.invertY);
+  $('#setLeft').classList.toggle('on', settings.leftHanded);
+  $('#setSfx').classList.toggle('on', settings.sfx);
+  $('#setVibe').classList.toggle('on', settings.vibrate);
+  $('#setQuality').value = settings.quality;
+  document.body.classList.toggle('left', settings.leftHanded);
+}
+$('#setSens').addEventListener('input', e => { settings.sens = +e.target.value; saveSettings(); syncSettingsUI(); });
+[['#setPitch', 'pitch'], ['#setInvert', 'invertY'], ['#setLeft', 'leftHanded'], ['#setSfx', 'sfx'], ['#setVibe', 'vibrate']].forEach(([sel, key]) => {
+  $(sel).addEventListener('click', () => { settings[key] = !settings[key]; saveSettings(); syncSettingsUI(); });
+});
+$('#setQuality').addEventListener('change', e => { settings.quality = e.target.value; saveSettings(); resize(); });
+
+/* =========================================================
+   Main loop
+   ========================================================= */
+let last = performance.now();
+function frame(now) {
+  requestAnimationFrame(frame);
+  const dt = Math.min(0.05, (now - last) / 1000); last = now;
+  pollPad();
+  if (state === 'play') update(dt);
+  else if (state === 'transition') updateParticles(dt);
+  if (dun && (state === 'play' || state === 'pause' || state === 'transition' || state === 'dead')) {
+    renderScene(state === 'play' ? dt : 0);
+    mapTimer -= dt;
+    if (mapTimer <= 0 && state === 'play') {
+      mapTimer = 0.08;
+      drawMap($('#minimap'), false);
+      if ($('#bigmap').classList.contains('on')) drawMap($('#bigmapCanvas'), true);
+    }
+  } else if (state === 'title') {
+    renderTitleScene(dt);
+  }
+  drawFx();
+}
+
+// Title background: a slowly rotating view of a demo floor
+let titleT = 0;
+function renderTitleScene(dt) {
+  if (!dun) return;
+  titleT += dt;
+  camera.position.set(dun.start.cx + 0.5, EYE_H, dun.start.cy + 0.5);
+  camera.rotation.set(0, titleT * 0.15, 0);
+  swordPivot.visible = false;
+  renderer.render(scene, camera);
+  swordPivot.visible = true;
+}
+
+/* ---- boot ---- */
+resize();
+syncSettingsUI();
+renderRecord();
+refreshItems();
+updateHud();
+// build a demo floor for the title background
+dun = genDungeon(1); buildLevel(); explored = new Uint8Array(dun.w * dun.h);
+setTouchMode(matchMedia('(pointer:coarse)').matches);
+$('#loading').remove();
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>
