@@ -214,7 +214,7 @@ h2{margin:0 0 14px;font-weight:normal;color:var(--gold)}
     左スティック 移動 ／ 右スティック 視点 ／ <kbd>RT</kbd><kbd>X</kbd> 攻撃<br>
     <kbd>A</kbd> 階段 ／ <kbd>LB</kbd><kbd>RB</kbd> アイテム選択 ／ <kbd>Y</kbd> 使用 ／ <kbd>B</kbd> 爆弾 ／ <kbd>Back</kbd> マップ ／ <kbd>Start</kbd> ポーズ
     <h3>🎥 カメラ</h3>
-    キャラクターの右肩越しに見るTPS視点です。攻撃はカメラの向いている方向に繰り出します。
+    キャラクターを画面中央に捉えた背後からのTPS視点です。攻撃はカメラの向いている方向に繰り出します。
     <h3>🗺 ルール</h3>
     地下10階に潜むドラゴンを倒すのが目的。歩くと満腹度が減り、0になるとHPが減っていきます。
     敵は攻撃の直前に<b>赤く光る</b>ので、そのタイミングで下がれば避けられます。
@@ -269,9 +269,9 @@ const WALL_H = 1.5;
 const EYE_H = 0.62;
 const PLAYER_R = 0.24;
 const INV_SIZE = 6;
-// Waist-up framing. Portrait screens have a much taller FOV, so the camera sits closer there.
-const CAM_LAND = { dist: 0.95, shoulder: 0.42, height: 1.06 };
-const CAM_PORT = { dist: 0.6, shoulder: 0.3, height: 1.1 };
+// Waist-up framing, character centered. Portrait screens have a much taller FOV, so the camera sits closer there.
+const CAM_LAND = { dist: 0.95, shoulder: 0, height: 1.06 };
+const CAM_PORT = { dist: 0.6, shoulder: 0, height: 1.1 };
 const CAM = Object.assign({ pitchMin: -0.7, pitchMax: 0.45 }, CAM_LAND);
 
 /* =========================================================
