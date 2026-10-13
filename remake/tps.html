@@ -269,7 +269,10 @@ const WALL_H = 1.5;
 const EYE_H = 0.62;
 const PLAYER_R = 0.24;
 const INV_SIZE = 6;
-const CAM = { dist: 1.75, shoulder: 0.5, height: 1.02, pitchMin: -0.7, pitchMax: 0.45 };
+// Waist-up framing. Portrait screens have a much taller FOV, so the camera sits closer there.
+const CAM_LAND = { dist: 0.95, shoulder: 0.42, height: 1.06 };
+const CAM_PORT = { dist: 0.6, shoulder: 0.3, height: 1.1 };
+const CAM = Object.assign({ pitchMin: -0.7, pitchMax: 0.45 }, CAM_LAND);
 
 /* =========================================================
    Settings (per-browser)
@@ -370,6 +373,7 @@ function resize() {
   if (aspect >= 1) camera.fov = 64;
   else camera.fov = Math.min(100, 2 * Math.atan(Math.tan(THREE.MathUtils.degToRad(42)) / aspect) * 180 / Math.PI);
   camera.updateProjectionMatrix();
+  if (typeof CAM !== 'undefined') Object.assign(CAM, aspect >= 1 ? CAM_LAND : CAM_PORT);
   DPR = Math.min(window.devicePixelRatio || 1, 2);
   fx.width = W * DPR; fx.height = H * DPR;
 }
@@ -1530,7 +1534,7 @@ function updateCamera(dt) {
   camera.position.set(sx - fx * d + rand(-sk, sk), clamp(py - fy * d, 0.18, WALL_H - 0.1) + rand(-sk, sk), sz - fz * d + rand(-sk, sk));
   camera.rotation.set(pitch, yaw, 0);
   // hide the model when the camera is squeezed right up against her
-  heroine.root.visible = Math.hypot(camera.position.x - px, camera.position.z - pz) > 0.32;
+  heroine.root.visible = Math.hypot(camera.position.x - px, camera.position.z - pz) > 0.25;
 }
 
 const angDiff = (a, b) => { let d = (b - a) % (Math.PI * 2); if (d > Math.PI) d -= Math.PI * 2; if (d < -Math.PI) d += Math.PI * 2; return d; };
