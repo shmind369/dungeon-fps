@@ -10,7 +10,7 @@
 <link href="https://fonts.googleapis.com/css2?family=DotGothic16&display=swap" rel="stylesheet">
 <style>
 :root{
-  --map:168px;
+  --map:168px; --padb:80px;
   --bg:#07060a; --panel:rgba(18,14,24,.86); --line:#3a3046; --text:#efe6d6; --dim:#9a8f86;
   --gold:#e8b85a; --hp:#d8433a; --food:#d99a3a; --exp:#5aa6e8; --accent:#c9673a;
   --safe-l:env(safe-area-inset-left,0px); --safe-r:env(safe-area-inset-right,0px);
@@ -54,15 +54,35 @@ body.playing #hud{display:block}
 .viewBtn small{font-size:10px;color:var(--gold)}
 #topRight .iconBtn{width:58px}
 
-#items{position:absolute;left:50%;transform:translateX(-50%);bottom:calc(10px + var(--safe-b));
-  display:flex;gap:6px;pointer-events:auto}
-.slot{position:relative;width:50px;height:50px;border-radius:10px;border:1px solid var(--line);background:var(--panel);
-  display:flex;align-items:center;justify-content:center;font-size:26px;cursor:pointer;touch-action:none}
-.slot.sel{border-color:var(--gold);box-shadow:0 0 0 2px rgba(232,184,90,.4)}
-.slot .k{position:absolute;left:4px;top:2px;font-size:10px;color:var(--dim)}
-.slot.empty{opacity:.45}
-.slot:active{transform:scale(.94)}
-#equip{position:absolute;left:calc(8px + var(--safe-l));bottom:calc(10px + var(--safe-b));font-size:12px;color:var(--dim);
+/* Inventory: one horizontal row, exactly 6 slots visible, swipe to scroll, snaps to slots */
+#items{position:absolute;left:0;right:0;margin:0 auto;bottom:calc(8px + var(--safe-b));
+  width:min(calc(100vw - 16px - var(--safe-l) - var(--safe-r)),560px);height:66px;padding:3px 0;
+  display:flex;flex-wrap:nowrap;gap:4px;pointer-events:auto;
+  overflow-x:auto;overflow-y:hidden;scroll-snap-type:x mandatory;-webkit-overflow-scrolling:touch;overscroll-behavior-x:contain;
+  scrollbar-width:none;touch-action:pan-x}
+#items::-webkit-scrollbar{display:none}
+.slot{position:relative;flex:0 0 calc((100% - 20px) / 6);min-width:0;height:60px;box-sizing:border-box;scroll-snap-align:start;scroll-snap-stop:always;
+  border-radius:10px;border:1px solid var(--line);background:var(--panel);
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;padding:0 1px;cursor:pointer;touch-action:pan-x}
+.slot .ic{font-size:25px;line-height:28px;height:28px}
+.slot .nm{font-size:9px;line-height:12px;max-width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--text)}
+@media (max-width:340px){.slot .nm{font-size:8.5px;letter-spacing:-.3px}}
+.slot.sel{border-color:var(--gold);box-shadow:inset 0 0 0 2px rgba(232,184,90,.6);background:rgba(60,44,20,.9)}
+.slot.empty{opacity:.4}
+.slot:active{filter:brightness(1.3)}
+#itemsWrap .more{position:absolute;bottom:calc(8px + var(--safe-b));height:66px;width:18px;display:flex;align-items:center;justify-content:center;
+  font-size:14px;color:var(--gold);pointer-events:none;opacity:0;transition:opacity .15s;text-shadow:0 0 4px #000}
+#itemsWrap .more.on{opacity:.9}
+#moreL{left:calc(50% - min(calc(50vw - 8px - var(--safe-l)),280px))}
+#moreR{right:calc(50% - min(calc(50vw - 8px - var(--safe-r)),280px))}
+#itemInfo{position:absolute;left:0;right:0;margin:0 auto;bottom:calc(8px + 66px + 6px + var(--safe-b));
+  width:min(calc(100vw - 16px - var(--safe-l) - var(--safe-r)),560px);box-sizing:border-box;
+  background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:6px 10px;pointer-events:none}
+#itemInfo .ih{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+#itemInfo .in{font-size:15px;color:var(--gold)}
+#itemInfo .is{font-size:12px;color:#9fe8b0}
+#itemInfo .id{font-size:11px;line-height:1.45;color:var(--dim);margin-top:2px}
+#equip{position:absolute;right:calc(10px + var(--safe-r));bottom:calc(8px + var(--safe-b));font-size:12px;color:var(--dim);
   background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:5px 8px;line-height:1.5}
 body.touch #equip{display:none}
 
@@ -79,35 +99,32 @@ body.touch #prompt{display:none!important}
 #bigmap canvas{width:min(86vw,86vh);height:min(86vw,86vh)}
 #bigmap.on{display:flex}
 
+
 /* ---------- Touch controls ---------- */
 #touchUI{position:fixed;inset:0;z-index:5;pointer-events:none;display:none}
 body.touch.playing #touchUI{display:block}
-#joyBase{position:absolute;left:50%;bottom:calc(68px + var(--safe-b));width:128px;height:128px;margin-left:-64px;border-radius:50%;
+#joyBase{position:absolute;left:50%;bottom:calc(var(--padb) + var(--safe-b));width:128px;height:128px;margin-left:-64px;border-radius:50%;
   border:2px solid rgba(255,255,255,.3);background:rgba(255,255,255,.07);opacity:.6;transition:opacity .15s}
 #joyBase.on{opacity:1}
 #joyKnob{position:absolute;left:50%;top:50%;width:54px;height:54px;margin:-27px 0 0 -27px;border-radius:50%;
-  background:rgba(255,255,255,.28);border:2px solid rgba(255,255,255,.45)}
-#joyHint{position:absolute;left:50%;transform:translateX(-50%);bottom:calc(202px + var(--safe-b));font-size:12px;color:rgba(255,255,255,.4);white-space:nowrap}
+  background:rgba(255,255,255,.28);border:2px solid rgba(255,255,255,.45);
+  display:flex;flex-direction:column;align-items:center;justify-content:center;line-height:1.05;color:var(--gold);font-size:11px;text-shadow:0 1px 2px #000}
+#joyKnob.act{background:rgba(232,184,90,.4);border-color:var(--gold);animation:knobPulse 1s ease-in-out infinite}
+#joyKnob .ki{font-size:19px;line-height:20px}
+@keyframes knobPulse{0%,100%{box-shadow:0 0 0 0 rgba(232,184,90,.55)}50%{box-shadow:0 0 0 9px rgba(232,184,90,0)}}
+#joyHint{position:absolute;left:50%;transform:translateX(-50%);bottom:calc(var(--padb) + 134px + var(--safe-b));font-size:12px;color:rgba(255,255,255,.4);white-space:nowrap}
 .tbtn{position:absolute;pointer-events:auto;border-radius:50%;touch-action:none;display:flex;align-items:center;justify-content:center;
   border:2px solid rgba(255,255,255,.35);background:rgba(30,20,30,.55);color:#fff;font-size:30px;cursor:pointer}
-#btnAttack{width:96px;height:96px;right:calc(22px + var(--safe-r));bottom:calc(72px + var(--safe-b))}
+#btnAttack{width:96px;height:96px;right:calc(22px + var(--safe-r));bottom:calc(var(--padb) + 4px + var(--safe-b))}
 #btnAttack.down{background:rgba(201,103,58,.6);transform:scale(.95)}
-#btnAction{min-width:84px;height:64px;padding:0 8px;flex-direction:column;line-height:1.15;border-radius:14px;right:calc(28px + var(--safe-r));bottom:calc(250px + var(--safe-b));
-  font-size:15px;display:none;border-color:var(--gold);color:var(--gold);background:rgba(40,30,10,.7)}
-#btnAction.on{display:flex}
-#btnThrow{width:56px;height:56px;right:calc(42px + var(--safe-r));bottom:calc(180px + var(--safe-b));font-size:22px}
+#btnThrow{width:56px;height:56px;right:calc(42px + var(--safe-r));bottom:calc(var(--padb) + 112px + var(--safe-b));font-size:22px}
 body.left #btnAttack{right:auto;left:calc(22px + var(--safe-l))}
-body.left #btnAction{right:auto;left:calc(28px + var(--safe-l))}
 body.left #btnThrow{right:auto;left:calc(42px + var(--safe-l))}
-/* items: a row at the very bottom, under the movement pad */
-#items{left:50%;transform:translateX(-50%);bottom:calc(8px + var(--safe-b));flex-direction:row}
-.slot{width:46px;height:46px;font-size:24px}
-#equip{bottom:calc(70px + var(--safe-b))}
 @media (orientation:landscape) and (max-height:520px){
-  #btnThrow{right:calc(132px + var(--safe-r));bottom:calc(76px + var(--safe-b))}
-  #btnAction{right:calc(124px + var(--safe-r));bottom:calc(146px + var(--safe-b))}
+  #btnThrow{right:calc(132px + var(--safe-r));bottom:calc(var(--padb) + 8px + var(--safe-b))}
   body.left #btnThrow{right:auto;left:calc(132px + var(--safe-l))}
-  body.left #btnAction{right:auto;left:calc(124px + var(--safe-l))}
+  #itemInfo{left:calc(10px + var(--safe-l));right:auto;margin:0;width:min(34vw,300px)}
+  #msgs{left:auto;right:calc(10px + var(--safe-r));top:calc(150px + var(--safe-t));align-items:flex-end;max-width:36vw}
 }
 /* item action dialog: 投げる (top-left) / 置く (bottom-left) / 使う (right) */
 #actMenu{position:fixed;inset:0;z-index:7;display:none;background:rgba(0,0,0,.35);touch-action:none}
@@ -126,8 +143,7 @@ body.left #btnThrow{right:auto;left:calc(42px + var(--safe-l))}
 #actMenu.drag #dragGhost{display:block}
 
 @media (orientation:portrait){
-  .slot{width:44px;height:44px;font-size:22px}
-  :root{--map:138px}
+  :root{--map:138px; --padb:146px}
   #statLine{gap:7px}
   #msgs{top:calc(var(--map) + 36px + var(--safe-t))}
   #stats{flex-basis:auto;flex:1}
@@ -183,7 +199,8 @@ h2{margin:0 0 14px;font-weight:normal;color:var(--gold)}
   <div id="crosshair"></div>
   <div id="prompt"></div>
   <div id="banner"></div>
-  <div id="items"></div>
+  <div id="itemInfo"><div class="ih"><span class="in"></span><span class="is"></span></div><div class="id"></div></div>
+  <div id="itemsWrap"><div id="items"></div><div class="more" id="moreL">◀</div><div class="more" id="moreR">▶</div></div>
   <div id="equip"></div>
   <div id="bigmap"><canvas id="bigmapCanvas" width="640" height="640"></canvas></div>
 </div>
@@ -191,7 +208,6 @@ h2{margin:0 0 14px;font-weight:normal;color:var(--gold)}
 <div id="touchUI">
   <div id="joyBase"><div id="joyKnob"></div></div>
   <div id="joyHint">移動パッド</div>
-  <button class="tbtn" id="btnAction">降りる</button>
   <button class="tbtn" id="btnThrow" aria-label="爆弾を投げる">💣</button>
   <button class="tbtn" id="btnAttack" aria-label="攻撃">⚔</button>
 </div>
@@ -225,9 +241,10 @@ h2{margin:0 0 14px;font-weight:normal;color:var(--gold)}
     パッド以外の場所をなぞる → カメラ（視点）移動<br>
     <b>⚔ボタン</b> → 攻撃（押したまま指をずらすと視点も動く）<br>
     <b>⚔長押し</b> → ゲージが溜まったら離して「斬撃」<br>
-    足元のアイテム → <b>拾う</b>ボタンで拾う<br>
+    足元にアイテム／階段があると、移動パッドの<b>中央が光ります</b>。中央を<b>タップ</b>すると「拾う」「降りる」<br>
+    持ち物は最大10個。アイテム欄は<b>左右にスワイプ</b>でスクロール（7個目以降も見られます）<br>
     アイテム枠をタップ → 「使う」「置く」「投げる」を選ぶ（空いている所をタップでキャンセル）<br>
-    アイテム枠からドラッグ → 各エリアで指を離すと実行（それ以外で離すとキャンセル）<br>
+    アイテム枠を<b>上へドラッグ</b> → 各エリアで指を離すと実行（それ以外で離すとキャンセル）<br>
     💣 → 爆弾を投げる<br>
     階段の上で <b>降りる</b> ボタン<br>
     設定の「左利きモード」でボタン配置を左右反転できます。
@@ -235,7 +252,7 @@ h2{margin:0 0 14px;font-weight:normal;color:var(--gold)}
     <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> 移動 ／ マウス 視点 ／ <kbd>Shift</kbd> ダッシュ<br>
     <kbd>左クリック</kbd> または <kbd>Space</kbd> 攻撃（長押しで斬撃）<br>
     <kbd>←</kbd><kbd>→</kbd> でも旋回できます<br>
-    <kbd>E</kbd> 拾う・階段を降りる ／ <kbd>1</kbd>〜<kbd>6</kbd> アイテム使用（枠をクリックで行動選択） ／ <kbd>G</kbd> 爆弾<br>
+    <kbd>E</kbd> 拾う・階段を降りる ／ <kbd>1</kbd>〜<kbd>9</kbd><kbd>0</kbd> アイテム使用（左から1〜10番目） ／ <kbd>G</kbd> 爆弾<br>
     <kbd>M</kbd> マップ ／ <kbd>V</kbd> 視点変更（一人称⇔三人称） ／ <kbd>Esc</kbd> ポーズ
     <h3>🎮 ゲームパッド</h3>
     左スティック 移動 ／ 右スティック 視点 ／ <kbd>RT</kbd><kbd>X</kbd> 攻撃<br>
@@ -303,7 +320,7 @@ const LAST_FLOOR = 10;
 const WALL_H = 1.5;
 const EYE_H = 0.62;
 const PLAYER_R = 0.24;
-const INV_SIZE = 6;
+const INV_SIZE = 10;
 // Waist-up framing, character centered. Portrait screens have a much taller FOV, so the camera sits closer there.
 const CAM_LAND = { dist: 0.95, shoulder: 0, height: 1.06 };
 const CAM_PORT = { dist: 0.6, shoulder: 0, height: 1.1 };
@@ -1360,7 +1377,7 @@ addEventListener('keydown', e => {
     if (e.code === 'KeyG' || e.code === 'KeyQ') throwBomb();
     if (e.code === 'KeyM' || e.code === 'Tab') { toggleBigMap(); e.preventDefault(); }
     if (e.code === 'KeyV') toggleView();
-    if (/^Digit[1-6]$/.test(e.code)) useItem(+e.code.slice(5) - 1);
+    if (/^Digit[0-9]$/.test(e.code)) useItem((+e.code.slice(5) + 9) % 10);
     if (e.code === 'Escape' || e.code === 'KeyP') pause();
   } else if (state === 'pause' && (e.code === 'KeyP')) resume();
   setTouchMode(false);
@@ -1423,6 +1440,7 @@ touchLayer.addEventListener('pointerdown', e => {
   if (inMoveZone(e.clientX, e.clientY) && touch.joyId === null) {
     [touch.ox, touch.oy] = padCenter();
     touch.joyId = e.pointerId;
+    touch.tap = { t: performance.now(), center: Math.hypot(e.clientX - touch.ox, e.clientY - touch.oy) < 34, moved: 0, x: e.clientX, y: e.clientY };
     joyBase.classList.add('on');
     input.joyActive = true;
     setJoy(e.clientX, e.clientY);
@@ -1439,6 +1457,7 @@ touchLayer.addEventListener('pointermove', e => {
     return;
   }
   if (e.pointerId === touch.joyId) {
+    if (touch.tap) touch.tap.moved = Math.max(touch.tap.moved, Math.hypot(e.clientX - touch.tap.x, e.clientY - touch.tap.y));
     setJoy(e.clientX, e.clientY);
   } else if (e.pointerId === touch.lookId) {
     input.touchDX += e.clientX - touch.lx; input.touchDY += e.clientY - touch.ly;
@@ -1457,6 +1476,8 @@ function setJoy(x, y) {
 function endTouch(e) {
   if (touch.mouseDrag && e.pointerType === 'mouse') { touch.mouseDrag = null; input.attackMouse = false; return; }
   if (e.pointerId === touch.joyId) {
+    const tp = touch.tap; touch.tap = null;
+    if (tp && tp.center && tp.moved < 14 && e.type === 'pointerup' && performance.now() - tp.t < 380) interact();   // tap the pad centre: 拾う / 降りる
     touch.joyId = null; input.joyActive = false; input.joyX = input.joyY = 0; joyBase.classList.remove('on');
     joyKnob.style.transform = 'translate(0,0)';
   }
@@ -1486,7 +1507,6 @@ btnAttack.addEventListener('pointerup', atkUp);
 btnAttack.addEventListener('pointercancel', atkUp);
 btnAttack.addEventListener('lostpointercapture', atkUp);
 const tap = (el, fn) => el.addEventListener('pointerdown', e => { e.preventDefault(); e.stopPropagation(); audioUnlock(); fn(e); });
-tap($('#btnAction'), () => interact());
 tap($('#btnThrow'), () => throwBomb());
 tap($('#btnPause'), () => pause());
 tap($('#btnView'), () => toggleView());
@@ -1511,8 +1531,8 @@ function pollPad() {
       if (pressed(0)) interact();
       if (pressed(1)) throwBomb();
       if (pressed(3)) useItem(player.sel);
-      if (pressed(4) || pressed(14)) { player.sel = (player.sel + INV_SIZE - 1) % INV_SIZE; refreshItems(); }
-      if (pressed(5) || pressed(15)) { player.sel = (player.sel + 1) % INV_SIZE; refreshItems(); }
+      if (pressed(4) || pressed(14)) { player.sel = (player.sel + INV_SIZE - 1) % INV_SIZE; refreshItems(); scrollToSlot(player.sel); }
+      if (pressed(5) || pressed(15)) { player.sel = (player.sel + 1) % INV_SIZE; refreshItems(); scrollToSlot(player.sel); }
       if (pressed(8)) toggleBigMap();
       if (pressed(9)) pause();
       if (pressed(11)) toggleView();
@@ -1625,8 +1645,8 @@ function update(dt) {
   if (stairsBeam) { stairsBeam.rotation.y += dt; stairsBeam.material.opacity = 0.7 + Math.sin(stats.time * 3) * 0.3; }
   for (const t of dmgTexts) t.t += dt;
   dmgTexts = dmgTexts.filter(t => t.t < 0.9);
-  if (nearItem) setPrompt(`${invName(nearItem)}を拾う`, `<span style="font-size:24px">${invIcon(nearItem)}</span>拾う`);
-  else if (onStairs()) setPrompt(floor === LAST_FLOOR ? '脱出する' : '階段を降りる', floor === LAST_FLOOR ? '脱出' : '降りる');
+  if (nearItem) setPrompt(`${invName(nearItem)}を拾う`, `<span class="ki">${invIcon(nearItem)}</span>拾う`);
+  else if (onStairs()) setPrompt(floor === LAST_FLOOR ? '脱出する' : '階段を降りる', `<span class="ki">🪜</span>${floor === LAST_FLOOR ? '脱出' : '降りる'}`);
   else setPrompt(null);
 }
 
@@ -1938,8 +1958,8 @@ function drawMap(cv, big) {
   const px = X(player.x), py = Y(player.z), f = forward();
   c.lineCap = 'round';
   c.beginPath(); c.moveTo(px + f[0] * R0 * 4.4, py + f[1] * R0 * 4.4); c.lineTo(px, py);
-  c.strokeStyle = 'rgba(0,0,0,0.7)'; c.lineWidth = R0 * 1.45 + 2.6; c.stroke();
-  c.strokeStyle = '#ffe14a'; c.lineWidth = R0 * 1.45; c.stroke();
+  c.strokeStyle = 'rgba(0,0,0,0.7)'; c.lineWidth = R0 * 0.36 + 1.4; c.stroke();
+  c.strokeStyle = '#ffe14a'; c.lineWidth = R0 * 0.36; c.stroke();
   c.lineCap = 'square';
   dot(player.x, player.z, R0 * 1.15, '#ffe14a');
 }
@@ -1959,28 +1979,60 @@ function updateHud() {
   $('#statLine').innerHTML = `<span>Lv <b>${player.lv}</b></span><span>攻撃 <b>${atkOf()}</b></span><span>防御 <b>${defOf()}</b></span>`;
   $('#equip').innerHTML = `🗡️ ${WEAPONS[player.weapon].name}<br>🛡️ ${ARMORS[player.armor].name}`;
 }
+function itemInfo(it) {
+  if (!it) return null;
+  if (it.key === 'weapon') return { name: invName(it), stat: `攻撃力 +${WEAPONS[it.tier].atk}（装備中 +${WEAPONS[player.weapon].atk}）`, desc: '装備すると攻撃力が上がる。外した武器は持ち物に戻る。' };
+  if (it.key === 'armor') return { name: invName(it), stat: `防御力 +${ARMORS[it.tier].def}（装備中 +${ARMORS[player.armor].def}）`, desc: '装備すると受けるダメージが減る。外した防具は持ち物に戻る。' };
+  const d = ITEM_DEFS[it.key];
+  const stat = { bread: `満腹度 +${d.food}`, meat: `満腹度 +${d.food} / HP +${d.heal}`, potion: `HP +${d.heal}`, elixir: 'HP 全回復',
+    bomb: `威力 ${d.dmg + floor * 3} / 爆風 2.2m`, scroll: 'この階の地図を公開' }[it.key];
+  const desc = { bread: 'ふわふわのパン。食べるとお腹が満たされる。', meat: '脂の乗った骨付き肉。腹持ちがよく、少し傷も癒える。',
+    potion: '傷を癒やす回復薬。ぐいっと一気に飲もう。', elixir: '貴重な霊薬。瀕死でもたちまち全快する。',
+    bomb: '投げると爆発し、周囲の敵に大ダメージ。自分も巻き込まれる。', scroll: '広げると、この階の地形がすべて分かる。' }[it.key];
+  return { name: d.name, stat, desc };
+}
 function refreshItems() {
   const box = $('#items');
   if (!box.children.length) {
     for (let i = 0; i < INV_SIZE; i++) {
       const s = document.createElement('div'); s.className = 'slot';
-      s.innerHTML = `<span class="k">${i + 1}</span><span class="ic"></span>`;
+      s.innerHTML = '<span class="ic"></span><span class="nm"></span>';
       s.addEventListener('pointerdown', e => slotDown(e, i, s));
       s.addEventListener('pointermove', slotMove);
       s.addEventListener('pointerup', slotUp);
-      s.addEventListener('pointercancel', () => closeActMenu());
+      s.addEventListener('pointercancel', slotCancel);
       box.appendChild(s);
     }
+    box.addEventListener('scroll', updateMoreArrows, { passive: true });
   }
+  player.sel = clamp(player.sel, 0, INV_SIZE - 1);
   [...box.children].forEach((s, i) => {
     const it = player.inv[i];
     s.querySelector('.ic').textContent = it ? invIcon(it) : '';
+    s.querySelector('.nm').textContent = it ? invName(it) : '';
     s.classList.toggle('empty', !it);
-    s.classList.toggle('sel', i === player.sel && !document.body.classList.contains('touch'));
+    s.classList.toggle('sel', i === player.sel);
     s.title = it ? invName(it) : '';
   });
+  const info = itemInfo(player.inv[player.sel]);
+  const panel = $('#itemInfo');
+  panel.querySelector('.in').textContent = info ? info.name : 'アイテム';
+  panel.querySelector('.is').textContent = info ? info.stat : `持ち物 ${player.inv.length} / ${INV_SIZE}`;
+  panel.querySelector('.id').textContent = info ? info.desc : 'アイテムを選ぶと、ここに性能と説明が表示されます。左右にスワイプで持ち物をスクロール。';
   const bombs = player.inv.filter(i => i.key === 'bomb').length;
   $('#btnThrow').style.opacity = bombs ? 1 : 0.35;
+  updateMoreArrows();
+}
+function slotStep() { const b = $('#items'); const s = b.children[0]; return s ? s.getBoundingClientRect().width + 4 : 60; }
+function scrollToSlot(i) {
+  const b = $('#items'), st = slotStep(), left = b.scrollLeft;
+  if (i * st < left - 1) b.scrollTo({ left: i * st, behavior: 'smooth' });
+  else if ((i + 1) * st - 4 > left + b.clientWidth + 1) b.scrollTo({ left: (i + 1) * st - b.clientWidth - 4 + 4, behavior: 'smooth' });
+}
+function updateMoreArrows() {
+  const b = $('#items');
+  $('#moreL').classList.toggle('on', b.scrollLeft > 4);
+  $('#moreR').classList.toggle('on', b.scrollLeft < b.scrollWidth - b.clientWidth - 4);
 }
 /* ---- item action dialog (tap a slot, or drag it onto 投げる / 置く / 使う) ---- */
 const actMenu = { idx: null, drag: false, pid: null, sx: 0, sy: 0, hot: null, el: null };
@@ -2014,16 +2066,28 @@ function doAction(a, idx) {
   else if (a === 'drop') dropItem(idx);
   else if (a === 'throw') throwItem(idx);
 }
+// Gestures on a slot: horizontal swipe scrolls the row (native, snaps to slots); tap selects + opens the dialog;
+// a vertical (upward) drag picks the item up and shows the dialog areas
 function slotDown(e, i, el) {
-  e.preventDefault(); e.stopPropagation(); audioUnlock();
-  if (state !== 'play' || !player.inv[i]) return;
-  player.sel = i;
-  actMenu.pid = e.pointerId; actMenu.sx = e.clientX; actMenu.sy = e.clientY; actMenu.el = el; actMenu.pending = i;
-  try { el.setPointerCapture(e.pointerId); } catch (_) {}
+  e.stopPropagation(); audioUnlock();
+  if (state !== 'play') return;
+  actMenu.pid = e.pointerId; actMenu.sx = e.clientX; actMenu.sy = e.clientY; actMenu.el = el; actMenu.pending = i; actMenu.scrolled = false;
+  actMenu.mouseX = e.clientX; actMenu.mouseScroll = 0;
+  if (e.pointerType === 'mouse') { try { el.setPointerCapture(e.pointerId); } catch (_) {} }
 }
 function slotMove(e) {
   if (e.pointerId !== actMenu.pid) return;
-  if (!actMenu.drag && Math.hypot(e.clientX - actMenu.sx, e.clientY - actMenu.sy) > 12) openActMenu(actMenu.pending, true);
+  const dx = e.clientX - actMenu.sx, dy = e.clientY - actMenu.sy;
+  if (!actMenu.drag && !actMenu.scrolled && Math.hypot(dx, dy) > 12) {
+    const idx = actMenu.pending;
+    if (Math.abs(dy) > Math.abs(dx) * 1.2 && player.inv[idx]) {
+      player.sel = idx; refreshItems();
+      try { actMenu.el.setPointerCapture(e.pointerId); } catch (_) {}
+      openActMenu(idx, true);
+    } else actMenu.scrolled = true;
+  }
+  if (e.pointerType === 'mouse' && actMenu.scrolled) { $('#items').scrollLeft -= e.clientX - actMenu.mouseX; }
+  actMenu.mouseX = e.clientX;
   if (!actMenu.drag) return;
   const g = $('#dragGhost'); g.style.left = e.clientX + 'px'; g.style.top = e.clientY + 'px';
   const hot = zoneAt(e.clientX, e.clientY);
@@ -2034,13 +2098,17 @@ function slotMove(e) {
 }
 function slotUp(e) {
   if (e.pointerId !== actMenu.pid) return;
-  const idx = actMenu.pending;
+  const idx = actMenu.pending, scrolled = actMenu.scrolled;
   actMenu.pid = null;
   if (actMenu.drag) {
     const a = zoneAt(e.clientX, e.clientY);
     if (a) doAction(a, idx); else closeActMenu();   // released on empty space: nothing happens
-  } else openActMenu(idx, false);                     // a tap opens the dialog
+  } else if (!scrolled) {
+    player.sel = idx; refreshItems();                // a tap selects (info panel updates)...
+    if (player.inv[idx]) openActMenu(idx, false);    // ...and opens the action dialog
+  }
 }
+function slotCancel() { if (actMenu.drag) closeActMenu(); actMenu.pid = null; }
 actEl.addEventListener('pointerdown', e => {
   e.preventDefault(); e.stopPropagation();
   if (actMenu.drag) return;
@@ -2063,14 +2131,14 @@ function showBanner(title, sub) {
   clearTimeout(bannerTimer); bannerTimer = setTimeout(() => b.style.opacity = 0, 1800);
 }
 let promptShown = null;
-function setPrompt(text, btnHtml) {
+function setPrompt(text, knobHtml) {
   if (text === promptShown) return;
   promptShown = text;
-  const p = $('#prompt'), b = $('#btnAction');
+  const p = $('#prompt');
   if (text) {
     p.textContent = `[E] ${text}`; p.style.display = 'block';
-    b.innerHTML = btnHtml; b.classList.add('on');
-  } else { p.style.display = 'none'; b.classList.remove('on'); }
+    joyKnob.innerHTML = knobHtml; joyKnob.classList.add('act');   // the pad's centre shows the available action
+  } else { p.style.display = 'none'; joyKnob.innerHTML = ''; joyKnob.classList.remove('act'); }
 }
 
 /* =========================================================
