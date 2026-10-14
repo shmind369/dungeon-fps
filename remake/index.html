@@ -1596,8 +1596,8 @@ function drawMap(cv, big) {
   const px = X(player.x), py = Y(player.z), f = forward();
   c.lineCap = 'round';
   c.beginPath(); c.moveTo(px + f[0] * R0 * 4.4, py + f[1] * R0 * 4.4); c.lineTo(px, py);
-  c.strokeStyle = 'rgba(0,0,0,0.7)'; c.lineWidth = R0 * 1.45 + 2.6; c.stroke();
-  c.strokeStyle = '#ffe14a'; c.lineWidth = R0 * 1.45; c.stroke();
+  c.strokeStyle = 'rgba(0,0,0,0.7)'; c.lineWidth = R0 * 0.36 + 1.4; c.stroke();
+  c.strokeStyle = '#ffe14a'; c.lineWidth = R0 * 0.36; c.stroke();
   c.lineCap = 'square';
   dot(player.x, player.z, R0 * 1.15, '#ffe14a');
 }
