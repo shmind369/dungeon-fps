@@ -58,12 +58,11 @@ body.playing #hud{display:block}
 #items{position:absolute;left:0;right:0;margin:0 auto;bottom:calc(8px + var(--safe-b));
   width:min(calc(100vw - 16px - var(--safe-l) - var(--safe-r)),560px);height:66px;padding:3px 0;
   display:flex;flex-wrap:nowrap;gap:4px;pointer-events:auto;
-  overflow-x:auto;overflow-y:hidden;scroll-snap-type:x mandatory;-webkit-overflow-scrolling:touch;overscroll-behavior-x:contain;
-  scrollbar-width:none;touch-action:pan-x}
+  overflow-x:hidden;overflow-y:hidden;scrollbar-width:none;touch-action:none}
 #items::-webkit-scrollbar{display:none}
-.slot{position:relative;flex:0 0 calc((100% - 20px) / 6);min-width:0;height:60px;box-sizing:border-box;scroll-snap-align:start;scroll-snap-stop:always;
+.slot{position:relative;flex:0 0 calc((100% - 20px) / 6);min-width:0;height:60px;box-sizing:border-box;
   border-radius:10px;border:1px solid var(--line);background:var(--panel);
-  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;padding:0 1px;cursor:pointer;touch-action:pan-x}
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;padding:0 1px;cursor:pointer;touch-action:none}
 .slot .ic{font-size:25px;line-height:28px;height:28px}
 .slot .nm{font-size:9px;line-height:12px;max-width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--text)}
 @media (max-width:340px){.slot .nm{font-size:8.5px;letter-spacing:-.3px}}
@@ -75,13 +74,6 @@ body.playing #hud{display:block}
 #itemsWrap .more.on{opacity:.9}
 #moreL{left:calc(50% - min(calc(50vw - 8px - var(--safe-l)),280px))}
 #moreR{right:calc(50% - min(calc(50vw - 8px - var(--safe-r)),280px))}
-#itemInfo{position:absolute;left:0;right:0;margin:0 auto;bottom:calc(8px + 66px + 6px + var(--safe-b));
-  width:min(calc(100vw - 16px - var(--safe-l) - var(--safe-r)),560px);box-sizing:border-box;
-  background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:6px 10px;pointer-events:none}
-#itemInfo .ih{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
-#itemInfo .in{font-size:15px;color:var(--gold)}
-#itemInfo .is{font-size:12px;color:#9fe8b0}
-#itemInfo .id{font-size:11px;line-height:1.45;color:var(--dim);margin-top:2px}
 #equip{position:absolute;right:calc(10px + var(--safe-r));bottom:calc(8px + var(--safe-b));font-size:12px;color:var(--dim);
   background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:5px 8px;line-height:1.5}
 body.touch #equip{display:none}
@@ -135,27 +127,32 @@ body.left #btnThrow{right:auto;left:calc(42px + var(--safe-l))}
 @media (orientation:landscape) and (max-height:520px){
   #btnThrow{right:calc(132px + var(--safe-r));bottom:calc(var(--padb) + 8px + var(--safe-b))}
   body.left #btnThrow{right:auto;left:calc(132px + var(--safe-l))}
-  #itemInfo{left:calc(10px + var(--safe-l));right:auto;margin:0;width:min(34vw,300px)}
   #msgs{left:auto;right:calc(10px + var(--safe-r));top:calc(150px + var(--safe-t));align-items:flex-end;max-width:36vw}
 }
-/* item action dialog: 投げる (top-left) / 置く (bottom-left) / 使う (right) */
+/* item action dialog / drag menu: details at the top, 置く | 投げる | 使う in one row above the item bar */
 #actMenu{position:fixed;inset:0;z-index:7;display:none;background:rgba(0,0,0,.35);touch-action:none}
 #actMenu.on{display:block}
-.az{position:absolute;display:flex;align-items:center;justify-content:center;border-radius:14px;
-  background:rgba(170,170,170,.55);border:2px solid rgba(255,255,255,.35);color:#fff;font-size:22px;text-shadow:0 1px 3px #000;cursor:pointer}
-.az.hot{background:rgba(232,184,90,.75);border-color:#fff;transform:scale(1.03)}
-#azThrow{left:calc(10px + var(--safe-l));top:22%;width:31%;height:27%}
-#azDrop{left:calc(10px + var(--safe-l));top:51%;width:31%;height:27%}
-#azUse{right:calc(10px + var(--safe-r));top:26%;width:36%;height:48%}
+#actMenu.drag{background:rgba(0,0,0,.18);pointer-events:none}
+#itemInfo{position:absolute;left:0;right:0;margin:0 auto;top:calc(10px + var(--safe-t));
+  width:min(calc(100vw - 16px - var(--safe-l) - var(--safe-r)),560px);box-sizing:border-box;
+  background:rgba(14,10,20,.94);border:1px solid var(--gold);border-radius:12px;padding:9px 14px;pointer-events:none}
+#itemInfo .ih{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+#itemInfo .ii{font-size:30px;line-height:1}
+#itemInfo .in{font-size:19px;color:var(--gold)}
+#itemInfo .is{font-size:13px;color:#9fe8b0}
+#itemInfo .id{font-size:12px;line-height:1.5;color:#cfc6b8;margin-top:4px}
+#actZones{position:absolute;left:0;right:0;margin:0 auto;bottom:calc(8px + 66px + 16px + var(--safe-b));
+  width:min(calc(100vw - 16px - var(--safe-l) - var(--safe-r)),560px);height:92px;display:flex;gap:8px}
+.az{flex:1;display:flex;align-items:center;justify-content:center;border-radius:14px;
+  background:rgba(120,120,128,.62);border:2px solid rgba(255,255,255,.35);color:#fff;font-size:22px;text-shadow:0 1px 3px #000;cursor:pointer}
+.az.hot{background:rgba(232,184,90,.85);border-color:#fff;transform:scale(1.05)}
 #actMenu.drag .az{pointer-events:none}
-#actInfo{position:absolute;left:50%;bottom:calc(70px + var(--safe-b));transform:translateX(-50%);font-size:20px;white-space:nowrap;
-  background:rgba(0,0,0,.6);padding:6px 14px;border-radius:10px}
-#actHint{position:absolute;left:50%;top:14%;transform:translateX(-50%);font-size:13px;color:var(--dim);white-space:nowrap}
+#actHint{position:absolute;left:0;right:0;text-align:center;bottom:calc(8px + 66px + 16px + 92px + 6px + var(--safe-b));font-size:12px;color:#d8d0c4;text-shadow:0 1px 3px #000}
 #dragGhost{position:absolute;left:0;top:0;font-size:46px;pointer-events:none;display:none;transform:translate(-50%,-60%)}
 #actMenu.drag #dragGhost{display:block}
 
 @media (orientation:portrait){
-  :root{--map:138px; --padb:146px}
+  :root{--map:138px; --padb:84px}
   #statLine{gap:7px}
   #msgs{top:calc(var(--map) + 36px + var(--safe-t))}
   #stats{flex-basis:auto;flex:1}
@@ -211,7 +208,6 @@ h2{margin:0 0 14px;font-weight:normal;color:var(--gold)}
   <div id="crosshair"></div>
   <div id="pick"><div id="pickName"></div><button id="pickBtn" type="button"></button></div>
   <div id="banner"></div>
-  <div id="itemInfo"><div class="ih"><span class="in"></span><span class="is"></span></div><div class="id"></div></div>
   <div id="itemsWrap"><div id="items"></div><div class="more" id="moreL">◀</div><div class="more" id="moreR">▶</div></div>
   <div id="equip"></div>
   <div id="bigmap"><canvas id="bigmapCanvas" width="640" height="640"></canvas></div>
@@ -256,7 +252,7 @@ h2{margin:0 0 14px;font-weight:normal;color:var(--gold)}
     足元にアイテムや階段があると、画面中央に<b>名前</b>と<b>「拾う」「降りる」ボタン</b>が出ます<br>
     持ち物は最大10個。アイテム欄は<b>左右にスワイプ</b>でスクロール（7個目以降も見られます）<br>
     アイテム枠をタップ → 「使う」「置く」「投げる」を選ぶ（空いている所をタップでキャンセル）<br>
-    アイテム枠を<b>上へドラッグ</b> → 各エリアで指を離すと実行（それ以外で離すとキャンセル）<br>
+    アイテム枠を<b>上へドラッグ</b> → 画面上部に詳細が出て、横一列の「置く」「投げる」「使う」の上で指を離すと実行（それ以外で離すとキャンセル）。<b>ドラッグ中も時間は進みます</b><br>
     💣 → 爆弾を投げる<br>
     階段の上で <b>降りる</b> ボタン<br>
     設定の「左利きモード」でボタン配置を左右反転できます。
@@ -300,11 +296,13 @@ h2{margin:0 0 14px;font-weight:normal;color:var(--gold)}
 </div></div>
 
 <div id="actMenu">
-  <div class="az" id="azThrow" data-a="throw">投げる</div>
-  <div class="az" id="azDrop" data-a="drop">置く</div>
-  <div class="az" id="azUse" data-a="use">使う</div>
-  <div id="actHint">項目をタップ／空いている所でキャンセル</div>
-  <div id="actInfo"></div>
+  <div id="itemInfo"><div class="ih"><span class="ii"></span><span class="in"></span><span class="is"></span></div><div class="id"></div></div>
+  <div id="actHint"></div>
+  <div id="actZones">
+    <div class="az" id="azDrop" data-a="drop">置く</div>
+    <div class="az" id="azThrow" data-a="throw">投げる</div>
+    <div class="az" id="azUse" data-a="use">使う</div>
+  </div>
   <div id="dragGhost"></div>
 </div>
 <div id="fade"></div>
@@ -2023,20 +2021,30 @@ function refreshItems() {
     s.classList.toggle('sel', i === player.sel);
     s.title = it ? invName(it) : '';
   });
-  const info = itemInfo(player.inv[player.sel]);
-  const panel = $('#itemInfo');
-  panel.querySelector('.in').textContent = info ? info.name : 'アイテム';
-  panel.querySelector('.is').textContent = info ? info.stat : `持ち物 ${player.inv.length} / ${INV_SIZE}`;
-  panel.querySelector('.id').textContent = info ? info.desc : 'アイテムを選ぶと、ここに性能と説明が表示されます。左右にスワイプで持ち物をスクロール。';
   const bombs = player.inv.filter(i => i.key === 'bomb').length;
   $('#btnThrow').style.opacity = bombs ? 1 : 0.35;
   updateMoreArrows();
 }
 function slotStep() { const b = $('#items'); const s = b.children[0]; return s ? s.getBoundingClientRect().width + 4 : 60; }
+let snapAnim = 0;
+function snapScrollTo(left, ms = 260) {
+  const b = $('#items'), from = b.scrollLeft, max = b.scrollWidth - b.clientWidth;
+  const to = clamp(left, 0, max), t0 = performance.now();
+  cancelAnimationFrame(snapAnim);
+  if (Math.abs(to - from) < 0.5) { b.scrollLeft = to; return; }
+  const step = now => { const k = clamp((now - t0) / ms, 0, 1), e = 1 - Math.pow(1 - k, 3); b.scrollLeft = from + (to - from) * e; if (k < 1) snapAnim = requestAnimationFrame(step); };
+  snapAnim = requestAnimationFrame(step);
+}
+// snap to the nearest slot boundary (the last stop is the right edge so slots 5-10 can be reached exactly)
+function snapNearest(target) {
+  const b = $('#items'), st = slotStep(), max = b.scrollWidth - b.clientWidth;
+  const idx = Math.round(clamp(target, 0, max) / st);
+  snapScrollTo(Math.min(idx * st, max));
+}
 function scrollToSlot(i) {
   const b = $('#items'), st = slotStep(), left = b.scrollLeft;
-  if (i * st < left - 1) b.scrollTo({ left: i * st, behavior: 'smooth' });
-  else if ((i + 1) * st - 4 > left + b.clientWidth + 1) b.scrollTo({ left: (i + 1) * st - b.clientWidth - 4 + 4, behavior: 'smooth' });
+  if (i * st < left - 1) snapScrollTo(i * st);
+  else if ((i + 1) * st - 4 > left + b.clientWidth + 1) snapScrollTo((i + 1) * st - b.clientWidth);
 }
 function updateMoreArrows() {
   const b = $('#items');
@@ -2051,8 +2059,12 @@ function openActMenu(idx, drag) {
   if (!it || state !== 'play') return;
   actMenu.idx = idx; actMenu.drag = drag; actMenu.hot = null;
   $('#azUse').textContent = isGear(it) ? '装備する' : '使う';
-  $('#actInfo').innerHTML = `選択中 ${invIcon(it)} ${invName(it)}`;
-  $('#actHint').textContent = drag ? 'エリアの上で指を離す／それ以外でキャンセル' : '項目をタップ／空いている所でキャンセル';
+  const info = itemInfo(it), panel = $('#itemInfo');
+  panel.querySelector('.ii').textContent = invIcon(it);
+  panel.querySelector('.in').textContent = info.name;
+  panel.querySelector('.is').textContent = info.stat;
+  panel.querySelector('.id').textContent = info.desc;
+  $('#actHint').textContent = drag ? '指を離して実行 ／ 項目以外で離すとキャンセル' : '項目をタップ ／ 空いている所をタップでキャンセル';
   $('#dragGhost').textContent = invIcon(it);
   actEl.classList.add('on'); actEl.classList.toggle('drag', drag);
   input.attackTouch = input.attackMouse = false; btnAttack.classList.remove('down');
@@ -2075,29 +2087,36 @@ function doAction(a, idx) {
   else if (a === 'drop') dropItem(idx);
   else if (a === 'throw') throwItem(idx);
 }
-// Gestures on a slot: horizontal swipe scrolls the row (native, snaps to slots); tap selects + opens the dialog;
-// a vertical (upward) drag picks the item up and shows the dialog areas
+// Gestures on a slot (all handled here so they can be told apart reliably, also on iOS Safari):
+//  - swipe sideways      -> scrolls the row by hand (with a little inertia) and snaps to a slot on release
+//  - drag upward         -> picks the item up: details at the top, 置く / 投げる / 使う in a row, release on one to run it
+//  - tap                 -> selects it and opens the same menu (time paused)
 function slotDown(e, i, el) {
   e.stopPropagation(); audioUnlock();
   if (state !== 'play') return;
-  actMenu.pid = e.pointerId; actMenu.sx = e.clientX; actMenu.sy = e.clientY; actMenu.el = el; actMenu.pending = i; actMenu.scrolled = false;
-  actMenu.mouseX = e.clientX; actMenu.mouseScroll = 0;
-  if (e.pointerType === 'mouse') { try { el.setPointerCapture(e.pointerId); } catch (_) {} }
+  cancelAnimationFrame(snapAnim);
+  const box = $('#items');
+  Object.assign(actMenu, { pid: e.pointerId, sx: e.clientX, sy: e.clientY, el, pending: i, mode: null, sl0: box.scrollLeft, samples: [[performance.now(), e.clientX]] });
+  try { el.setPointerCapture(e.pointerId); } catch (_) {}
 }
 function slotMove(e) {
   if (e.pointerId !== actMenu.pid) return;
   const dx = e.clientX - actMenu.sx, dy = e.clientY - actMenu.sy;
-  if (!actMenu.drag && !actMenu.scrolled && Math.hypot(dx, dy) > 12) {
+  if (!actMenu.mode && Math.hypot(dx, dy) > 10) {
     const idx = actMenu.pending;
-    if (Math.abs(dy) > Math.abs(dx) * 1.2 && player.inv[idx]) {
-      player.sel = idx; refreshItems();
-      try { actMenu.el.setPointerCapture(e.pointerId); } catch (_) {}
-      openActMenu(idx, true);
-    } else actMenu.scrolled = true;
+    // decided by direction, waiting for a clear signal: moving up out of the row -> drag the item (even at a shallow angle);
+    // moving clearly sideways with little vertical movement -> swipe-scroll
+    if (dy < -14 && -dy >= Math.abs(dx) * 0.35) {
+      if (player.inv[idx]) { actMenu.mode = 'drag'; player.sel = idx; refreshItems(); openActMenu(idx, true); }
+      else actMenu.mode = 'scroll';
+    } else if (Math.abs(dx) > 14 && -dy < Math.abs(dx) * 0.35) actMenu.mode = 'scroll';
   }
-  if (e.pointerType === 'mouse' && actMenu.scrolled) { $('#items').scrollLeft -= e.clientX - actMenu.mouseX; }
-  actMenu.mouseX = e.clientX;
-  if (!actMenu.drag) return;
+  if (actMenu.mode === 'scroll') {
+    $('#items').scrollLeft = actMenu.sl0 - dx;
+    const sm = actMenu.samples; sm.push([performance.now(), e.clientX]); while (sm.length > 2 && sm[0][0] < performance.now() - 90) sm.shift();
+    return;
+  }
+  if (actMenu.mode !== 'drag') return;
   const g = $('#dragGhost'); g.style.left = e.clientX + 'px'; g.style.top = e.clientY + 'px';
   const hot = zoneAt(e.clientX, e.clientY);
   if (hot !== actMenu.hot) {
@@ -2105,19 +2124,28 @@ function slotMove(e) {
     document.querySelectorAll('.az').forEach(z => z.classList.toggle('hot', z.dataset.a === hot));
   }
 }
+function slotEndScroll() {
+  const sm = actMenu.samples || [], box = $('#items');
+  let v = 0;
+  if (sm.length > 1) { const a = sm[0], b2 = sm[sm.length - 1]; if (b2[0] - a[0] > 8) v = -(b2[1] - a[1]) / (b2[0] - a[0]); }   // px per ms, in scrollLeft direction
+  snapNearest(box.scrollLeft + clamp(v, -3, 3) * 160);
+}
 function slotUp(e) {
   if (e.pointerId !== actMenu.pid) return;
-  const idx = actMenu.pending, scrolled = actMenu.scrolled;
-  actMenu.pid = null;
-  if (actMenu.drag) {
+  const idx = actMenu.pending, mode = actMenu.mode;
+  actMenu.pid = null; actMenu.mode = null;
+  if (mode === 'drag') {
     const a = zoneAt(e.clientX, e.clientY);
     if (a) doAction(a, idx); else closeActMenu();   // released on empty space: nothing happens
-  } else if (!scrolled) {
-    player.sel = idx; refreshItems();                // a tap selects (info panel updates)...
-    if (player.inv[idx]) openActMenu(idx, false);    // ...and opens the action dialog
+  } else if (mode === 'scroll') {
+    slotEndScroll();
+  } else {
+    player.sel = idx; refreshItems();                // a tap selects...
+    if (player.inv[idx]) openActMenu(idx, false);    // ...and opens the menu
   }
 }
-function slotCancel() { if (actMenu.drag) closeActMenu(); actMenu.pid = null; }
+function slotCancel() { const m = actMenu.mode; if (actMenu.drag) closeActMenu(); actMenu.pid = null; actMenu.mode = null; if (m === 'scroll') slotEndScroll(); }
+$('#items').addEventListener('wheel', e => { e.preventDefault(); const b = $('#items'); snapNearest(b.scrollLeft + (Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY) * 1.2); }, { passive: false });
 actEl.addEventListener('pointerdown', e => {
   e.preventDefault(); e.stopPropagation();
   if (actMenu.drag) return;
@@ -2199,6 +2227,7 @@ function quitToTitle() {
   showScreen('scrTitle'); renderRecord();
 }
 function endRun(title, cause) {
+  closeActMenu();
   state = 'dead';
   if (isLocked()) document.exitPointerLock();
   input.attackKey = input.attackMouse = input.attackTouch = false;
@@ -2260,7 +2289,7 @@ function frame(now) {
   requestAnimationFrame(frame);
   const dt = Math.min(0.05, (now - last) / 1000); last = now;
   pollPad();
-  if (state === 'play' && actMenu.idx === null) update(dt);
+  if (state === 'play' && (actMenu.idx === null || actMenu.drag)) update(dt);   // real-time while dragging; the tap dialog pauses
   else if (state === 'transition') updateParticles(dt);
   if (dun && (state === 'play' || state === 'pause' || state === 'transition' || state === 'dead')) {
     renderScene(state === 'pause' ? 0 : dt);
