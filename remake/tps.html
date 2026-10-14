@@ -346,6 +346,8 @@ const WALL_H = 1.5;
 const EYE_H = 0.62;
 const PLAYER_R = 0.24;
 const INV_SIZE = 10;
+const MOVE_SCALE = 0.75;                       // player and monster walking speed (1 = original)
+const WALK_SPEED = 2.9 * MOVE_SCALE, RUN_SPEED = 4.4 * MOVE_SCALE;
 // Waist-up framing, character centered. Portrait screens have a much taller FOV, so the camera sits closer there.
 const CAM_LAND = { dist: 0.95, shoulder: 0, height: 1.06 };
 const CAM_PORT = { dist: 0.6, shoulder: 0, height: 1.1 };
@@ -413,6 +415,7 @@ const SFX = {
   fire: () => noise(0.35, 0.12, 700, 0.7, 0, 200),
   windup: () => tone(200, 260, 0.15, 'square', 0.03),
   deny: () => tone(150, null, 0.12, 'square', 0.06),
+  step: () => noise(0.05, 0.035, 260 + Math.random() * 90, 1.4),
 };
 function vibrate(ms) { if (settings.vibrate && navigator.vibrate) try { navigator.vibrate(ms); } catch (e) {} }
 
@@ -1043,7 +1046,7 @@ class Enemy {
       const ox = this.x - o.x, oz = this.z - o.z, od = Math.hypot(ox, oz), min = this.d.r + o.d.r;
       if (od < min && od > 0.001) { mx += ox / od * 0.8; mz += oz / od * 0.8; }
     }
-    const sp = d.speed * (this.aggro ? 1 : 0.5);
+    const sp = d.speed * MOVE_SCALE * (this.aggro ? 1 : 0.5);
     this.vx = lerp(this.vx, mx * sp, Math.min(1, dt * 8));
     this.vz = lerp(this.vz, mz * sp, Math.min(1, dt * 8));
     const kd = Math.exp(-dt * 9);
@@ -1613,7 +1616,7 @@ function updatePlayer(dt, worldDt) {
   if (mag > 1) { mx /= mag; my /= mag; }
   const running = keys.has('ShiftLeft') || keys.has('ShiftRight') || input.padRun || (input.joyActive && Math.hypot(input.joyX, input.joyY) > 0.95);
   const charging = player.charging && player.chargeT > 0.2;
-  const speed = (running && !charging ? 4.4 : 2.9) * (charging ? 0.55 : 1);
+  const speed = (running && !charging ? RUN_SPEED : WALK_SPEED) * (charging ? 0.55 : 1);
   const [fx2, fz2] = forward(), [rx, rz] = rightVec();
   const tvx = (fx2 * my + rx * mx) * speed, tvz = (fz2 * my + rz * mx) * speed;
   const acc = Math.min(1, worldDt * (mag > 0.05 ? 14 : 10));
@@ -1732,88 +1735,163 @@ function updateCamera(dt) {
 }
 
 const angDiff = (a, b) => { let d = (b - a) % (Math.PI * 2); if (d > Math.PI) d -= Math.PI * 2; if (d < -Math.PI) d += Math.PI * 2; return d; };
+const easeOut = x => 1 - Math.pow(1 - clamp(x, 0, 1), 3);
+const easeInOut = x => { x = clamp(x, 0, 1); return x * x * (3 - 2 * x); };
+const damp = (cur, target, rate, dt) => lerp(cur, target, 1 - Math.exp(-rate * dt));
 function animateHeroine(dt, idleOnly) {
   const h = heroine;
   const t = stats.time + titleT;
+  dt = Math.max(dt, 1e-4);
   const sp = idleOnly ? 0 : Math.hypot(player.vx, player.vz);
-  const k = clamp(sp / 4.4, 0, 1), mv = clamp(sp / 0.6, 0, 1);
-  h.phase += sp * dt * 3.3;
-  const s = Math.sin(h.phase), c = Math.cos(h.phase);
-  const amp = 0.35 + 0.45 * k;
+  // smoothed locomotion state so starting / stopping / walk <-> run blend instead of snapping
+  h.mv = damp(h.mv || 0, clamp(sp / 0.6, 0, 1), 12, dt);
+  h.run = damp(h.run || 0, clamp((sp - WALK_SPEED * 0.8) / (RUN_SPEED - WALK_SPEED * 0.8), 0, 1), 8, dt);
+  const mv = h.mv, run = h.run, k = clamp(sp / RUN_SPEED, 0, 1);
+  const prevPhase = h.phase;
+  h.phase += sp * dt * (3.0 + 0.9 * run);   // cadence follows the actual speed
+  const p = h.phase;
   const charge = player.charging ? clamp((player.chargeT - 0.2) / 0.8, 0, 1) : 0;
   const swinging = !idleOnly && player.swingT < 1;
+  const armed = player.weapon > 0;
+  // combo: every new light swing flips the direction (or the punching hand)
+  if (!idleOnly && player.swingT < (h.prevSwing ?? 1) - 0.01 && !player.swingCharged) h.combo = (h.combo || 0) ^ 1;
+  h.prevSwing = idleOnly ? 1 : player.swingT;
   // facing: movement direction, but face the camera's aim while attacking/charging
+  const aimYaw = Math.atan2(-Math.sin(player.yaw), -Math.cos(player.yaw));
+  const prevFace = h.face;
   if (!idleOnly) {
     let target = null;
-    if (swinging || charge > 0) target = Math.atan2(-Math.sin(player.yaw), -Math.cos(player.yaw));
+    if (swinging || charge > 0) target = aimYaw;
     else if (sp > 0.35) target = Math.atan2(player.vx, player.vz);
     if (target !== null) h.face += angDiff(h.face, target) * Math.min(1, dt * (charge > 0 ? 14 : 11));
   }
+  const turn = clamp(angDiff(prevFace, h.face) / dt, -8, 8);   // rad/s, for banking into turns
+  h.turn = damp(h.turn || 0, turn, 10, dt);
   h.root.position.set(player.x, 0, player.z);
-  // legs
+
+  // ---------- locomotion (legs, hips, torso counter-twist) ----------
+  const amp = 0.28 + 0.5 * k + 0.12 * run;          // stride grows with speed
+  const s1 = Math.sin(p), c1 = Math.cos(p);
   const [L, Rr] = h.legs;
-  L.thigh.rotation.x = s * amp * mv; Rr.thigh.rotation.x = -s * amp * mv;
-  L.knee.rotation.x = mv * (0.1 + Math.max(0, s) * amp * 1.5);
-  Rr.knee.rotation.x = mv * (0.1 + Math.max(0, -s) * amp * 1.5);
-  // body bob / lean / breathing
-  h.body.position.y = Math.abs(c) * 0.03 * mv - charge * 0.04;
-  h.body.rotation.x = 0.16 * k * mv;
-  h.torso.scale.y = 1 + Math.sin(t * 2.2) * 0.012;
-  h.torso.rotation.set(0, 0, 0);
-  h.head.rotation.set(0, 0, 0);
-  // arms default: natural swing
+  L.thigh.rotation.x = s1 * amp * mv;  Rr.thigh.rotation.x = -s1 * amp * mv;
+  // knees fold while the leg swings through, extra at a run
+  const fl = 0.55 + 0.9 * run;
+  L.knee.rotation.x = mv * (0.08 + Math.max(0, -c1) * amp * fl * 1.6);
+  Rr.knee.rotation.x = mv * (0.08 + Math.max(0, c1) * amp * fl * 1.6);
+  h.hips.rotation.set(0, c1 * 0.13 * mv * (1 + run * 0.4), 0);       // hips twist with the stride
+  h.hips.position.x = Math.sin(p) * 0.012 * mv;                       // weight shift side to side
+  h.body.position.y = Math.abs(c1) * (0.028 + 0.02 * run) * mv;       // bounce, highest over the planted foot
+  h.body.rotation.set(0.05 * mv + 0.2 * run * mv, 0, 0);              // lean forward, more when running
+  h.body.rotation.z = clamp(-h.turn * 0.028, -0.17, 0.17) * mv + Math.sin(p) * 0.03 * mv;   // bank into turns + roll
+  h.torso.scale.y = 1 + Math.sin(t * 2.3) * 0.012 * (1 - mv);          // breathing while standing
+  h.torso.rotation.set(0, -c1 * 0.15 * mv * (1 + run * 0.4), 0);      // shoulders counter-twist against the hips
+  // head: steadier than the body, glances toward where the camera is aiming
+  const look = clamp(angDiff(h.face, aimYaw) * 0.45, -0.55, 0.55);
+  h.head.rotation.set(-0.05 * mv - 0.03 * run, look - h.torso.rotation.y * 0.8, -h.body.rotation.z * 0.6);
+  // idle life: slow weight shift and a little sway
+  h.body.rotation.z += Math.sin(t * 0.8) * 0.018 * (1 - mv);
+  h.hips.position.x += Math.sin(t * 0.8) * 0.01 * (1 - mv);
+
+  // ---------- arms: guard pose + swing ----------
   const [RA, LA] = h.arms; // arms[0] is the right arm (side -1)
-  LA.shoulder.rotation.set(-s * amp * 0.7 * mv - 0.05, 0, 0.12);
-  LA.elbow.rotation.x = -0.25 - 0.3 * mv;
-  RA.shoulder.rotation.set(s * amp * 0.5 * mv - 0.35, 0, -0.18);
-  RA.elbow.rotation.x = -0.7;
+  const idleBreath = Math.sin(t * 2.3) * 0.025 * (1 - mv);
+  const pump = 0.7 + 0.5 * run;
+  if (armed) {
+    // saber arm held ready in front of the body; free arm swings
+    LA.shoulder.rotation.set(-s1 * amp * pump * mv - 0.08 + idleBreath, 0, 0.14);
+    LA.elbow.rotation.x = -0.3 - 0.35 * mv - 0.5 * run * mv;
+    RA.shoulder.rotation.set(s1 * amp * 0.35 * mv - 0.4 + idleBreath, 0, -0.2);
+    RA.elbow.rotation.x = -0.75 - 0.2 * run * mv;
+  } else {
+    // bare hands: fists up in a guard, pumping when running
+    LA.shoulder.rotation.set(-0.75 - s1 * amp * 0.3 * mv + idleBreath, 0.15, 0.22);
+    LA.elbow.rotation.x = -1.7 - 0.2 * run * mv;
+    RA.shoulder.rotation.set(-0.75 + s1 * amp * 0.3 * mv + idleBreath, -0.15, -0.22);
+    RA.elbow.rotation.x = -1.7 - 0.2 * run * mv;
+  }
   h.spin = 0;
-  let bladeOut = 0; // 0 = held forward, 1 = extended along the arm
+  let bladeOut = 0;   // 0 = held forward, 1 = extended along the arm
   if (charge > 0) {
-    // wind up: blade drawn back across the body, low stance
-    h.torso.rotation.y = -0.7 * charge;
-    RA.shoulder.rotation.set(-1.3, -1.2 * charge, -0.1);
-    RA.elbow.rotation.x = -0.4;
-    bladeOut = charge;
-    LA.shoulder.rotation.set(-1.0 * charge, 0.6 * charge, 0.2);
-    L.thigh.rotation.x -= 0.35 * charge; Rr.thigh.rotation.x += 0.3 * charge; L.knee.rotation.x += 0.4 * charge; Rr.knee.rotation.x += 0.3 * charge;
+    // charge: crouch, saber drawn back across the body, free hand forward
+    const cz = easeInOut(charge);
+    h.torso.rotation.y = -0.7 * cz;
+    RA.shoulder.rotation.set(armed ? -1.3 : -1.0, -1.2 * cz, -0.1);
+    RA.elbow.rotation.x = armed ? -0.4 : -1.2;
+    bladeOut = cz;
+    LA.shoulder.rotation.set(-1.0 * cz, 0.6 * cz, 0.2);
+    L.thigh.rotation.x -= 0.35 * cz; Rr.thigh.rotation.x += 0.3 * cz; L.knee.rotation.x += 0.4 * cz; Rr.knee.rotation.x += 0.3 * cz;
+    h.body.position.y -= 0.045 * cz; h.body.rotation.x += 0.1 * cz;
   }
   if (swinging) {
     const st = player.swingT;
-    const e = 1 - Math.pow(1 - Math.min(1, st / 0.55), 3); // fast out
-    const back = st > 0.6 ? (st - 0.6) / 0.4 : 0;
     if (player.swingCharged) {
+      // spin attack: wind-up crouch, burst into a full turn, settle
+      const e = easeOut(st / 0.55), back = st > 0.6 ? (st - 0.6) / 0.4 : 0;
       h.spin = e * Math.PI * 2;
       bladeOut = 1 - back;
       RA.shoulder.rotation.set(-1.5, -1.45, 0);
-      RA.elbow.rotation.x = -0.1;
-      LA.shoulder.rotation.set(-0.3, 0, 1.2);
-      h.body.position.y += Math.sin(e * Math.PI) * 0.08;
+      RA.elbow.rotation.x = armed ? -0.1 : -0.3;
+      LA.shoulder.rotation.set(-0.3, 0, 1.25);
+      h.body.position.y += Math.sin(e * Math.PI) * 0.09;
+      h.body.rotation.x += 0.1 * (1 - back);
     } else {
-      // horizontal slash from her right to her left
-      h.torso.rotation.y = lerp(-0.55, 0.55, e) * (1 - back);
-      RA.shoulder.rotation.set(lerp(-1.45, RA.shoulder.rotation.x, back), lerp(-1.3, 1.0, e) * (1 - back), 0);
-      RA.elbow.rotation.x = lerp(-0.2, -0.7, back);
-      L.thigh.rotation.x -= 0.3 * (1 - back);
-      bladeOut = 1 - back;
+      // light attack = anticipation -> fast strike -> follow-through -> recover
+      const wind = st < 0.2 ? easeOut(st / 0.2) : 1 - easeInOut((st - 0.2) / 0.1);     // pull back first
+      const strike = easeOut((st - 0.18) / 0.3);                                        // then snap through
+      const rec = easeInOut((st - 0.62) / 0.38);                                        // and settle
+      const dir = h.combo ? -1 : 1;                                                     // alternate sides each swing
+      if (armed) {
+        const wTw = -0.55 * dir * wind, sTw = 0.6 * dir * strike;
+        h.torso.rotation.y = lerp(wTw + sTw, 0, rec);
+        const yaw = lerp(-1.3 * dir * wind + 1.0 * dir * strike * 1.0, 0, rec);
+        RA.shoulder.rotation.set(lerp(-1.45, RA.shoulder.rotation.x, rec) - 0.1 * wind, yaw, -0.1 * dir);
+        RA.elbow.rotation.x = lerp(-0.2, -0.75, rec);
+        LA.shoulder.rotation.x -= 0.5 * (1 - rec);
+        L.thigh.rotation.x -= 0.32 * (1 - rec); Rr.thigh.rotation.x += 0.2 * (1 - rec);      // lunge step
+        bladeOut = 1 - rec;
+        h.body.rotation.x += 0.12 * strike * (1 - rec);
+      } else {
+        // bare-handed: jab / cross, alternating fists
+        const fist = h.combo ? LA : RA, other = h.combo ? RA : LA;
+        const ext = easeOut((st - 0.12) / 0.2) * (1 - rec);                              // arm shoots out
+        fist.shoulder.rotation.set(lerp(-0.75, -1.55, ext), (h.combo ? 0.1 : -0.1) * ext, h.combo ? 0.05 : -0.05);
+        fist.elbow.rotation.x = lerp(-1.7, -0.08, ext);
+        other.shoulder.rotation.x = -0.95; other.elbow.rotation.x = -1.9;                  // guard hand tucks in
+        h.torso.rotation.y = (h.combo ? 0.5 : -0.5) * ext * -1 + (h.combo ? -0.25 : 0.25) * wind * (1 - ext);
+        L.thigh.rotation.x -= 0.2 * (1 - rec); Rr.thigh.rotation.x += 0.28 * (1 - rec);
+        h.body.rotation.x += 0.1 * ext;
+      }
     }
   }
   h.weapon.rotation.x = lerp(Math.PI / 2, Math.PI * 0.95, bladeOut);
-  // hurt flinch / death
-  h.hurtT = Math.max(0, h.hurtT - dt * 4);
-  h.body.rotation.x -= h.hurtT * 0.35;
+
+  // ---------- hit reaction / death ----------
+  h.hurtT = Math.max(0, h.hurtT - dt * 3.2);
+  if (h.hurtT > 0) {
+    const f = easeOut(h.hurtT);
+    h.body.rotation.x -= f * 0.32; h.torso.rotation.z += Math.sin(t * 40) * 0.03 * f;
+    h.head.rotation.x -= f * 0.3;
+    LA.shoulder.rotation.z += 0.5 * f; RA.shoulder.rotation.z -= 0.5 * f;                // arms fling out
+    h.body.position.y += 0.02 * f;
+  }
   if (state === 'dead') {
-    h.deathT = Math.min(1, h.deathT + dt * 2.5);
-    h.body.rotation.x = -h.deathT * 1.45; h.body.position.y = h.deathT * 0.08;
+    h.deathT = Math.min(1, h.deathT + dt * 2.2);
+    const d = easeOut(h.deathT);
+    h.body.rotation.x = -d * 1.45; h.body.position.y = d * 0.08;
+    LA.shoulder.rotation.z = 0.7 * d; RA.shoulder.rotation.z = -0.7 * d;
   } else h.deathT = 0;
   h.root.rotation.y = h.face + h.spin;
-  // ribbons & tassel trail behind
-  for (const r of h.ribbons) r.rotation.x = 0.15 + k * 0.9 * mv + Math.sin(t * 3 + h.phase) * 0.12 + (swinging ? 0.4 : 0);
-  h.tassel.rotation.x = Math.sin(t * 4) * 0.2 - (swinging ? 0.8 : 0);
-  h.weapon.visible = player.weapon > 0;   // bare hands: no saber in her hand
+
+  // ---------- secondary motion: ribbons, tassel ----------
+  const wag = clamp(h.turn * 0.05, -0.5, 0.5);
+  for (const r of h.ribbons) { r.rotation.x = 0.12 + k * 0.85 * mv + Math.sin(t * 3 + p) * 0.1 + (swinging ? 0.4 : 0); r.rotation.z = -wag + Math.sin(t * 2.4 + p * 0.5) * 0.06; }
+  h.tassel.rotation.x = Math.sin(t * 4) * 0.2 - (swinging ? 0.8 : 0) - k * 0.5 * mv;
+  h.weapon.visible = armed;   // bare hands: no saber in her hand
   // blade glow while charging
   h.blade.material.color.set(WEAPONS[player.weapon].color);
   h.blade.material.emissive.setRGB(player.chargedReady ? 0.45 + 0.3 * Math.sin(t * 20) : charge * 0.25, player.chargedReady ? 0.6 : charge * 0.3, player.chargedReady ? 0.9 : charge * 0.4);
+  // soft footsteps on each foot-fall
+  if (!idleOnly && state === 'play' && mv > 0.5 && Math.floor(p / Math.PI) !== Math.floor(prevPhase / Math.PI)) SFX.step();
 }
 
 // Fade the heroine only while an enemy or item behind her overlaps her on screen
