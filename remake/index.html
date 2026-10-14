@@ -34,8 +34,8 @@ body.playing #hud{display:block}
 #topbar{position:absolute;top:calc(8px + var(--safe-t));left:calc(8px + var(--safe-l));right:calc(8px + var(--safe-r));
   display:flex;gap:10px;align-items:flex-start}
 #mapWrap{position:relative;pointer-events:auto;cursor:pointer;flex:none}
-#minimap{display:block;width:112px;height:112px;border:2px solid var(--line);border-radius:8px;background:rgba(0,0,0,.55)}
-#floorLabel{position:absolute;left:4px;bottom:3px;font-size:13px;color:var(--gold);text-shadow:0 1px 2px #000}
+#minimap{display:block;width:124px;height:124px}
+#floorLabel{position:absolute;left:2px;top:-2px;font-size:14px;color:#fff;text-shadow:0 0 3px #000,0 1px 2px #000;letter-spacing:1px}
 #stats{display:flex;flex-direction:column;gap:5px;min-width:0;flex:0 1 260px;
   background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:7px 9px}
 .bar{position:relative;height:14px;background:#1b1520;border-radius:7px;overflow:hidden;border:1px solid #000}
@@ -72,7 +72,7 @@ body.touch #prompt{display:none!important}
 #banner small{display:block;font-size:16px;color:var(--text);margin-top:4px}
 #crosshair{position:absolute;left:50%;top:50%;width:4px;height:4px;margin:-2px 0 0 -2px;border-radius:50%;background:rgba(255,255,255,.7)}
 #bigmap{position:absolute;inset:0;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.6);pointer-events:auto}
-#bigmap canvas{width:min(86vw,86vh);height:min(86vw,86vh);border:2px solid var(--line);border-radius:10px;background:rgba(0,0,0,.6)}
+#bigmap canvas{width:min(86vw,86vh);height:min(86vw,86vh)}
 #bigmap.on{display:flex}
 
 /* ---------- Touch controls ---------- */
@@ -101,6 +101,8 @@ body.left #joyHint{left:auto;right:calc(14% + var(--safe-r))}
   #items{bottom:auto;top:calc(130px + var(--safe-t));left:auto;right:calc(8px + var(--safe-r));transform:none;flex-direction:column}
   body.left #items{right:auto;left:calc(8px + var(--safe-l))}
   .slot{width:44px;height:44px;font-size:22px}
+  #minimap{width:104px;height:104px}
+  #statLine{gap:7px}
   #msgs{top:calc(130px + var(--safe-t))}
   #stats{flex-basis:auto;flex:1}
 }
@@ -142,7 +144,7 @@ h2{margin:0 0 14px;font-weight:normal;color:var(--gold)}
 
 <div id="hud">
   <div id="topbar">
-    <div id="mapWrap" title="マップ (M)"><canvas id="minimap" width="224" height="224"></canvas><div id="floorLabel">B1F</div></div>
+    <div id="mapWrap" title="マップ (M)"><canvas id="minimap" width="248" height="248"></canvas><div id="floorLabel">B1F</div></div>
     <div id="stats">
       <div class="bar" id="hpBar"><i></i><span></span></div>
       <div class="bar" id="foodBar"><i></i><span></span></div>
@@ -1547,39 +1549,54 @@ function drawArrow(c, ang, color, alpha) {
   c.restore(); c.globalAlpha = 1;
 }
 
+// Outline-style map (no background): the whole floor always fits, explored area drawn as white edges
 function drawMap(cv, big) {
   const c = cv.getContext('2d');
-  const S = cv.width;
+  const S = cv.width, w = dun.w, h = dun.h;
   c.clearRect(0, 0, S, S);
-  let scale, ox, oy;
-  if (big) { scale = S / Math.max(dun.w, dun.h); ox = 0; oy = 0; }
-  else { scale = 9; ox = S / 2 - player.x * scale; oy = S / 2 - player.z * scale; }
-  for (let y = 0; y < dun.h; y++) for (let x = 0; x < dun.w; x++) {
-    if (!explored[y * dun.w + x]) continue;
-    const sx = ox + x * scale, sy = oy + y * scale;
-    if (sx < -scale || sy < -scale || sx > S || sy > S) continue;
-    c.fillStyle = dun.g[y][x] ? '#6a5a50' : '#2a2430';
-    c.fillRect(sx, sy, scale + 0.5, scale + 0.5);
+  const scale = S / Math.max(w, h);
+  const ox = (S - w * scale) / 2, oy = (S - h * scale) / 2;
+  const X = x => ox + x * scale, Y = y => oy + y * scale;
+  const open = (x, y) => x >= 0 && y >= 0 && x < w && y < h && dun.g[y][x] === 0;
+  // faint fill so the shape reads, then the outline where explored floor meets wall
+  c.fillStyle = 'rgba(255,255,255,0.07)';
+  const edges = new Path2D();
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    if (!explored[y * w + x] || dun.g[y][x] !== 0) continue;
+    c.fillRect(X(x), Y(y), scale + 0.3, scale + 0.3);
+    if (!open(x, y - 1)) { edges.moveTo(X(x), Y(y)); edges.lineTo(X(x + 1), Y(y)); }
+    if (!open(x, y + 1)) { edges.moveTo(X(x), Y(y + 1)); edges.lineTo(X(x + 1), Y(y + 1)); }
+    if (!open(x - 1, y)) { edges.moveTo(X(x), Y(y)); edges.lineTo(X(x), Y(y + 1)); }
+    if (!open(x + 1, y)) { edges.moveTo(X(x + 1), Y(y)); edges.lineTo(X(x + 1), Y(y + 1)); }
   }
-  if (dun.stairs && stairsMesh && explored[dun.stairs.y * dun.w + dun.stairs.x]) {
-    c.fillStyle = floor === LAST_FLOOR ? '#ffd070' : '#5fa0ff';
-    c.fillRect(ox + dun.stairs.x * scale, oy + dun.stairs.y * scale, scale, scale);
+  const lw = Math.max(1.6, scale * (big ? 0.28 : 0.42));
+  c.lineCap = 'square'; c.lineJoin = 'miter';
+  c.strokeStyle = 'rgba(0,0,0,0.55)'; c.lineWidth = lw + 2.4; c.stroke(edges);   // dark halo for readability
+  c.strokeStyle = 'rgba(255,255,255,0.95)'; c.lineWidth = lw; c.stroke(edges);
+  const dot = (x, y, r, fill) => {
+    c.beginPath(); c.arc(X(x), Y(y), r, 0, Math.PI * 2);
+    c.fillStyle = fill; c.fill(); c.lineWidth = Math.max(1, r * 0.35); c.strokeStyle = 'rgba(0,0,0,0.7)'; c.stroke();
+  };
+  const R0 = Math.max(2.6, scale * 0.55);
+  if (dun.stairs && stairsMesh && explored[dun.stairs.y * w + dun.stairs.x]) {
+    const sx = X(dun.stairs.x), sy = Y(dun.stairs.y), k = scale;
+    c.fillStyle = floor === LAST_FLOOR ? '#ffd070' : '#7fb6ff'; c.strokeStyle = 'rgba(0,0,0,0.7)'; c.lineWidth = 1.2;
+    c.fillRect(sx + k * 0.12, sy + k * 0.12, k * 0.76, k * 0.76); c.strokeRect(sx + k * 0.12, sy + k * 0.12, k * 0.76, k * 0.76);
   }
   for (const it of items) {
-    if (!explored[Math.floor(it.z) * dun.w + Math.floor(it.x)]) continue;
-    c.fillStyle = it.key === 'weapon' || it.key === 'armor' ? '#ffd24a' : '#7fe08a';
-    c.fillRect(ox + it.x * scale - scale * 0.2, oy + it.z * scale - scale * 0.2, scale * 0.4, scale * 0.4);
+    if (!explored[Math.floor(it.z) * w + Math.floor(it.x)]) continue;
+    dot(it.x, it.z, R0 * 0.7, (it.key === 'weapon' || it.key === 'armor') ? '#ffd24a' : '#5fd0ff');
   }
   for (const e of enemies) {
     if (Math.hypot(e.x - player.x, e.z - player.z) > 7 || !los(player.x, player.z, e.x, e.z)) continue;
-    c.fillStyle = '#ff4a3a';
-    c.beginPath(); c.arc(ox + e.x * scale, oy + e.z * scale, Math.max(2, scale * (e.d.boss ? 0.6 : 0.3)), 0, Math.PI * 2); c.fill();
+    dot(e.x, e.z, R0 * (e.d.boss ? 1.6 : 1), '#ff4a3a');
   }
-  // player arrow
-  c.save(); c.translate(ox + player.x * scale, oy + player.z * scale); c.rotate(-player.yaw);
-  const a = Math.max(5, scale * 0.6);
-  c.fillStyle = '#fff'; c.beginPath(); c.moveTo(0, -a); c.lineTo(a * 0.7, a * 0.7); c.lineTo(0, a * 0.3); c.lineTo(-a * 0.7, a * 0.7); c.closePath(); c.fill();
-  c.restore();
+  // player: yellow dot with a small heading tick
+  const px = X(player.x), py = Y(player.z), f = forward();
+  c.beginPath(); c.moveTo(px + f[0] * R0 * 2.3, py + f[1] * R0 * 2.3); c.lineTo(px, py);
+  c.strokeStyle = 'rgba(0,0,0,0.6)'; c.lineWidth = 3.2; c.stroke();
+  c.strokeStyle = '#ffe14a'; c.lineWidth = 1.6; c.stroke();
+  dot(player.x, player.z, R0 * 1.15, '#ffe14a');
 }
 function toggleBigMap() { $('#bigmap').classList.toggle('on'); }
 
