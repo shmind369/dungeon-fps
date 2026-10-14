@@ -10,6 +10,7 @@
 <link href="https://fonts.googleapis.com/css2?family=DotGothic16&display=swap" rel="stylesheet">
 <style>
 :root{
+  --map:168px;
   --bg:#07060a; --panel:rgba(18,14,24,.86); --line:#3a3046; --text:#efe6d6; --dim:#9a8f86;
   --gold:#e8b85a; --hp:#d8433a; --food:#d99a3a; --exp:#5aa6e8; --accent:#c9673a;
   --safe-l:env(safe-area-inset-left,0px); --safe-r:env(safe-area-inset-right,0px);
@@ -34,8 +35,8 @@ body.playing #hud{display:block}
 #topbar{position:absolute;top:calc(8px + var(--safe-t));left:calc(8px + var(--safe-l));right:calc(8px + var(--safe-r));
   display:flex;gap:10px;align-items:flex-start}
 #mapWrap{position:relative;pointer-events:auto;cursor:pointer;flex:none}
-#minimap{display:block;width:124px;height:124px}
-#floorLabel{position:absolute;left:2px;top:-2px;font-size:14px;color:#fff;text-shadow:0 0 3px #000,0 1px 2px #000;letter-spacing:1px}
+#minimap{display:block;width:var(--map);height:var(--map)}
+#floorLabel{height:18px;line-height:18px;margin-bottom:2px;font-size:14px;color:#fff;text-shadow:0 0 3px #000,0 1px 2px #000;letter-spacing:1px}
 #stats{display:flex;flex-direction:column;gap:5px;min-width:0;flex:0 1 260px;
   background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:7px 9px}
 .bar{position:relative;height:14px;background:#1b1520;border-radius:7px;overflow:hidden;border:1px solid #000}
@@ -62,7 +63,7 @@ body.playing #hud{display:block}
   background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:5px 8px;line-height:1.5}
 body.touch #equip{display:none}
 
-#msgs{position:absolute;left:calc(10px + var(--safe-l));top:calc(140px + var(--safe-t));display:flex;flex-direction:column;gap:4px;max-width:70vw}
+#msgs{position:absolute;left:calc(10px + var(--safe-l));top:calc(var(--map) + 36px + var(--safe-t));display:flex;flex-direction:column;gap:4px;max-width:70vw}
 .msg{font-size:14px;background:rgba(0,0,0,.55);padding:3px 8px;border-radius:6px;width:fit-content;transition:opacity .6s}
 #prompt{position:absolute;left:50%;top:62%;transform:translateX(-50%);font-size:16px;background:rgba(0,0,0,.6);
   padding:6px 14px;border-radius:8px;border:1px solid var(--gold);color:var(--gold);display:none;white-space:nowrap}
@@ -98,12 +99,12 @@ body.left #btnThrow{right:auto;left:calc(130px + var(--safe-l))}
 body.left #joyHint{left:auto;right:calc(14% + var(--safe-r))}
 
 @media (orientation:portrait){
-  #items{bottom:auto;top:calc(130px + var(--safe-t));left:auto;right:calc(8px + var(--safe-r));transform:none;flex-direction:column}
+  #items{bottom:auto;top:calc(var(--map) + 36px + var(--safe-t));left:auto;right:calc(8px + var(--safe-r));transform:none;flex-direction:column}
   body.left #items{right:auto;left:calc(8px + var(--safe-l))}
   .slot{width:44px;height:44px;font-size:22px}
-  #minimap{width:104px;height:104px}
+  :root{--map:138px}
   #statLine{gap:7px}
-  #msgs{top:calc(130px + var(--safe-t))}
+  #msgs{top:calc(var(--map) + 36px + var(--safe-t))}
   #stats{flex-basis:auto;flex:1}
 }
 
@@ -144,7 +145,7 @@ h2{margin:0 0 14px;font-weight:normal;color:var(--gold)}
 
 <div id="hud">
   <div id="topbar">
-    <div id="mapWrap" title="マップ (M)"><canvas id="minimap" width="248" height="248"></canvas><div id="floorLabel">B1F</div></div>
+    <div id="mapWrap" title="マップ (M)"><div id="floorLabel">B1F</div><canvas id="minimap" width="340" height="340"></canvas></div>
     <div id="stats">
       <div class="bar" id="hpBar"><i></i><span></span></div>
       <div class="bar" id="foodBar"><i></i><span></span></div>
@@ -1593,9 +1594,11 @@ function drawMap(cv, big) {
   }
   // player: yellow dot with a small heading tick
   const px = X(player.x), py = Y(player.z), f = forward();
-  c.beginPath(); c.moveTo(px + f[0] * R0 * 2.3, py + f[1] * R0 * 2.3); c.lineTo(px, py);
-  c.strokeStyle = 'rgba(0,0,0,0.6)'; c.lineWidth = 3.2; c.stroke();
-  c.strokeStyle = '#ffe14a'; c.lineWidth = 1.6; c.stroke();
+  c.lineCap = 'round';
+  c.beginPath(); c.moveTo(px + f[0] * R0 * 4.4, py + f[1] * R0 * 4.4); c.lineTo(px, py);
+  c.strokeStyle = 'rgba(0,0,0,0.7)'; c.lineWidth = R0 * 1.45 + 2.6; c.stroke();
+  c.strokeStyle = '#ffe14a'; c.lineWidth = R0 * 1.45; c.stroke();
+  c.lineCap = 'square';
   dot(player.x, player.z, R0 * 1.15, '#ffe14a');
 }
 function toggleBigMap() { $('#bigmap').classList.toggle('on'); }
