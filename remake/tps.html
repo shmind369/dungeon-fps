@@ -129,27 +129,40 @@ body.left #btnThrow{right:auto;left:calc(42px + var(--safe-l))}
   body.left #btnThrow{right:auto;left:calc(132px + var(--safe-l))}
   #msgs{left:auto;right:calc(10px + var(--safe-r));top:calc(150px + var(--safe-t));align-items:flex-end;max-width:36vw}
 }
-/* item action dialog / drag menu: details at the top, 置く | 投げる | 使う in one row above the item bar */
-#actMenu{position:fixed;inset:0;z-index:7;display:none;background:rgba(0,0,0,.35);touch-action:none}
+/* item menu (tap or drag): non-modal, the game keeps running and the pad/attack stay usable.
+   Details sit under the top bar; 置く | 投げる | 使う is one row right above the movement pad */
+#actMenu{position:fixed;inset:0;z-index:7;display:none;pointer-events:none}
 #actMenu.on{display:block}
-#actMenu.drag{background:rgba(0,0,0,.18);pointer-events:none}
-#itemInfo{position:absolute;left:0;right:0;margin:0 auto;top:calc(10px + var(--safe-t));
+#itemInfo{position:absolute;left:0;right:0;margin:0 auto;top:calc(var(--map) + 36px + var(--safe-t));
   width:min(calc(100vw - 16px - var(--safe-l) - var(--safe-r)),560px);box-sizing:border-box;
-  background:rgba(14,10,20,.94);border:1px solid var(--gold);border-radius:12px;padding:9px 14px;pointer-events:none}
+  background:rgba(14,10,20,.9);border:1px solid var(--gold);border-radius:12px;padding:8px 44px 8px 14px;pointer-events:none}
 #itemInfo .ih{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
-#itemInfo .ii{font-size:30px;line-height:1}
-#itemInfo .in{font-size:19px;color:var(--gold)}
+#itemInfo .ii{font-size:28px;line-height:1}
+#itemInfo .in{font-size:18px;color:var(--gold)}
 #itemInfo .is{font-size:13px;color:#9fe8b0}
-#itemInfo .id{font-size:12px;line-height:1.5;color:#cfc6b8;margin-top:4px}
-#actZones{position:absolute;left:0;right:0;margin:0 auto;bottom:calc(8px + 66px + 16px + var(--safe-b));
-  width:min(calc(100vw - 16px - var(--safe-l) - var(--safe-r)),560px);height:92px;display:flex;gap:8px}
-.az{flex:1;display:flex;align-items:center;justify-content:center;border-radius:14px;
-  background:rgba(120,120,128,.62);border:2px solid rgba(255,255,255,.35);color:#fff;font-size:22px;text-shadow:0 1px 3px #000;cursor:pointer}
-.az.hot{background:rgba(232,184,90,.85);border-color:#fff;transform:scale(1.05)}
+#itemInfo .id{font-size:12px;line-height:1.45;color:#cfc6b8;margin-top:3px}
+#actClose{position:absolute;right:6px;top:6px;width:34px;height:34px;border-radius:9px;border:1px solid var(--line);background:rgba(40,32,50,.95);
+  color:#fff;font-size:16px;line-height:1;cursor:pointer;pointer-events:auto;touch-action:manipulation}
+#actMenu.drag #actClose{display:none}
+#actZones{position:absolute;left:calc(8px + var(--safe-l));bottom:calc(var(--padb) + 128px + 8px + var(--safe-b));
+  width:calc(100vw - 8px - 106px - var(--safe-l) - var(--safe-r));max-width:420px;height:64px;display:flex;gap:8px}
+.az{flex:1;display:flex;align-items:center;justify-content:center;border-radius:14px;pointer-events:auto;touch-action:manipulation;
+  background:rgba(70,70,80,.82);border:2px solid rgba(255,255,255,.4);color:#fff;font-size:20px;text-shadow:0 1px 3px #000;cursor:pointer}
+.az:active{filter:brightness(1.3)}
+.az.hot{background:rgba(232,184,90,.9);border-color:#fff;transform:scale(1.05)}
 #actMenu.drag .az{pointer-events:none}
-#actHint{position:absolute;left:0;right:0;text-align:center;bottom:calc(8px + 66px + 16px + 92px + 6px + var(--safe-b));font-size:12px;color:#d8d0c4;text-shadow:0 1px 3px #000}
+#actHint{position:absolute;left:calc(8px + var(--safe-l));bottom:calc(var(--padb) + 128px + 8px + 64px + 4px + var(--safe-b));font-size:12px;color:#d8d0c4;text-shadow:0 1px 3px #000;white-space:nowrap}
 #dragGhost{position:absolute;left:0;top:0;font-size:46px;pointer-events:none;display:none;transform:translate(-50%,-60%)}
 #actMenu.drag #dragGhost{display:block}
+body.menu #joyHint{display:none}
+@media (orientation:landscape) and (max-height:520px){
+  #itemInfo{top:calc(96px + var(--safe-t));width:min(58vw,500px)}
+  /* short screen: no room above the pad, so the row goes to the left of it, above the item bar */
+  #actZones{bottom:calc(8px + 66px + 8px + var(--safe-b));width:296px;max-width:none}
+  #actHint{bottom:calc(8px + 66px + 8px + 64px + 4px + var(--safe-b))}
+  body.left #actZones{left:auto;right:calc(8px + var(--safe-r))}
+  body.left #actHint{left:auto;right:calc(8px + var(--safe-r))}
+}
 
 @media (orientation:portrait){
   :root{--map:138px; --padb:84px}
@@ -251,8 +264,9 @@ h2{margin:0 0 14px;font-weight:normal;color:var(--gold)}
     <b>⚔長押し</b> → ゲージが溜まったら離して「斬撃」<br>
     足元にアイテムや階段があると、画面中央に<b>名前</b>と<b>「拾う」「降りる」ボタン</b>が出ます<br>
     持ち物は最大10個。アイテム欄は<b>左右にスワイプ</b>でスクロール（7個目以降も見られます）<br>
-    アイテム枠をタップ → 「使う」「置く」「投げる」を選ぶ（空いている所をタップでキャンセル）<br>
-    アイテム枠を<b>上へドラッグ</b> → 画面上部に詳細が出て、横一列の「置く」「投げる」「使う」の上で指を離すと実行（それ以外で離すとキャンセル）。<b>ドラッグ中も時間は進みます</b><br>
+    アイテム枠をタップ → 詳細と、移動パッドの上に「置く」「投げる」「使う」が出ます（✕かもう一度タップで閉じる）<br>
+    アイテム枠を<b>上へドラッグ</b> → 同じ表示が出て、指を離した位置のコマンドを実行（それ以外で離すとキャンセル）<br>
+    <b>メニューを開いている間も時間は進み、敵も襲ってきます。</b>移動パッドと攻撃ボタンはそのまま使えます<br>
     💣 → 爆弾を投げる<br>
     階段の上で <b>降りる</b> ボタン<br>
     設定の「左利きモード」でボタン配置を左右反転できます。
@@ -296,7 +310,7 @@ h2{margin:0 0 14px;font-weight:normal;color:var(--gold)}
 </div></div>
 
 <div id="actMenu">
-  <div id="itemInfo"><div class="ih"><span class="ii"></span><span class="in"></span><span class="is"></span></div><div class="id"></div></div>
+  <div id="itemInfo"><div class="ih"><span class="ii"></span><span class="in"></span><span class="is"></span></div><div class="id"></div><button id="actClose" type="button" aria-label="閉じる">✕</button></div>
   <div id="actHint"></div>
   <div id="actZones">
     <div class="az" id="azDrop" data-a="drop">置く</div>
@@ -1310,7 +1324,7 @@ function pickupNear() {
   addMsg(`${invName(it)}を拾った`); SFX.pickup(); refreshItems();
 }
 function interact() {
-  if (state !== 'play' || actMenu.idx !== null) return;
+  if (state !== 'play') return;
   if (nearItem) pickupNear(); else descend();
 }
 function dropItem(idx) {
@@ -2064,14 +2078,14 @@ function openActMenu(idx, drag) {
   panel.querySelector('.in').textContent = info.name;
   panel.querySelector('.is').textContent = info.stat;
   panel.querySelector('.id').textContent = info.desc;
-  $('#actHint').textContent = drag ? '指を離して実行 ／ 項目以外で離すとキャンセル' : '項目をタップ ／ 空いている所をタップでキャンセル';
+  $('#actHint').textContent = drag ? '指を離して実行 ／ 項目以外で離すとキャンセル' : '';
   $('#dragGhost').textContent = invIcon(it);
   actEl.classList.add('on'); actEl.classList.toggle('drag', drag);
-  input.attackTouch = input.attackMouse = false; btnAttack.classList.remove('down');
+  document.body.classList.add('menu');
 }
 function closeActMenu() {
   actMenu.idx = null; actMenu.drag = false; actMenu.pid = null; actMenu.hot = null;
-  actEl.classList.remove('on', 'drag');
+  actEl.classList.remove('on', 'drag'); document.body.classList.remove('menu');
   document.querySelectorAll('.az').forEach(z => z.classList.remove('hot'));
 }
 function zoneAt(x, y) {
@@ -2111,6 +2125,10 @@ function slotMove(e) {
       else actMenu.mode = 'scroll';
     } else if (Math.abs(dx) > 14 && -dy < Math.abs(dx) * 0.35) actMenu.mode = 'scroll';
   }
+  if (actMenu.mode === 'scroll' && e.clientY < $('#items').getBoundingClientRect().top - 24 && player.inv[actMenu.pending]) {
+    // a sideways gesture that leaves the row upward (e.g. a shallow drag toward a command) becomes a drag
+    slotEndScroll(); actMenu.mode = 'drag'; player.sel = actMenu.pending; refreshItems(); openActMenu(actMenu.pending, true);
+  }
   if (actMenu.mode === 'scroll') {
     $('#items').scrollLeft = actMenu.sl0 - dx;
     const sm = actMenu.samples; sm.push([performance.now(), e.clientX]); while (sm.length > 2 && sm[0][0] < performance.now() - 90) sm.shift();
@@ -2140,18 +2158,19 @@ function slotUp(e) {
   } else if (mode === 'scroll') {
     slotEndScroll();
   } else {
+    if (actMenu.idx === idx && !actMenu.drag) { closeActMenu(); return; }   // tapping the open item again closes the menu
     player.sel = idx; refreshItems();                // a tap selects...
-    if (player.inv[idx]) openActMenu(idx, false);    // ...and opens the menu
+    if (player.inv[idx]) openActMenu(idx, false);    // ...and opens the menu (the game keeps running)
   }
 }
 function slotCancel() { const m = actMenu.mode; if (actMenu.drag) closeActMenu(); actMenu.pid = null; actMenu.mode = null; if (m === 'scroll') slotEndScroll(); }
 $('#items').addEventListener('wheel', e => { e.preventDefault(); const b = $('#items'); snapNearest(b.scrollLeft + (Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY) * 1.2); }, { passive: false });
-actEl.addEventListener('pointerdown', e => {
+document.querySelectorAll('.az').forEach(z => z.addEventListener('pointerdown', e => {
   e.preventDefault(); e.stopPropagation();
-  if (actMenu.drag) return;
-  const a = e.target.closest('.az')?.dataset.a;
-  if (a) doAction(a, actMenu.idx); else closeActMenu();
-});
+  if (actMenu.drag || actMenu.idx === null) return;
+  doAction(z.dataset.a, actMenu.idx);
+}));
+$('#actClose').addEventListener('pointerdown', e => { e.preventDefault(); e.stopPropagation(); closeActMenu(); });
 
 function addMsg(text, color) {
   const box = $('#msgs');
@@ -2289,7 +2308,10 @@ function frame(now) {
   requestAnimationFrame(frame);
   const dt = Math.min(0.05, (now - last) / 1000); last = now;
   pollPad();
-  if (state === 'play' && (actMenu.idx === null || actMenu.drag)) update(dt);   // real-time while dragging; the tap dialog pauses
+  if (state === 'play') {
+    if (actMenu.idx !== null && !player.inv[actMenu.idx]) closeActMenu();   // the selected item is gone
+    update(dt);   // real-time also while the item menu is open
+  }
   else if (state === 'transition') updateParticles(dt);
   if (dun && (state === 'play' || state === 'pause' || state === 'transition' || state === 'dead')) {
     renderScene(state === 'pause' ? 0 : dt);
