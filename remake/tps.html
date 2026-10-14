@@ -88,9 +88,25 @@ body.touch #equip{display:none}
 
 #msgs{position:absolute;left:calc(10px + var(--safe-l));top:calc(var(--map) + 36px + var(--safe-t));display:flex;flex-direction:column;gap:4px;max-width:70vw}
 .msg{font-size:14px;background:rgba(0,0,0,.55);padding:3px 8px;border-radius:6px;width:fit-content;transition:opacity .6s}
-#prompt{position:absolute;left:50%;top:62%;transform:translateX(-50%);font-size:16px;background:rgba(0,0,0,.6);
-  padding:6px 14px;border-radius:8px;border:1px solid var(--gold);color:var(--gold);display:none;white-space:nowrap}
-body.touch #prompt{display:none!important}
+/* Big centre prompt: item / stairs name with its command button underneath */
+#pick{position:absolute;left:50%;top:min(36%,calc(100% - var(--padb) - 128px - var(--safe-b) - 132px));transform:translateX(-50%);display:none;flex-direction:column;align-items:center;gap:12px;max-width:94vw;pointer-events:none}
+#pick.on{display:flex;animation:pickIn .18s ease-out}
+@keyframes pickIn{from{opacity:0;transform:translateX(-50%) scale(.85)}to{opacity:1;transform:translateX(-50%) scale(1)}}
+#pickName{display:flex;align-items:center;gap:12px;font-size:clamp(30px,9vw,46px);line-height:1.15;color:#fff;text-align:center;
+  text-shadow:0 2px 0 #000,0 0 14px rgba(0,0,0,.9),0 0 26px rgba(232,184,90,.55)}
+#pickName .pi{font-size:1.15em;filter:drop-shadow(0 2px 4px #000)}
+#pickBtn{pointer-events:auto;min-width:150px;padding:11px 36px;font-size:24px;letter-spacing:4px;color:var(--gold);cursor:pointer;
+  background:linear-gradient(rgba(70,48,14,.92),rgba(40,26,8,.92));border:2px solid var(--gold);border-radius:14px;
+  box-shadow:0 0 0 0 rgba(232,184,90,.5),0 4px 14px rgba(0,0,0,.6);animation:btnPulse 1.2s ease-in-out infinite;touch-action:manipulation}
+#pickBtn:active{transform:scale(.95);filter:brightness(1.25)}
+#pickBtn small{font-size:12px;letter-spacing:0;margin-left:8px;color:var(--dim)}
+body.touch #pickBtn small{display:none}
+@keyframes btnPulse{0%,100%{box-shadow:0 0 0 0 rgba(232,184,90,.5),0 4px 14px rgba(0,0,0,.6)}50%{box-shadow:0 0 0 10px rgba(232,184,90,0),0 4px 14px rgba(0,0,0,.6)}}
+@media (orientation:landscape) and (max-height:520px){
+  #pick{top:calc(91px + var(--safe-t));gap:4px}
+  #pickName{font-size:25px;line-height:1.1}
+  #pickBtn{padding:5px 26px;font-size:18px;min-width:124px}
+}
 #banner{position:absolute;left:0;right:0;top:30%;text-align:center;font-size:44px;color:var(--gold);
   text-shadow:0 2px 0 #000,0 0 18px rgba(232,184,90,.5);opacity:0;transition:opacity .5s}
 #banner small{display:block;font-size:16px;color:var(--text);margin-top:4px}
@@ -107,11 +123,7 @@ body.touch.playing #touchUI{display:block}
   border:2px solid rgba(255,255,255,.3);background:rgba(255,255,255,.07);opacity:.6;transition:opacity .15s}
 #joyBase.on{opacity:1}
 #joyKnob{position:absolute;left:50%;top:50%;width:54px;height:54px;margin:-27px 0 0 -27px;border-radius:50%;
-  background:rgba(255,255,255,.28);border:2px solid rgba(255,255,255,.45);
-  display:flex;flex-direction:column;align-items:center;justify-content:center;line-height:1.05;color:var(--gold);font-size:11px;text-shadow:0 1px 2px #000}
-#joyKnob.act{background:rgba(232,184,90,.4);border-color:var(--gold);animation:knobPulse 1s ease-in-out infinite}
-#joyKnob .ki{font-size:19px;line-height:20px}
-@keyframes knobPulse{0%,100%{box-shadow:0 0 0 0 rgba(232,184,90,.55)}50%{box-shadow:0 0 0 9px rgba(232,184,90,0)}}
+  background:rgba(255,255,255,.28);border:2px solid rgba(255,255,255,.45)}
 #joyHint{position:absolute;left:50%;transform:translateX(-50%);bottom:calc(var(--padb) + 134px + var(--safe-b));font-size:12px;color:rgba(255,255,255,.4);white-space:nowrap}
 .tbtn{position:absolute;pointer-events:auto;border-radius:50%;touch-action:none;display:flex;align-items:center;justify-content:center;
   border:2px solid rgba(255,255,255,.35);background:rgba(30,20,30,.55);color:#fff;font-size:30px;cursor:pointer}
@@ -197,7 +209,7 @@ h2{margin:0 0 14px;font-weight:normal;color:var(--gold)}
   </div>
   <div id="msgs"></div>
   <div id="crosshair"></div>
-  <div id="prompt"></div>
+  <div id="pick"><div id="pickName"></div><button id="pickBtn" type="button"></button></div>
   <div id="banner"></div>
   <div id="itemInfo"><div class="ih"><span class="in"></span><span class="is"></span></div><div class="id"></div></div>
   <div id="itemsWrap"><div id="items"></div><div class="more" id="moreL">◀</div><div class="more" id="moreR">▶</div></div>
@@ -241,7 +253,7 @@ h2{margin:0 0 14px;font-weight:normal;color:var(--gold)}
     パッド以外の場所をなぞる → カメラ（視点）移動<br>
     <b>⚔ボタン</b> → 攻撃（押したまま指をずらすと視点も動く）<br>
     <b>⚔長押し</b> → ゲージが溜まったら離して「斬撃」<br>
-    足元にアイテム／階段があると、移動パッドの<b>中央が光ります</b>。中央を<b>タップ</b>すると「拾う」「降りる」<br>
+    足元にアイテムや階段があると、画面中央に<b>名前</b>と<b>「拾う」「降りる」ボタン</b>が出ます<br>
     持ち物は最大10個。アイテム欄は<b>左右にスワイプ</b>でスクロール（7個目以降も見られます）<br>
     アイテム枠をタップ → 「使う」「置く」「投げる」を選ぶ（空いている所をタップでキャンセル）<br>
     アイテム枠を<b>上へドラッグ</b> → 各エリアで指を離すと実行（それ以外で離すとキャンセル）<br>
@@ -1440,7 +1452,6 @@ touchLayer.addEventListener('pointerdown', e => {
   if (inMoveZone(e.clientX, e.clientY) && touch.joyId === null) {
     [touch.ox, touch.oy] = padCenter();
     touch.joyId = e.pointerId;
-    touch.tap = { t: performance.now(), center: Math.hypot(e.clientX - touch.ox, e.clientY - touch.oy) < 34, moved: 0, x: e.clientX, y: e.clientY };
     joyBase.classList.add('on');
     input.joyActive = true;
     setJoy(e.clientX, e.clientY);
@@ -1457,7 +1468,6 @@ touchLayer.addEventListener('pointermove', e => {
     return;
   }
   if (e.pointerId === touch.joyId) {
-    if (touch.tap) touch.tap.moved = Math.max(touch.tap.moved, Math.hypot(e.clientX - touch.tap.x, e.clientY - touch.tap.y));
     setJoy(e.clientX, e.clientY);
   } else if (e.pointerId === touch.lookId) {
     input.touchDX += e.clientX - touch.lx; input.touchDY += e.clientY - touch.ly;
@@ -1476,8 +1486,6 @@ function setJoy(x, y) {
 function endTouch(e) {
   if (touch.mouseDrag && e.pointerType === 'mouse') { touch.mouseDrag = null; input.attackMouse = false; return; }
   if (e.pointerId === touch.joyId) {
-    const tp = touch.tap; touch.tap = null;
-    if (tp && tp.center && tp.moved < 14 && e.type === 'pointerup' && performance.now() - tp.t < 380) interact();   // tap the pad centre: 拾う / 降りる
     touch.joyId = null; input.joyActive = false; input.joyX = input.joyY = 0; joyBase.classList.remove('on');
     joyKnob.style.transform = 'translate(0,0)';
   }
@@ -1508,6 +1516,7 @@ btnAttack.addEventListener('pointercancel', atkUp);
 btnAttack.addEventListener('lostpointercapture', atkUp);
 const tap = (el, fn) => el.addEventListener('pointerdown', e => { e.preventDefault(); e.stopPropagation(); audioUnlock(); fn(e); });
 tap($('#btnThrow'), () => throwBomb());
+tap($('#pickBtn'), () => interact());
 tap($('#btnPause'), () => pause());
 tap($('#btnView'), () => toggleView());
 tap($('#mapWrap'), () => toggleBigMap());
@@ -1645,9 +1654,9 @@ function update(dt) {
   if (stairsBeam) { stairsBeam.rotation.y += dt; stairsBeam.material.opacity = 0.7 + Math.sin(stats.time * 3) * 0.3; }
   for (const t of dmgTexts) t.t += dt;
   dmgTexts = dmgTexts.filter(t => t.t < 0.9);
-  if (nearItem) setPrompt(`${invName(nearItem)}を拾う`, `<span class="ki">${invIcon(nearItem)}</span>拾う`);
-  else if (onStairs()) setPrompt(floor === LAST_FLOOR ? '脱出する' : '階段を降りる', `<span class="ki">🪜</span>${floor === LAST_FLOOR ? '脱出' : '降りる'}`);
-  else setPrompt(null);
+  if (nearItem) setPick(`i:${nearItem.key}${nearItem.tier ?? ''}`, invIcon(nearItem), invName(nearItem), '拾う');
+  else if (onStairs()) setPick('stairs', '🪜', floor === LAST_FLOOR ? '脱出口' : '階段', floor === LAST_FLOOR ? '脱出' : '降りる');
+  else setPick(null);
 }
 
 function reveal() {
@@ -2130,17 +2139,17 @@ function showBanner(title, sub) {
   b.innerHTML = `${title}<small>${sub || ''}</small>`; b.style.opacity = 1;
   clearTimeout(bannerTimer); bannerTimer = setTimeout(() => b.style.opacity = 0, 1800);
 }
-let promptShown = null;
-function setPrompt(text, knobHtml) {
-  if (text === promptShown) return;
-  promptShown = text;
-  const p = $('#prompt');
-  if (text) {
-    p.textContent = `[E] ${text}`; p.style.display = 'block';
-    joyKnob.innerHTML = knobHtml; joyKnob.classList.add('act');   // the pad's centre shows the available action
-  } else { p.style.display = 'none'; joyKnob.innerHTML = ''; joyKnob.classList.remove('act'); }
+let pickShown = null;
+function setPick(key, icon, name, cmd) {
+  if (key === pickShown) return;
+  pickShown = key;
+  const box = $('#pick');
+  if (key) {
+    $('#pickName').innerHTML = `<span class="pi">${icon}</span><span>${name}</span>`;
+    $('#pickBtn').innerHTML = `${cmd}<small>[E]</small>`;
+    box.classList.remove('on'); void box.offsetWidth; box.classList.add('on');
+  } else box.classList.remove('on');
 }
-
 /* =========================================================
    Screens / flow
    ========================================================= */
