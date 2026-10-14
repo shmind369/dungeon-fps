@@ -78,32 +78,50 @@ body.touch #prompt{display:none!important}
 /* ---------- Touch controls ---------- */
 #touchUI{position:fixed;inset:0;z-index:5;pointer-events:none;display:none}
 body.touch.playing #touchUI{display:block}
-#joyBase{position:absolute;left:50%;bottom:calc(22px + var(--safe-b));width:128px;height:128px;margin-left:-64px;border-radius:50%;
+#joyBase{position:absolute;left:50%;bottom:calc(68px + var(--safe-b));width:128px;height:128px;margin-left:-64px;border-radius:50%;
   border:2px solid rgba(255,255,255,.3);background:rgba(255,255,255,.07);opacity:.6;transition:opacity .15s}
 #joyBase.on{opacity:1}
 #joyKnob{position:absolute;left:50%;top:50%;width:54px;height:54px;margin:-27px 0 0 -27px;border-radius:50%;
   background:rgba(255,255,255,.28);border:2px solid rgba(255,255,255,.45)}
-#joyHint{position:absolute;left:50%;transform:translateX(-50%);bottom:calc(156px + var(--safe-b));font-size:12px;color:rgba(255,255,255,.4);white-space:nowrap}
+#joyHint{position:absolute;left:50%;transform:translateX(-50%);bottom:calc(202px + var(--safe-b));font-size:12px;color:rgba(255,255,255,.4);white-space:nowrap}
 .tbtn{position:absolute;pointer-events:auto;border-radius:50%;touch-action:none;display:flex;align-items:center;justify-content:center;
   border:2px solid rgba(255,255,255,.35);background:rgba(30,20,30,.55);color:#fff;font-size:30px;cursor:pointer}
-#btnAttack{width:96px;height:96px;right:calc(22px + var(--safe-r));bottom:calc(26px + var(--safe-b))}
+#btnAttack{width:96px;height:96px;right:calc(22px + var(--safe-r));bottom:calc(72px + var(--safe-b))}
 #btnAttack.down{background:rgba(201,103,58,.6);transform:scale(.95)}
-#btnAction{width:84px;height:56px;border-radius:14px;right:calc(28px + var(--safe-r));bottom:calc(204px + var(--safe-b));
+#btnAction{min-width:84px;height:64px;padding:0 8px;flex-direction:column;line-height:1.15;border-radius:14px;right:calc(28px + var(--safe-r));bottom:calc(250px + var(--safe-b));
   font-size:15px;display:none;border-color:var(--gold);color:var(--gold);background:rgba(40,30,10,.7)}
 #btnAction.on{display:flex}
-#btnThrow{width:56px;height:56px;right:calc(42px + var(--safe-r));bottom:calc(134px + var(--safe-b));font-size:22px}
+#btnThrow{width:56px;height:56px;right:calc(42px + var(--safe-r));bottom:calc(180px + var(--safe-b));font-size:22px}
 body.left #btnAttack{right:auto;left:calc(22px + var(--safe-l))}
 body.left #btnAction{right:auto;left:calc(28px + var(--safe-l))}
 body.left #btnThrow{right:auto;left:calc(42px + var(--safe-l))}
-/* items: bottom-left (or right in left-handed mode) so the center stays free for the pad */
-#items{left:calc(10px + var(--safe-l));transform:none}
-body.touch #items{display:grid;grid-template-columns:repeat(3,50px)}
-body.left #items{left:auto;right:calc(10px + var(--safe-r))}
+/* items: a row at the very bottom, under the movement pad */
+#items{left:50%;transform:translateX(-50%);bottom:calc(8px + var(--safe-b));flex-direction:row}
+.slot{width:46px;height:46px;font-size:24px}
 #equip{bottom:calc(70px + var(--safe-b))}
+@media (orientation:landscape) and (max-height:520px){
+  #btnThrow{right:calc(132px + var(--safe-r));bottom:calc(76px + var(--safe-b))}
+  #btnAction{right:calc(124px + var(--safe-r));bottom:calc(146px + var(--safe-b))}
+  body.left #btnThrow{right:auto;left:calc(132px + var(--safe-l))}
+  body.left #btnAction{right:auto;left:calc(124px + var(--safe-l))}
+}
+/* item action dialog: 投げる (top-left) / 置く (bottom-left) / 使う (right) */
+#actMenu{position:fixed;inset:0;z-index:7;display:none;background:rgba(0,0,0,.35);touch-action:none}
+#actMenu.on{display:block}
+.az{position:absolute;display:flex;align-items:center;justify-content:center;border-radius:14px;
+  background:rgba(170,170,170,.55);border:2px solid rgba(255,255,255,.35);color:#fff;font-size:22px;text-shadow:0 1px 3px #000;cursor:pointer}
+.az.hot{background:rgba(232,184,90,.75);border-color:#fff;transform:scale(1.03)}
+#azThrow{left:calc(10px + var(--safe-l));top:22%;width:31%;height:27%}
+#azDrop{left:calc(10px + var(--safe-l));top:51%;width:31%;height:27%}
+#azUse{right:calc(10px + var(--safe-r));top:26%;width:36%;height:48%}
+#actMenu.drag .az{pointer-events:none}
+#actInfo{position:absolute;left:50%;bottom:calc(70px + var(--safe-b));transform:translateX(-50%);font-size:20px;white-space:nowrap;
+  background:rgba(0,0,0,.6);padding:6px 14px;border-radius:10px}
+#actHint{position:absolute;left:50%;top:14%;transform:translateX(-50%);font-size:13px;color:var(--dim);white-space:nowrap}
+#dragGhost{position:absolute;left:0;top:0;font-size:46px;pointer-events:none;display:none;transform:translate(-50%,-60%)}
+#actMenu.drag #dragGhost{display:block}
 
 @media (orientation:portrait){
-  #items,body.touch #items{display:flex;bottom:auto;top:calc(130px + var(--safe-t));left:auto;right:calc(8px + var(--safe-r));transform:none;flex-direction:column}
-  body.left #items,body.left.touch #items{right:auto;left:calc(8px + var(--safe-l))}
   .slot{width:44px;height:44px;font-size:22px}
   #msgs{top:calc(130px + var(--safe-t))}
   #stats{flex-basis:auto;flex:1}
@@ -201,14 +219,17 @@ h2{margin:0 0 14px;font-weight:normal;color:var(--gold)}
     パッド以外の場所をなぞる → カメラ（視点）移動<br>
     <b>⚔ボタン</b> → 攻撃（押したまま指をずらすと視点も動く）<br>
     <b>⚔長押し</b> → ゲージが溜まったら離して「斬撃」<br>
-    アイテム枠をタップ → 使う ／ 💣 → 爆弾を投げる<br>
+    足元のアイテム → <b>拾う</b>ボタンで拾う<br>
+    アイテム枠をタップ → 「使う」「置く」「投げる」を選ぶ（空いている所をタップでキャンセル）<br>
+    アイテム枠からドラッグ → 各エリアで指を離すと実行（それ以外で離すとキャンセル）<br>
+    💣 → 爆弾を投げる<br>
     階段の上で <b>降りる</b> ボタン<br>
     設定の「左利きモード」でボタン配置を左右反転できます。
     <h3>⌨️ PC</h3>
     <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> 移動 ／ マウス 視点 ／ <kbd>Shift</kbd> ダッシュ<br>
     <kbd>左クリック</kbd> または <kbd>Space</kbd> 攻撃（長押しで斬撃）<br>
     <kbd>←</kbd><kbd>→</kbd> でも旋回できます<br>
-    <kbd>E</kbd> 階段を降りる ／ <kbd>1</kbd>〜<kbd>6</kbd> アイテム使用 ／ <kbd>G</kbd> 爆弾<br>
+    <kbd>E</kbd> 拾う・階段を降りる ／ <kbd>1</kbd>〜<kbd>6</kbd> アイテム使用（枠をクリックで行動選択） ／ <kbd>G</kbd> 爆弾<br>
     <kbd>M</kbd> マップ ／ <kbd>Esc</kbd> ポーズ
     <h3>🎮 ゲームパッド</h3>
     左スティック 移動 ／ 右スティック 視点 ／ <kbd>RT</kbd><kbd>X</kbd> 攻撃<br>
@@ -243,6 +264,14 @@ h2{margin:0 0 14px;font-weight:normal;color:var(--gold)}
   </div>
 </div></div>
 
+<div id="actMenu">
+  <div class="az" id="azThrow" data-a="throw">投げる</div>
+  <div class="az" id="azDrop" data-a="drop">置く</div>
+  <div class="az" id="azUse" data-a="use">使う</div>
+  <div id="actHint">項目をタップ／空いている所でキャンセル</div>
+  <div id="actInfo"></div>
+  <div id="dragGhost"></div>
+</div>
 <div id="fade"></div>
 <div id="loading">読み込み中…</div>
 
@@ -932,7 +961,7 @@ class Item {
     this.t = Math.random() * 6;
     levelGroup.add(this.sprite); this.sync();
   }
-  get label() { return this.key === 'weapon' ? WEAPONS[this.tier].name : this.key === 'armor' ? ARMORS[this.tier].name : ITEM_DEFS[this.key].name; }
+  get label() { return invName(this); }
   sync() { this.sprite.position.set(this.x, 0.26 + Math.sin(this.t * 2.5) * 0.05, this.z); }
   remove() { this.gone = true; levelGroup.remove(this.sprite); this.mat.dispose(); }
 }
@@ -945,6 +974,13 @@ function makeLoot(x, z) {
   return new Item(pick(table), x, z);
 }
 function dropRandomItem(x, z) { items.push(makeLoot(x, z)); }
+const isGear = it => it.key === 'weapon' || it.key === 'armor';
+const invIcon = it => it.key === 'weapon' ? '🗡️' : it.key === 'armor' ? '🛡️' : ITEM_DEFS[it.key].icon;
+const invName = it => it.key === 'weapon' ? WEAPONS[it.tier].name : it.key === 'armor' ? ARMORS[it.tier].name : ITEM_DEFS[it.key].name;
+const toInv = it => isGear(it) ? { key: it.key, tier: it.tier } : { key: it.key };
+function spawnFloorItem(it, x, z) {
+  items.push(new Item(it.key, x, z, isGear(it) ? { tier: it.tier, icon: invIcon(it) } : {}));
+}
 
 function shootFire(e) {
   const dx = player.x - e.x, dz = player.z - e.z, d = Math.hypot(dx, dz);
@@ -958,13 +994,22 @@ function shootFire(e) {
 function throwBomb() {
   const idx = player.inv.findIndex(i => i.key === 'bomb');
   if (idx < 0) { addMsg('爆弾を持っていない', '#aaa'); SFX.deny(); return; }
+  throwItem(idx);
+}
+function throwItem(idx) {
+  const it = player.inv[idx];
+  if (!it) return;
   player.inv.splice(idx, 1); refreshItems();
-  const fwd = forward(), sp = 6;
-  const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: emojiTex('💣'), transparent: true, alphaTest: 0.3 }));
+  const bomb = it.key === 'bomb';
+  const fwd = forward(), sp = bomb ? 6 : 6.5;
+  const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: emojiTex(invIcon(it)), transparent: true, alphaTest: 0.3 }));
   s.scale.set(0.3, 0.3, 1); levelGroup.add(s);
   const pitchUp = settings.pitch ? player.pitch : 0;
-  projectiles.push({ kind: 'bomb', x: player.x + fwd[0] * 0.3, z: player.z + fwd[1] * 0.3, y: EYE_H - 0.1,
-    vx: fwd[0] * sp * Math.cos(pitchUp), vz: fwd[1] * sp * Math.cos(pitchUp), vy: 2.2 + Math.sin(pitchUp) * sp, sprite: s, life: 1.6, dmg: ITEM_DEFS.bomb.dmg + floor * 3 });
+  heroine.face = Math.atan2(fwd[0], fwd[1]); player.swingT = 0.55; player.swingCharged = false;
+  projectiles.push({ kind: bomb ? 'bomb' : 'item', item: it, x: player.x + fwd[0] * 0.3, z: player.z + fwd[1] * 0.3, y: EYE_H - 0.1,
+    vx: fwd[0] * sp * Math.cos(pitchUp), vz: fwd[1] * sp * Math.cos(pitchUp), vy: 2.2 + Math.sin(pitchUp) * sp, sprite: s,
+    life: bomb ? 1.6 : 1.4, dmg: bomb ? ITEM_DEFS.bomb.dmg + floor * 3 : 3 + floor });
+  if (!bomb) addMsg(`${invName(it)}を投げた`);
   SFX.swing();
 }
 function explode(x, y, z, dmg) {
@@ -984,7 +1029,7 @@ function updateProjectiles(dt) {
     const p = projectiles[i];
     p.life -= dt;
     let boom = p.life <= 0;
-    if (p.kind === 'bomb') p.vy -= 9 * dt;
+    if (p.kind !== 'fire') p.vy -= 9 * dt;
     const nx = p.x + p.vx * dt, nz = p.z + p.vz * dt;
     if (isWall(nx, p.z)) { p.vx *= -0.4; if (p.kind === 'fire') boom = true; } else p.x = nx;
     if (isWall(p.x, nz)) { p.vz *= -0.4; if (p.kind === 'fire') boom = true; } else p.z = nz;
@@ -996,10 +1041,16 @@ function updateProjectiles(dt) {
       if (Math.hypot(player.x - p.x, player.z - p.z) < PLAYER_R + 0.25) { hurtPlayer(p.dmg, { x: p.x, z: p.z, d: p.owner.d }); boom = true; }
     } else {
       p.sprite.material.rotation += dt * 8;
-      for (const e of enemies) if (!e.dead && Math.hypot(e.x - p.x, e.z - p.z) < e.d.r + 0.15) boom = true;
+      for (const e of enemies) if (!e.dead && Math.hypot(e.x - p.x, e.z - p.z) < e.d.r + 0.15) {
+        boom = true;
+        if (p.kind === 'item') { const d = Math.hypot(e.x - p.x, e.z - p.z) || 1; e.damage(p.dmg, (e.x - p.x) / d, (e.z - p.z) / d, false); SFX.hit(); }
+        break;
+      }
+      if (p.kind === 'item' && p.y <= 0.12 && Math.hypot(p.vx, p.vz) < 0.8) boom = true;
     }
     if (boom) {
       if (p.kind === 'bomb') explode(p.x, p.y, p.z, p.dmg);
+      else if (p.kind === 'item') spawnFloorItem(p.item, p.x, p.z);
       else burst(p.x, p.y, p.z, 0xff8030, 14, 2, 0.4);
       levelGroup.remove(p.sprite); p.sprite.material.dispose();
       projectiles.splice(i, 1);
@@ -1045,6 +1096,7 @@ function randomFloorTile(exclude) {
   return [dun.start.cx + 0.5, dun.start.cy + 0.5];
 }
 function loadFloor() {
+  closeActMenu(); nearItem = null;
   for (const p of projectiles) p.sprite.material.dispose();
   enemies = []; items = []; projectiles = []; dmgTexts = []; particles.length = 0;
   bossDefeated = false;
@@ -1080,6 +1132,7 @@ function loadFloor() {
     // always at least one food per floor
     const [fx2, fz2] = randomFloorTile(); items.push(new Item(floor % 3 === 0 ? 'meat' : 'bread', fx2, fz2));
   }
+  heroine.face = Math.atan2(-Math.sin(player.yaw), -Math.cos(player.yaw)); // start facing away from the camera
   updateHud(true); refreshItems();
   $('#floorLabel').textContent = `B${floor}F`;
   showBanner(`B${floor}F`, themeFor(floor).name + (dun.boss ? ' ― 最深部' : ''));
@@ -1153,34 +1206,48 @@ function gainExp(n) {
   }
   updateHud();
 }
-function tryPickups() {
+// Items are no longer auto-collected: the nearest one at your feet can be picked up on demand
+let nearItem = null;
+function updateNearItem() {
+  nearItem = null; let bd = 0.6;
   for (const it of items) {
     if (it.gone) continue;
     const d = Math.hypot(it.x - player.x, it.z - player.z);
-    if (d > 0.55) { if (d > 1.0) it.notified = false; continue; }
-    if (it.key === 'weapon' || it.key === 'armor') {
-      const cur = it.key === 'weapon' ? player.weapon : player.armor;
-      if (it.tier > cur) {
-        if (it.key === 'weapon') { player.weapon = it.tier; tintSword(); } else player.armor = it.tier;
-        addMsg(`${it.label}を装備した！`, '#ffd24a'); SFX.equip(); it.remove(); updateHud();
-      } else if (!it.notified) { it.notified = true; addMsg(`${it.label}…今の装備の方が強い`, '#999'); }
-      continue;
-    }
-    if (player.inv.length >= INV_SIZE) {
-      if (!it.notified) { it.notified = true; addMsg('持ち物がいっぱいだ', '#f88'); SFX.deny(); }
-      continue;
-    }
-    player.inv.push({ key: it.key }); it.remove();
-    addMsg(`${ITEM_DEFS[it.key].name}を拾った`); SFX.pickup(); refreshItems();
+    if (d < bd) { bd = d; nearItem = it; }
   }
-  items = items.filter(i => !i.gone);
+}
+function pickupNear() {
+  const it = nearItem;
+  if (!it || it.gone) return;
+  if (player.inv.length >= INV_SIZE) { addMsg('持ち物がいっぱいだ', '#f88'); SFX.deny(); return; }
+  player.inv.push(toInv(it)); it.remove();
+  items = items.filter(i => !i.gone); nearItem = null;
+  addMsg(`${invName(it)}を拾った`); SFX.pickup(); refreshItems();
+}
+function interact() {
+  if (state !== 'play' || actMenu.idx !== null) return;
+  if (nearItem) pickupNear(); else descend();
+}
+function dropItem(idx) {
+  const it = player.inv[idx];
+  if (!it) return;
+  player.inv.splice(idx, 1);
+  spawnFloorItem(it, player.x, player.z);
+  addMsg(`${invName(it)}を置いた`); SFX.pickup(); refreshItems();
 }
 function useItem(idx) {
   if (state !== 'play') return;
   const it = player.inv[idx];
   if (!it) return;
+  if (isGear(it)) {
+    const w = it.key === 'weapon', cur = w ? player.weapon : player.armor;
+    if (w) { player.weapon = it.tier; tintSword(); } else player.armor = it.tier;
+    if (cur > 0) player.inv[idx] = { key: it.key, tier: cur }; else player.inv.splice(idx, 1);
+    addMsg(`${invName(it)}を装備した`, '#ffd24a'); SFX.equip(); refreshItems(); updateHud();
+    return;
+  }
   const def = ITEM_DEFS[it.key];
-  if (def.kind === 'bomb') { throwBomb(); return; }
+  if (def.kind === 'bomb') { throwItem(idx); return; }
   if (def.kind === 'heal' && player.hp >= player.maxHp) { addMsg('HPは満タンだ', '#aaa'); SFX.deny(); return; }
   if (def.kind === 'food' && player.food >= 100 && !def.heal) { addMsg('お腹はいっぱいだ', '#aaa'); SFX.deny(); return; }
   if (def.food) { player.food = Math.min(100, player.food + def.food); player.hungryWarned = false; }
@@ -1231,7 +1298,7 @@ addEventListener('keydown', e => {
   keys.add(e.code);
   if (state === 'play') {
     if (e.code === 'Space') { input.attackKey = true; e.preventDefault(); }
-    if (e.code === 'KeyE' || e.code === 'KeyF' || e.code === 'Enter') descend();
+    if (e.code === 'KeyE' || e.code === 'KeyF' || e.code === 'Enter') interact();
     if (e.code === 'KeyG' || e.code === 'KeyQ') throwBomb();
     if (e.code === 'KeyM' || e.code === 'Tab') { toggleBigMap(); e.preventDefault(); }
     if (/^Digit[1-6]$/.test(e.code)) useItem(+e.code.slice(5) - 1);
@@ -1264,7 +1331,7 @@ document.addEventListener('mousemove', e => {
 document.addEventListener('mousedown', e => {
   if (!isLocked() || state !== 'play') return;
   if (e.button === 0) input.attackMouse = true;
-  if (e.button === 2) descend();
+  if (e.button === 2) interact();
 });
 document.addEventListener('mouseup', e => { if (e.button === 0) input.attackMouse = false; });
 document.addEventListener('contextmenu', e => e.preventDefault());
@@ -1360,7 +1427,7 @@ btnAttack.addEventListener('pointerup', atkUp);
 btnAttack.addEventListener('pointercancel', atkUp);
 btnAttack.addEventListener('lostpointercapture', atkUp);
 const tap = (el, fn) => el.addEventListener('pointerdown', e => { e.preventDefault(); e.stopPropagation(); audioUnlock(); fn(e); });
-tap($('#btnAction'), () => descend());
+tap($('#btnAction'), () => interact());
 tap($('#btnThrow'), () => throwBomb());
 tap($('#btnPause'), () => pause());
 tap($('#mapWrap'), () => toggleBigMap());
@@ -1381,7 +1448,7 @@ function pollPad() {
     input.attackPad = b(7) || b(2);
     input.padRun = b(10) || Math.hypot(input.padLX, input.padLY) > 0.97;
     if (state === 'play') {
-      if (pressed(0)) descend();
+      if (pressed(0)) interact();
       if (pressed(1)) throwBomb();
       if (pressed(3)) useItem(player.sel);
       if (pressed(4) || pressed(14)) { player.sel = (player.sel + INV_SIZE - 1) % INV_SIZE; refreshItems(); }
@@ -1467,7 +1534,7 @@ function updatePlayer(dt, worldDt) {
   }
   attackPrev = a;
 
-  tryPickups();
+  updateNearItem();
 }
 
 function update(dt) {
@@ -1494,8 +1561,9 @@ function update(dt) {
   if (stairsBeam) { stairsBeam.rotation.y += dt; stairsBeam.material.opacity = 0.7 + Math.sin(stats.time * 3) * 0.3; }
   for (const t of dmgTexts) t.t += dt;
   dmgTexts = dmgTexts.filter(t => t.t < 0.9);
-  const near = state === 'play' && onStairs();
-  setPrompt(near ? (floor === LAST_FLOOR ? '脱出する' : '階段を降りる') : null);
+  if (nearItem) setPrompt(`${invName(nearItem)}を拾う`, `<span style="font-size:24px">${invIcon(nearItem)}</span>拾う`);
+  else if (onStairs()) setPrompt(floor === LAST_FLOOR ? '脱出する' : '階段を降りる', floor === LAST_FLOOR ? '脱出' : '降りる');
+  else setPrompt(null);
 }
 
 function reveal() {
@@ -1810,20 +1878,89 @@ function refreshItems() {
     for (let i = 0; i < INV_SIZE; i++) {
       const s = document.createElement('div'); s.className = 'slot';
       s.innerHTML = `<span class="k">${i + 1}</span><span class="ic"></span>`;
-      s.addEventListener('pointerdown', e => { e.preventDefault(); e.stopPropagation(); audioUnlock(); player.sel = i; useItem(i); });
+      s.addEventListener('pointerdown', e => slotDown(e, i, s));
+      s.addEventListener('pointermove', slotMove);
+      s.addEventListener('pointerup', slotUp);
+      s.addEventListener('pointercancel', () => closeActMenu());
       box.appendChild(s);
     }
   }
   [...box.children].forEach((s, i) => {
     const it = player.inv[i];
-    s.querySelector('.ic').textContent = it ? ITEM_DEFS[it.key].icon : '';
+    s.querySelector('.ic').textContent = it ? invIcon(it) : '';
     s.classList.toggle('empty', !it);
     s.classList.toggle('sel', i === player.sel && !document.body.classList.contains('touch'));
-    s.title = it ? ITEM_DEFS[it.key].name : '';
+    s.title = it ? invName(it) : '';
   });
   const bombs = player.inv.filter(i => i.key === 'bomb').length;
   $('#btnThrow').style.opacity = bombs ? 1 : 0.35;
 }
+/* ---- item action dialog (tap a slot, or drag it onto 投げる / 置く / 使う) ---- */
+const actMenu = { idx: null, drag: false, pid: null, sx: 0, sy: 0, hot: null, el: null };
+const actEl = $('#actMenu');
+function openActMenu(idx, drag) {
+  const it = player.inv[idx];
+  if (!it || state !== 'play') return;
+  actMenu.idx = idx; actMenu.drag = drag; actMenu.hot = null;
+  $('#azUse').textContent = isGear(it) ? '装備する' : '使う';
+  $('#actInfo').innerHTML = `選択中 ${invIcon(it)} ${invName(it)}`;
+  $('#actHint').textContent = drag ? 'エリアの上で指を離す／それ以外でキャンセル' : '項目をタップ／空いている所でキャンセル';
+  $('#dragGhost').textContent = invIcon(it);
+  actEl.classList.add('on'); actEl.classList.toggle('drag', drag);
+  input.attackTouch = input.attackMouse = false; btnAttack.classList.remove('down');
+}
+function closeActMenu() {
+  actMenu.idx = null; actMenu.drag = false; actMenu.pid = null; actMenu.hot = null;
+  actEl.classList.remove('on', 'drag');
+  document.querySelectorAll('.az').forEach(z => z.classList.remove('hot'));
+}
+function zoneAt(x, y) {
+  for (const z of document.querySelectorAll('.az')) {
+    const r = z.getBoundingClientRect();
+    if (x >= r.left && x <= r.right && y >= r.top && y <= r.bottom) return z.dataset.a;
+  }
+  return null;
+}
+function doAction(a, idx) {
+  closeActMenu();
+  if (a === 'use') useItem(idx);
+  else if (a === 'drop') dropItem(idx);
+  else if (a === 'throw') throwItem(idx);
+}
+function slotDown(e, i, el) {
+  e.preventDefault(); e.stopPropagation(); audioUnlock();
+  if (state !== 'play' || !player.inv[i]) return;
+  player.sel = i;
+  actMenu.pid = e.pointerId; actMenu.sx = e.clientX; actMenu.sy = e.clientY; actMenu.el = el; actMenu.pending = i;
+  try { el.setPointerCapture(e.pointerId); } catch (_) {}
+}
+function slotMove(e) {
+  if (e.pointerId !== actMenu.pid) return;
+  if (!actMenu.drag && Math.hypot(e.clientX - actMenu.sx, e.clientY - actMenu.sy) > 12) openActMenu(actMenu.pending, true);
+  if (!actMenu.drag) return;
+  const g = $('#dragGhost'); g.style.left = e.clientX + 'px'; g.style.top = e.clientY + 'px';
+  const hot = zoneAt(e.clientX, e.clientY);
+  if (hot !== actMenu.hot) {
+    actMenu.hot = hot;
+    document.querySelectorAll('.az').forEach(z => z.classList.toggle('hot', z.dataset.a === hot));
+  }
+}
+function slotUp(e) {
+  if (e.pointerId !== actMenu.pid) return;
+  const idx = actMenu.pending;
+  actMenu.pid = null;
+  if (actMenu.drag) {
+    const a = zoneAt(e.clientX, e.clientY);
+    if (a) doAction(a, idx); else closeActMenu();   // released on empty space: nothing happens
+  } else openActMenu(idx, false);                     // a tap opens the dialog
+}
+actEl.addEventListener('pointerdown', e => {
+  e.preventDefault(); e.stopPropagation();
+  if (actMenu.drag) return;
+  const a = e.target.closest('.az')?.dataset.a;
+  if (a) doAction(a, actMenu.idx); else closeActMenu();
+});
+
 function addMsg(text, color) {
   const box = $('#msgs');
   const d = document.createElement('div'); d.className = 'msg'; d.textContent = text;
@@ -1839,13 +1976,13 @@ function showBanner(title, sub) {
   clearTimeout(bannerTimer); bannerTimer = setTimeout(() => b.style.opacity = 0, 1800);
 }
 let promptShown = null;
-function setPrompt(text) {
+function setPrompt(text, btnHtml) {
   if (text === promptShown) return;
   promptShown = text;
   const p = $('#prompt'), b = $('#btnAction');
   if (text) {
     p.textContent = `[E] ${text}`; p.style.display = 'block';
-    b.textContent = floor === LAST_FLOOR ? '脱出' : '降りる'; b.classList.add('on');
+    b.innerHTML = btnHtml; b.classList.add('on');
   } else { p.style.display = 'none'; b.classList.remove('on'); }
 }
 
@@ -1879,6 +2016,7 @@ function startGame() {
 function hasSeenHint() { try { const v = localStorage.getItem('ddr_hint'); localStorage.setItem('ddr_hint', '1'); return !!v; } catch (e) { return false; } }
 function pause() {
   if (state !== 'play') return;
+  closeActMenu();
   state = 'pause'; input.attackKey = input.attackMouse = input.attackTouch = false; attackPrev = false; player.charging = false;
   keys.clear();
   if (isLocked()) document.exitPointerLock();
@@ -1958,7 +2096,7 @@ function frame(now) {
   requestAnimationFrame(frame);
   const dt = Math.min(0.05, (now - last) / 1000); last = now;
   pollPad();
-  if (state === 'play') update(dt);
+  if (state === 'play' && actMenu.idx === null) update(dt);
   else if (state === 'transition') updateParticles(dt);
   if (dun && (state === 'play' || state === 'pause' || state === 'transition' || state === 'dead')) {
     renderScene(state === 'pause' ? 0 : dt);
