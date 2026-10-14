@@ -66,6 +66,9 @@ body.playing #hud{display:block}
 .slot .ic{font-size:25px;line-height:28px;height:28px}
 .slot .nm{font-size:9px;line-height:12px;max-width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--text)}
 @media (max-width:340px){.slot .nm{font-size:8.5px;letter-spacing:-.3px}}
+.slot .eq{position:absolute;left:3px;top:2px;width:17px;height:17px;border-radius:50%;background:var(--gold);color:#241606;
+  font-size:11px;line-height:17px;font-weight:bold;text-align:center;display:none;box-shadow:0 1px 3px rgba(0,0,0,.6)}
+.slot.equipped .eq{display:block}
 .slot.sel{border-color:var(--gold);box-shadow:inset 0 0 0 2px rgba(232,184,90,.6);background:rgba(60,44,20,.9)}
 .slot.empty{opacity:.4}
 .slot:active{filter:brightness(1.3)}
@@ -276,6 +279,9 @@ h2{margin:0 0 14px;font-weight:normal;color:var(--gold)}
     <kbd>A</kbd> 階段 ／ <kbd>LB</kbd><kbd>RB</kbd> アイテム選択 ／ <kbd>Y</kbd> 使用 ／ <kbd>B</kbd> 爆弾 ／ <kbd>Back</kbd> マップ ／ <kbd>R3</kbd> 視点変更 ／ <kbd>Start</kbd> ポーズ
     <h3>🎥 カメラ</h3>
     キャラクターを画面中央に捉えた背後からのTPS視点です。右上の🎥ボタンで一人称視点に切り替えられます。攻撃はカメラの向いている方向に繰り出します。
+    <h3>🗡 装備・投擲</h3>
+    最初は素手で何も装備していません。武器・盾はアイテム欄から「装備する」。装備中のアイテムには<b>Eマーク</b>が付き、もう一度使うと外せます<br>
+    アイテムを投げて<b>モンスターに当てると、そのアイテムは消えます</b>（外れると床に落ちて拾えます）<br>
     <h3>🗺 ルール</h3>
     地下10階に潜むドラゴンを倒すのが目的。歩くと満腹度が減り、0になるとHPが減っていきます。
     敵は攻撃の直前に<b>赤く光る</b>ので、そのタイミングで下がれば避けられます。
@@ -659,14 +665,15 @@ const fp = (() => {
   };
   const blade = mk(new THREE.BoxGeometry(0.045, 0.5, 0.01), 0xcfd6de, 0, 0.33, 0);
   const tip = mk(new THREE.BoxGeometry(0.055, 0.08, 0.01), 0xcfd6de, 0.01, 0.6, 0); tip.material = blade.material; tip.rotation.z = 0.5;
-  mk(new THREE.BoxGeometry(0.1, 0.02, 0.04), 0xeab446, 0, 0.06, 0);           // guard
-  mk(new THREE.BoxGeometry(0.03, 0.11, 0.03), 0x3a2416, 0, 0, 0);             // grip
-  mk(new THREE.BoxGeometry(0.018, 0.1, 0.018), 0xc81f2e, 0, -0.1, 0);         // tassel
+  const swordParts = [blade, tip,
+    mk(new THREE.BoxGeometry(0.1, 0.02, 0.04), 0xeab446, 0, 0.06, 0),         // guard
+    mk(new THREE.BoxGeometry(0.03, 0.11, 0.03), 0x3a2416, 0, 0, 0),           // grip
+    mk(new THREE.BoxGeometry(0.018, 0.1, 0.018), 0xc81f2e, 0, -0.1, 0)];      // tassel
   mk(new THREE.SphereGeometry(0.04, 10, 8), 0xffdcc8, 0, 0, 0.005);            // hand
   const fore = mk(new THREE.CylinderGeometry(0.033, 0.04, 0.26, 10), 0xffdcc8, 0.02, -0.12, 0.12); fore.rotation.x = 1.2;
   const cuff = mk(new THREE.CylinderGeometry(0.05, 0.05, 0.03, 10), 0xeab446, 0.03, -0.18, 0.24); cuff.rotation.x = 1.2;
   const sleeve = mk(new THREE.CylinderGeometry(0.055, 0.06, 0.2, 10), 0xc81f2e, 0.04, -0.24, 0.34); sleeve.rotation.x = 1.2;
-  return { g, blade };
+  return { g, blade, swordParts };
 })();
 fpPivot.add(fp.g); fpPivot.visible = false;
 camera.add(fpPivot);
@@ -690,6 +697,8 @@ function updateFpCamera(dt) {
   fpPivot.scale.setScalar(camera.aspect < 1 ? 0.8 : 0.85);
   fpPivot.position.set((px + bobX) * ax, py + bobY * 0.6, pz);
   fpPivot.rotation.set(rx, 0, rz);
+  const armed = player.weapon > 0;
+  fp.swordParts.forEach(m => { m.visible = armed; });   // bare hands: only the fist/sleeve show
   fp.blade.material.color.set(WEAPONS[player.weapon].color);
   fp.blade.material.emissive.setRGB(player.chargedReady ? 0.45 + 0.3 * Math.sin(stats.time * 20) : charge * 0.25, player.chargedReady ? 0.6 : charge * 0.3, player.chargedReady ? 0.9 : charge * 0.4);
 }
@@ -762,7 +771,7 @@ const ITEM_DEFS = {
   scroll:  { name: '地図の巻物', icon: '📜', kind: 'map' },
 };
 const WEAPONS = [
-  { name: '錆びた剣', atk: 0, color: 0x9a9088 },
+  { name: '素手', atk: 0, color: 0x9a9088 },   // tier 0 = bare hands (nothing equipped)
   { name: '銅の剣', atk: 3, color: 0xd09060 },
   { name: '鉄の剣', atk: 6, color: 0xcfd6de },
   { name: '鋼の剣', atk: 10, color: 0xe6f0ff },
@@ -1072,6 +1081,7 @@ const isGear = it => it.key === 'weapon' || it.key === 'armor';
 const invIcon = it => it.key === 'weapon' ? '🗡️' : it.key === 'armor' ? '🛡️' : ITEM_DEFS[it.key].icon;
 const invName = it => it.key === 'weapon' ? WEAPONS[it.tier].name : it.key === 'armor' ? ARMORS[it.tier].name : ITEM_DEFS[it.key].name;
 const toInv = it => isGear(it) ? { key: it.key, tier: it.tier } : { key: it.key };
+const survivesThrow = it => !!(ITEM_DEFS[it.key] && ITEM_DEFS[it.key].keepOnHit);   // special weapons (e.g. shuriken) can set keepOnHit: true
 function spawnFloorItem(it, x, z) {
   items.push(new Item(it.key, x, z, isGear(it) ? { tier: it.tier, icon: invIcon(it) } : {}));
 }
@@ -1093,6 +1103,7 @@ function throwBomb() {
 function throwItem(idx) {
   const it = player.inv[idx];
   if (!it) return;
+  unequipIfNeeded(it);
   player.inv.splice(idx, 1); refreshItems();
   const bomb = it.key === 'bomb';
   const fwd = forward(), sp = bomb ? 6 : 6.5;
@@ -1137,14 +1148,17 @@ function updateProjectiles(dt) {
       p.sprite.material.rotation += dt * 8;
       for (const e of enemies) if (!e.dead && Math.hypot(e.x - p.x, e.z - p.z) < e.d.r + 0.15) {
         boom = true;
-        if (p.kind === 'item') { const d = Math.hypot(e.x - p.x, e.z - p.z) || 1; e.damage(p.dmg, (e.x - p.x) / d, (e.z - p.z) / d, false); SFX.hit(); }
+        if (p.kind === 'item') { const d = Math.hypot(e.x - p.x, e.z - p.z) || 1; e.damage(p.dmg, (e.x - p.x) / d, (e.z - p.z) / d, false); SFX.hit(); p.hit = true; }
         break;
       }
       if (p.kind === 'item' && p.y <= 0.12 && Math.hypot(p.vx, p.vz) < 0.8) boom = true;
     }
     if (boom) {
       if (p.kind === 'bomb') explode(p.x, p.y, p.z, p.dmg);
-      else if (p.kind === 'item') spawnFloorItem(p.item, p.x, p.z);
+      else if (p.kind === 'item') {
+        if (p.hit && !survivesThrow(p.item)) burst(p.x, p.y, p.z, 0xfff0c0, 12, 2, 0.5, 2);   // it hit a monster: the item is used up
+        else spawnFloorItem(p.item, p.x, p.z);                                                  // missed (or a special weapon): it drops
+      }
       else burst(p.x, p.y, p.z, 0xff8030, 14, 2, 0.4);
       levelGroup.remove(p.sprite); p.sprite.material.dispose();
       projectiles.splice(i, 1);
@@ -1325,6 +1339,7 @@ function interact() {
 function dropItem(idx) {
   const it = player.inv[idx];
   if (!it) return;
+  unequipIfNeeded(it);
   player.inv.splice(idx, 1);
   spawnFloorItem(it, player.x, player.z);
   addMsg(`${invName(it)}を置いた`); SFX.pickup(); refreshItems();
@@ -1334,10 +1349,9 @@ function useItem(idx) {
   const it = player.inv[idx];
   if (!it) return;
   if (isGear(it)) {
-    const w = it.key === 'weapon', cur = w ? player.weapon : player.armor;
-    if (w) { player.weapon = it.tier; tintSword(); } else player.armor = it.tier;
-    if (cur > 0) player.inv[idx] = { key: it.key, tier: cur }; else player.inv.splice(idx, 1);
-    addMsg(`${invName(it)}を装備した`, '#ffd24a'); SFX.equip(); refreshItems(); updateHud();
+    if (it.equipped) { it.equipped = false; addMsg(`${invName(it)}を外した`, '#bbb'); }
+    else { player.inv.forEach(o => { if (o.key === it.key) o.equipped = false; }); it.equipped = true; addMsg(`${invName(it)}を装備した`, '#ffd24a'); }
+    SFX.equip(); syncEquip(); refreshItems(); updateHud();
     return;
   }
   const def = ITEM_DEFS[it.key];
@@ -1367,6 +1381,13 @@ function descend() {
     state = 'play';
   }, 420);
 }
+// weapon / armor tiers follow whichever inventory entries carry the equipped flag (none = bare hands / no armor)
+function syncEquip() {
+  const w = player.inv.find(i => i.key === 'weapon' && i.equipped), a = player.inv.find(i => i.key === 'armor' && i.equipped);
+  player.weapon = w ? w.tier : 0; player.armor = a ? a.tier : 0;
+  tintSword();
+}
+function unequipIfNeeded(it) { if (it.equipped) { it.equipped = false; syncEquip(); updateHud(); } }
 function tintSword() {
   sword.userData.blade.material.color.set(WEAPONS[player.weapon].color);
 }
@@ -1789,6 +1810,7 @@ function animateHeroine(dt, idleOnly) {
   // ribbons & tassel trail behind
   for (const r of h.ribbons) r.rotation.x = 0.15 + k * 0.9 * mv + Math.sin(t * 3 + h.phase) * 0.12 + (swinging ? 0.4 : 0);
   h.tassel.rotation.x = Math.sin(t * 4) * 0.2 - (swinging ? 0.8 : 0);
+  h.weapon.visible = player.weapon > 0;   // bare hands: no saber in her hand
   // blade glow while charging
   h.blade.material.color.set(WEAPONS[player.weapon].color);
   h.blade.material.emissive.setRGB(player.chargedReady ? 0.45 + 0.3 * Math.sin(t * 20) : charge * 0.25, player.chargedReady ? 0.6 : charge * 0.3, player.chargedReady ? 0.9 : charge * 0.4);
@@ -1997,8 +2019,8 @@ function updateHud() {
 }
 function itemInfo(it) {
   if (!it) return null;
-  if (it.key === 'weapon') return { name: invName(it), stat: `攻撃力 +${WEAPONS[it.tier].atk}（装備中 +${WEAPONS[player.weapon].atk}）`, desc: '装備すると攻撃力が上がる。外した武器は持ち物に戻る。' };
-  if (it.key === 'armor') return { name: invName(it), stat: `防御力 +${ARMORS[it.tier].def}（装備中 +${ARMORS[player.armor].def}）`, desc: '装備すると受けるダメージが減る。外した防具は持ち物に戻る。' };
+  if (it.key === 'weapon') return { name: invName(it), stat: it.equipped ? `攻撃力 +${WEAPONS[it.tier].atk}【装備中】` : `攻撃力 +${WEAPONS[it.tier].atk}（今: ${WEAPONS[player.weapon].name} +${WEAPONS[player.weapon].atk}）`, desc: it.equipped ? '装備中（Eマーク）。もう一度使うと外して素手に戻る。' : '装備すると攻撃力が上がる。装備中の武器は自動で付け替わる。' };
+  if (it.key === 'armor') return { name: invName(it), stat: it.equipped ? `防御力 +${ARMORS[it.tier].def}【装備中】` : `防御力 +${ARMORS[it.tier].def}（今: ${ARMORS[player.armor].name} +${ARMORS[player.armor].def}）`, desc: it.equipped ? '装備中（Eマーク）。もう一度使うと外す。' : '装備すると受けるダメージが減る。装備中の防具は自動で付け替わる。' };
   const d = ITEM_DEFS[it.key];
   const stat = { bread: `満腹度 +${d.food}`, meat: `満腹度 +${d.food} / HP +${d.heal}`, potion: `HP +${d.heal}`, elixir: 'HP 全回復',
     bomb: `威力 ${d.dmg + floor * 3} / 爆風 2.2m`, scroll: 'この階の地図を公開' }[it.key];
@@ -2012,7 +2034,7 @@ function refreshItems() {
   if (!box.children.length) {
     for (let i = 0; i < INV_SIZE; i++) {
       const s = document.createElement('div'); s.className = 'slot';
-      s.innerHTML = '<span class="ic"></span><span class="nm"></span>';
+      s.innerHTML = '<span class="eq">E</span><span class="ic"></span><span class="nm"></span>';
       s.addEventListener('pointerdown', e => slotDown(e, i, s));
       s.addEventListener('pointermove', slotMove);
       s.addEventListener('pointerup', slotUp);
@@ -2027,6 +2049,7 @@ function refreshItems() {
     s.querySelector('.ic').textContent = it ? invIcon(it) : '';
     s.querySelector('.nm').textContent = it ? invName(it) : '';
     s.classList.toggle('empty', !it);
+    s.classList.toggle('equipped', !!(it && it.equipped));
     s.classList.toggle('sel', i === player.sel);
     s.title = it ? invName(it) : '';
   });
@@ -2065,7 +2088,7 @@ function openActMenu(idx, drag) {
   const it = player.inv[idx];
   if (!it || state !== 'play') return;
   actMenu.idx = idx; actMenu.drag = drag; actMenu.hot = null;
-  $('#azUse').textContent = isGear(it) ? '装備する' : '使う';
+  $('#azUse').textContent = isGear(it) ? (it.equipped ? '外す' : '装備する') : '使う';
   const info = itemInfo(it), panel = $('#itemInfo');
   panel.querySelector('.ii').textContent = invIcon(it);
   panel.querySelector('.in').textContent = info.name;
