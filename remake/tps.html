@@ -121,12 +121,8 @@ body.touch.playing #touchUI{display:block}
   border:2px solid rgba(255,255,255,.35);background:rgba(30,20,30,.55);color:#fff;font-size:30px;cursor:pointer}
 #btnAttack{width:96px;height:96px;right:calc(22px + var(--safe-r));bottom:calc(var(--padb) + 4px + var(--safe-b))}
 #btnAttack.down{background:rgba(201,103,58,.6);transform:scale(.95)}
-#btnThrow{width:56px;height:56px;right:calc(42px + var(--safe-r));bottom:calc(var(--padb) + 112px + var(--safe-b));font-size:22px}
 body.left #btnAttack{right:auto;left:calc(22px + var(--safe-l))}
-body.left #btnThrow{right:auto;left:calc(42px + var(--safe-l))}
 @media (orientation:landscape) and (max-height:520px){
-  #btnThrow{right:calc(132px + var(--safe-r));bottom:calc(var(--padb) + 8px + var(--safe-b))}
-  body.left #btnThrow{right:auto;left:calc(132px + var(--safe-l))}
   #msgs{left:auto;right:calc(10px + var(--safe-r));top:calc(150px + var(--safe-t));align-items:flex-end;max-width:36vw}
 }
 /* item menu (tap or drag): non-modal, the game keeps running and the pad/attack stay usable.
@@ -145,7 +141,7 @@ body.left #btnThrow{right:auto;left:calc(42px + var(--safe-l))}
   color:#fff;font-size:16px;line-height:1;cursor:pointer;pointer-events:auto;touch-action:manipulation}
 #actMenu.drag #actClose{display:none}
 #actZones{position:absolute;left:calc(8px + var(--safe-l));bottom:calc(var(--padb) + 128px + 8px + var(--safe-b));
-  width:calc(100vw - 8px - 106px - var(--safe-l) - var(--safe-r));max-width:420px;height:64px;display:flex;gap:8px}
+  width:calc(100vw - 16px - var(--safe-l) - var(--safe-r));max-width:560px;height:64px;display:flex;gap:10px}
 .az{flex:1;display:flex;align-items:center;justify-content:center;border-radius:14px;pointer-events:auto;touch-action:manipulation;
   background:rgba(70,70,80,.82);border:2px solid rgba(255,255,255,.4);color:#fff;font-size:20px;text-shadow:0 1px 3px #000;cursor:pointer}
 .az:active{filter:brightness(1.3)}
@@ -229,7 +225,6 @@ h2{margin:0 0 14px;font-weight:normal;color:var(--gold)}
 <div id="touchUI">
   <div id="joyBase"><div id="joyKnob"></div></div>
   <div id="joyHint">移動パッド</div>
-  <button class="tbtn" id="btnThrow" aria-label="爆弾を投げる">💣</button>
   <button class="tbtn" id="btnAttack" aria-label="攻撃">⚔</button>
 </div>
 
@@ -267,7 +262,7 @@ h2{margin:0 0 14px;font-weight:normal;color:var(--gold)}
     アイテム枠をタップ → 詳細と、移動パッドの上に「置く」「投げる」「使う」が出ます（✕かもう一度タップで閉じる）<br>
     アイテム枠を<b>上へドラッグ</b> → 同じ表示が出て、指を離した位置のコマンドを実行（それ以外で離すとキャンセル）<br>
     <b>メニューを開いている間も時間は進み、敵も襲ってきます。</b>移動パッドと攻撃ボタンはそのまま使えます<br>
-    💣 → 爆弾を投げる<br>
+    爆弾は、アイテム欄の💣を選んで「投げる」（または「使う」）<br>
     階段の上で <b>降りる</b> ボタン<br>
     設定の「左利きモード」でボタン配置を左右反転できます。
     <h3>⌨️ PC</h3>
@@ -1527,7 +1522,6 @@ btnAttack.addEventListener('pointerup', atkUp);
 btnAttack.addEventListener('pointercancel', atkUp);
 btnAttack.addEventListener('lostpointercapture', atkUp);
 const tap = (el, fn) => el.addEventListener('pointerdown', e => { e.preventDefault(); e.stopPropagation(); audioUnlock(); fn(e); });
-tap($('#btnThrow'), () => throwBomb());
 tap($('#pickBtn'), () => interact());
 tap($('#btnPause'), () => pause());
 tap($('#btnView'), () => toggleView());
@@ -2035,8 +2029,6 @@ function refreshItems() {
     s.classList.toggle('sel', i === player.sel);
     s.title = it ? invName(it) : '';
   });
-  const bombs = player.inv.filter(i => i.key === 'bomb').length;
-  $('#btnThrow').style.opacity = bombs ? 1 : 0.35;
   updateMoreArrows();
 }
 function slotStep() { const b = $('#items'); const s = b.children[0]; return s ? s.getBoundingClientRect().width + 4 : 60; }
