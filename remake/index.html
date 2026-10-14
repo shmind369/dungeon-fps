@@ -1130,7 +1130,7 @@ const keys = new Set();
 const input = {
   mouseDX: 0, mouseDY: 0, touchDX: 0, touchDY: 0,
   joyX: 0, joyY: 0, joyActive: false,
-  attackKey: false, attackMouse: false, attackTouch: false, attackPad: false,
+  attackKey: false, attackMouse: false, attackTouch: false, attackPad: false, attackLatch: false,
   padLX: 0, padLY: 0, padRX: 0, padRY: 0, padRun: false,
   get attack() { return this.attackKey || this.attackMouse || this.attackTouch || this.attackPad; },
 };
@@ -1143,7 +1143,7 @@ addEventListener('keydown', e => {
   if (e.repeat) { if (state === 'play') e.preventDefault(); return; }
   keys.add(e.code);
   if (state === 'play') {
-    if (e.code === 'Space') { input.attackKey = true; e.preventDefault(); }
+    if (e.code === 'Space') { input.attackKey = true; input.attackLatch = true; e.preventDefault(); }
     if (e.code === 'KeyE' || e.code === 'KeyF' || e.code === 'Enter') descend();
     if (e.code === 'KeyG' || e.code === 'KeyQ') throwBomb();
     if (e.code === 'KeyM' || e.code === 'Tab') { toggleBigMap(); e.preventDefault(); }
@@ -1176,7 +1176,7 @@ document.addEventListener('mousemove', e => {
 });
 document.addEventListener('mousedown', e => {
   if (!isLocked() || state !== 'play') return;
-  if (e.button === 0) input.attackMouse = true;
+  if (e.button === 0) { input.attackMouse = true; input.attackLatch = true; }
   if (e.button === 2) descend();
 });
 document.addEventListener('mouseup', e => { if (e.button === 0) input.attackMouse = false; });
@@ -1198,7 +1198,7 @@ touchLayer.addEventListener('pointerdown', e => {
     if (!lockFailed && !isLocked()) { requestLock(); return; }
     if (lockFailed) { // fallback: drag to look, click to attack
       touch.mouseDrag = { x: e.clientX, y: e.clientY, moved: 0 };
-      if (e.button === 0) input.attackMouse = true;
+      if (e.button === 0) { input.attackMouse = true; input.attackLatch = true; }
       touchLayer.setPointerCapture(e.pointerId);
     }
     return;
@@ -1259,7 +1259,7 @@ const atk = { id: null, x: 0, y: 0 };
 btnAttack.addEventListener('pointerdown', e => {
   e.preventDefault(); e.stopPropagation(); audioUnlock();
   atk.id = e.pointerId; atk.x = e.clientX; atk.y = e.clientY;
-  input.attackTouch = true; btnAttack.classList.add('down');
+  input.attackTouch = true; input.attackLatch = true; btnAttack.classList.add('down');
   try { btnAttack.setPointerCapture(e.pointerId); } catch (_) {}
 });
 btnAttack.addEventListener('pointermove', e => {
@@ -1365,10 +1365,13 @@ function updatePlayer(dt, worldDt) {
 
   // --- attack: press = immediate swing, hold = charge, release when full = charged slash ---
   player.attackCd -= worldDt;
+  // A tap shorter than one frame would never be seen as "held", so presses are also latched
   const a = input.attack;
-  if (a && !attackPrev) {
+  const pressed = (a && !attackPrev) || input.attackLatch;
+  input.attackLatch = false;
+  if (pressed) {
     if (player.attackCd <= 0) doAttack(false);
-    player.charging = true; player.chargeT = 0; player.chargedReady = false;
+    player.charging = a; player.chargeT = 0; player.chargedReady = false;
   }
   if (a && player.charging) {
     player.chargeT += worldDt;
