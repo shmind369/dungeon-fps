@@ -49,6 +49,8 @@ body.playing #hud{display:block}
 #statLine b{color:var(--text);font-weight:normal}
 #topRight{margin-left:auto;display:flex;gap:8px;pointer-events:auto}
 .iconBtn{width:44px;height:44px;border-radius:10px;border:1px solid var(--line);background:var(--panel);font-size:18px;cursor:pointer}
+.viewBtn{width:auto;min-width:52px;padding:0 6px;display:flex;flex-direction:column;align-items:center;justify-content:center;line-height:1.05;font-size:16px}
+.viewBtn small{font-size:10px;color:var(--gold)}
 
 #items{position:absolute;left:50%;transform:translateX(-50%);bottom:calc(10px + var(--safe-b));
   display:flex;gap:6px;pointer-events:auto}
@@ -171,7 +173,7 @@ h2{margin:0 0 14px;font-weight:normal;color:var(--gold)}
       <div class="bar" id="expBar"><i></i></div>
       <div id="statLine"></div>
     </div>
-    <div id="topRight"><button class="iconBtn" id="btnPause" aria-label="ポーズ">❚❚</button></div>
+    <div id="topRight"><button class="iconBtn viewBtn" id="btnView" aria-label="視点変更"><span id="viewIcon">🎥</span><small id="viewLabel">三人称</small></button><button class="iconBtn" id="btnPause" aria-label="ポーズ">❚❚</button></div>
   </div>
   <div id="msgs"></div>
   <div id="crosshair"></div>
@@ -230,12 +232,12 @@ h2{margin:0 0 14px;font-weight:normal;color:var(--gold)}
     <kbd>左クリック</kbd> または <kbd>Space</kbd> 攻撃（長押しで斬撃）<br>
     <kbd>←</kbd><kbd>→</kbd> でも旋回できます<br>
     <kbd>E</kbd> 拾う・階段を降りる ／ <kbd>1</kbd>〜<kbd>6</kbd> アイテム使用（枠をクリックで行動選択） ／ <kbd>G</kbd> 爆弾<br>
-    <kbd>M</kbd> マップ ／ <kbd>Esc</kbd> ポーズ
+    <kbd>M</kbd> マップ ／ <kbd>V</kbd> 視点変更（一人称⇔三人称） ／ <kbd>Esc</kbd> ポーズ
     <h3>🎮 ゲームパッド</h3>
     左スティック 移動 ／ 右スティック 視点 ／ <kbd>RT</kbd><kbd>X</kbd> 攻撃<br>
-    <kbd>A</kbd> 階段 ／ <kbd>LB</kbd><kbd>RB</kbd> アイテム選択 ／ <kbd>Y</kbd> 使用 ／ <kbd>B</kbd> 爆弾 ／ <kbd>Back</kbd> マップ ／ <kbd>Start</kbd> ポーズ
+    <kbd>A</kbd> 階段 ／ <kbd>LB</kbd><kbd>RB</kbd> アイテム選択 ／ <kbd>Y</kbd> 使用 ／ <kbd>B</kbd> 爆弾 ／ <kbd>Back</kbd> マップ ／ <kbd>R3</kbd> 視点変更 ／ <kbd>Start</kbd> ポーズ
     <h3>🎥 カメラ</h3>
-    キャラクターを画面中央に捉えた背後からのTPS視点です。攻撃はカメラの向いている方向に繰り出します。
+    キャラクターを画面中央に捉えた背後からのTPS視点です。右上の🎥ボタンで一人称視点に切り替えられます。攻撃はカメラの向いている方向に繰り出します。
     <h3>🗺 ルール</h3>
     地下10階に潜むドラゴンを倒すのが目的。歩くと満腹度が減り、0になるとHPが減っていきます。
     敵は攻撃の直前に<b>赤く光る</b>ので、そのタイミングで下がれば避けられます。
@@ -306,7 +308,7 @@ const CAM = Object.assign({ pitchMin: -0.7, pitchMax: 0.45 }, CAM_LAND);
 /* =========================================================
    Settings (per-browser)
    ========================================================= */
-const DEFAULT_SETTINGS = { sens: 1, pitch: true, invertY: false, leftHanded: false, sfx: true, vibrate: true, quality: 'auto' };
+const DEFAULT_SETTINGS = { sens: 1, pitch: true, invertY: false, leftHanded: false, sfx: true, vibrate: true, quality: 'auto', view: 'tps' };
 const settings = (() => {
   try { return Object.assign({}, DEFAULT_SETTINGS, JSON.parse(localStorage.getItem('ddr_settings') || '{}')); }
   catch (e) { return Object.assign({}, DEFAULT_SETTINGS); }
@@ -399,7 +401,7 @@ function resize() {
   const aspect = W / H;
   camera.aspect = aspect;
   // Keep horizontal FOV comfortable in portrait without extreme distortion
-  if (aspect >= 1) camera.fov = 64;
+  if (aspect >= 1) camera.fov = settings.view === 'fps' ? 72 : 64;
   else camera.fov = Math.min(100, 2 * Math.atan(Math.tan(THREE.MathUtils.degToRad(42)) / aspect) * 180 / Math.PI);
   camera.updateProjectionMatrix();
   if (typeof CAM !== 'undefined') Object.assign(CAM, aspect >= 1 ? CAM_LAND : CAM_PORT);
@@ -606,6 +608,58 @@ heroine.root.traverse(o => { if (o.isMesh) heroine.mats.add(o.material); });
 heroine.mats.forEach(m => { m.transparent = true; });
 heroine.opacity = 1;
 const sword = { userData: { blade: heroine.blade } };
+
+/* ---------- First-person view model: her sleeve, hand and dao ---------- */
+const fpPivot = new THREE.Group();
+const fp = (() => {
+  const g = new THREE.Group();
+  const mk = (geo, color, x, y, z) => {
+    const m = new THREE.Mesh(geo, new THREE.MeshToonMaterial({ color, depthTest: false, depthWrite: false }));
+    m.renderOrder = 999; m.position.set(x || 0, y || 0, z || 0); g.add(m); return m;
+  };
+  const blade = mk(new THREE.BoxGeometry(0.045, 0.5, 0.01), 0xcfd6de, 0, 0.33, 0);
+  const tip = mk(new THREE.BoxGeometry(0.055, 0.08, 0.01), 0xcfd6de, 0.01, 0.6, 0); tip.material = blade.material; tip.rotation.z = 0.5;
+  mk(new THREE.BoxGeometry(0.1, 0.02, 0.04), 0xeab446, 0, 0.06, 0);           // guard
+  mk(new THREE.BoxGeometry(0.03, 0.11, 0.03), 0x3a2416, 0, 0, 0);             // grip
+  mk(new THREE.BoxGeometry(0.018, 0.1, 0.018), 0xc81f2e, 0, -0.1, 0);         // tassel
+  mk(new THREE.SphereGeometry(0.04, 10, 8), 0xffdcc8, 0, 0, 0.005);            // hand
+  const fore = mk(new THREE.CylinderGeometry(0.033, 0.04, 0.26, 10), 0xffdcc8, 0.02, -0.12, 0.12); fore.rotation.x = 1.2;
+  const cuff = mk(new THREE.CylinderGeometry(0.05, 0.05, 0.03, 10), 0xeab446, 0.03, -0.18, 0.24); cuff.rotation.x = 1.2;
+  const sleeve = mk(new THREE.CylinderGeometry(0.055, 0.06, 0.2, 10), 0xc81f2e, 0.04, -0.24, 0.34); sleeve.rotation.x = 1.2;
+  return { g, blade };
+})();
+fpPivot.add(fp.g); fpPivot.visible = false;
+camera.add(fpPivot);
+function updateFpCamera(dt) {
+  const bobY = Math.sin(player.bob * 2) * 0.025, bobX = Math.cos(player.bob) * 0.015;
+  const sk = shake * shake * 0.12;
+  camera.position.set(player.x + rand(-sk, sk), EYE_H + bobY + rand(-sk, sk), player.z + rand(-sk, sk));
+  camera.rotation.set(player.pitch, player.yaw, 0);
+  // weapon swing (same feel as the FPS version)
+  const st = player.swingT;
+  const charge = player.charging ? clamp((player.chargeT - 0.2) / 0.8, 0, 1) : 0;
+  let rz = -0.35, rx = 0.15, px = 0.3, py = -0.3, pz = -0.55;
+  if (st < 1) {
+    const e = st < 0.5 ? st * 2 : 1;
+    rz = lerp(0.9, -1.9, e); rx = -0.6 * Math.sin(st * Math.PI); px = lerp(0.36, -0.05, e); py = -0.28;
+    if (st > 0.5) { const r = (st - 0.5) * 2; rz = lerp(-1.9, -0.35, r); px = lerp(-0.05, 0.3, r); rx = lerp(-0.6, 0.15, r); }
+  } else if (charge > 0) {
+    rz = lerp(-0.35, 0.8, charge); px = 0.32 + rand(-1, 1) * 0.006 * charge; py = -0.28 + rand(-1, 1) * 0.006 * charge; rx = lerp(0.15, 0.4, charge);
+  }
+  const ax = camera.aspect < 1 ? 0.55 : 1;
+  fpPivot.scale.setScalar(camera.aspect < 1 ? 0.8 : 0.85);
+  fpPivot.position.set((px + bobX) * ax, py + bobY * 0.6, pz);
+  fpPivot.rotation.set(rx, 0, rz);
+  fp.blade.material.color.set(WEAPONS[player.weapon].color);
+  fp.blade.material.emissive.setRGB(player.chargedReady ? 0.45 + 0.3 * Math.sin(stats.time * 20) : charge * 0.25, player.chargedReady ? 0.6 : charge * 0.3, player.chargedReady ? 0.9 : charge * 0.4);
+}
+function setView(mode, announce) {
+  settings.view = mode; saveSettings();
+  $('#viewLabel').textContent = mode === 'fps' ? '一人称' : '三人称';
+  resize();
+  if (announce) addMsg(mode === 'fps' ? '一人称視点に切り替えた' : '三人称視点に切り替えた', '#9fd0ff');
+}
+function toggleView() { setView(settings.view === 'fps' ? 'tps' : 'fps', true); }
 
 const slashMesh = new THREE.Mesh(new THREE.PlaneGeometry(1.6, 1.6),
   new THREE.MeshBasicMaterial({ map: slashTex, transparent: true, depthWrite: false, side: THREE.DoubleSide, blending: THREE.AdditiveBlending, opacity: 0 }));
@@ -1301,6 +1355,7 @@ addEventListener('keydown', e => {
     if (e.code === 'KeyE' || e.code === 'KeyF' || e.code === 'Enter') interact();
     if (e.code === 'KeyG' || e.code === 'KeyQ') throwBomb();
     if (e.code === 'KeyM' || e.code === 'Tab') { toggleBigMap(); e.preventDefault(); }
+    if (e.code === 'KeyV') toggleView();
     if (/^Digit[1-6]$/.test(e.code)) useItem(+e.code.slice(5) - 1);
     if (e.code === 'Escape' || e.code === 'KeyP') pause();
   } else if (state === 'pause' && (e.code === 'KeyP')) resume();
@@ -1430,6 +1485,7 @@ const tap = (el, fn) => el.addEventListener('pointerdown', e => { e.preventDefau
 tap($('#btnAction'), () => interact());
 tap($('#btnThrow'), () => throwBomb());
 tap($('#btnPause'), () => pause());
+tap($('#btnView'), () => toggleView());
 tap($('#mapWrap'), () => toggleBigMap());
 tap($('#bigmap'), () => toggleBigMap());
 
@@ -1455,6 +1511,7 @@ function pollPad() {
       if (pressed(5) || pressed(15)) { player.sel = (player.sel + 1) % INV_SIZE; refreshItems(); }
       if (pressed(8)) toggleBigMap();
       if (pressed(9)) pause();
+      if (pressed(11)) toggleView();
     } else if (state === 'pause' && pressed(9)) resume();
     else if ((state === 'title' || state === 'dead') && (pressed(0) || pressed(9))) startGame();
     for (let i = 0; i < p.buttons.length; i++) padPrev[i] = b(i);
@@ -1731,8 +1788,14 @@ function updateHeroineFade(dt) {
 function renderScene(dt) {
   player.swingT = Math.min(1, player.swingT + dt / (player.swingCharged ? 0.42 : 0.3));
   animateHeroine(dt, false);
-  updateCamera(dt);
-  updateHeroineFade(dt);
+  if (settings.view === 'fps') {
+    updateFpCamera(dt);
+    heroine.root.visible = false; fpPivot.visible = true;
+  } else {
+    fpPivot.visible = false;
+    updateCamera(dt);
+    updateHeroineFade(dt);
+  }
   torch.intensity = 2.6 + Math.sin(stats.time * 13) * 0.12 + Math.sin(stats.time * 7.3) * 0.1;
   if (slashMesh.visible) {
     const ch = slashMesh.userData.charged;
@@ -2123,7 +2186,7 @@ function renderTitleScene(dt) {
   const cx = dun.start.cx + 0.5, cz = dun.start.cy + 0.5;
   player.x = cx; player.z = cz; player.vx = player.vz = 0;
   heroine.face = 0; animateHeroine(dt, true);
-  heroine.root.visible = true;
+  heroine.root.visible = true; fpPivot.visible = false;
   const a = titleT * 0.25, r = 1.25;
   camera.position.set(cx + Math.sin(a) * r, 0.75, cz + Math.cos(a) * r);
   camera.lookAt(cx, 0.6, cz);
@@ -2132,7 +2195,7 @@ function renderTitleScene(dt) {
 }
 
 /* ---- boot ---- */
-resize();
+setView(settings.view === 'fps' ? 'fps' : 'tps', false);
 syncSettingsUI();
 renderRecord();
 refreshItems();
