@@ -259,7 +259,7 @@ h2{margin:0 0 14px;font-weight:normal;color:var(--gold)}
     <b>⚔長押し</b> → ゲージが溜まったら離して「斬撃」<br>
     足元にアイテムや階段があると、画面中央に<b>名前</b>と<b>「拾う」「降りる」ボタン</b>が出ます<br>
     持ち物は最大10個。アイテム欄は<b>左右にスワイプ</b>でスクロール（7個目以降も見られます）<br>
-    アイテム枠をタップ → 詳細と、移動パッドの上に「置く」「投げる」「使う」が出ます（✕かもう一度タップで閉じる）<br>
+    アイテム枠をタップ → 詳細と、移動パッドの上に「置く」「投げる」「使う」が出ます（空いている所のタップ・攻撃ボタン・✕・もう一度タップで閉じる）<br>
     アイテム枠を<b>上へドラッグ</b> → 同じ表示が出て、指を離した位置のコマンドを実行（それ以外で離すとキャンセル）<br>
     <b>メニューを開いている間も時間は進み、敵も襲ってきます。</b>移動パッドと攻撃ボタンはそのまま使えます<br>
     爆弾は、アイテム欄の💣を選んで「投げる」（または「使う」）<br>
@@ -1391,7 +1391,7 @@ addEventListener('keydown', e => {
   if (e.repeat) { if (state === 'play') e.preventDefault(); return; }
   keys.add(e.code);
   if (state === 'play') {
-    if (e.code === 'Space') { input.attackKey = true; input.attackLatch = true; e.preventDefault(); }
+    if (e.code === 'Space') { input.attackKey = true; input.attackLatch = true; dismissMenu(); e.preventDefault(); }
     if (e.code === 'KeyE' || e.code === 'KeyF' || e.code === 'Enter') interact();
     if (e.code === 'KeyG' || e.code === 'KeyQ') throwBomb();
     if (e.code === 'KeyM' || e.code === 'Tab') { toggleBigMap(); e.preventDefault(); }
@@ -1425,7 +1425,7 @@ document.addEventListener('mousemove', e => {
 });
 document.addEventListener('mousedown', e => {
   if (!isLocked() || state !== 'play') return;
-  if (e.button === 0) { input.attackMouse = true; input.attackLatch = true; }
+  if (e.button === 0) { input.attackMouse = true; input.attackLatch = true; dismissMenu(); }
   if (e.button === 2) interact();
 });
 document.addEventListener('mouseup', e => { if (e.button === 0) input.attackMouse = false; });
@@ -1448,7 +1448,7 @@ touchLayer.addEventListener('pointerdown', e => {
     if (!lockFailed && !isLocked()) { requestLock(); return; }
     if (lockFailed) { // fallback: drag to look, click to attack
       touch.mouseDrag = { x: e.clientX, y: e.clientY, moved: 0 };
-      if (e.button === 0) { input.attackMouse = true; input.attackLatch = true; }
+      if (e.button === 0) { input.attackMouse = true; input.attackLatch = true; dismissMenu(); }
       touchLayer.setPointerCapture(e.pointerId);
     }
     return;
@@ -1463,8 +1463,9 @@ touchLayer.addEventListener('pointerdown', e => {
     input.joyActive = true;
     setJoy(e.clientX, e.clientY);
     $('#joyHint').style.display = 'none';
-  } else if (touch.lookId === null) {
-    touch.lookId = e.pointerId; touch.lx = e.clientX; touch.ly = e.clientY;
+  } else {
+    dismissMenu();   // a touch on empty space closes the item menu (and still starts looking around)
+    if (touch.lookId === null) { touch.lookId = e.pointerId; touch.lx = e.clientX; touch.ly = e.clientY; }
   }
   try { touchLayer.setPointerCapture(e.pointerId); } catch (_) {}
 }, { passive: false });
@@ -1508,7 +1509,7 @@ const atk = { id: null, x: 0, y: 0 };
 btnAttack.addEventListener('pointerdown', e => {
   e.preventDefault(); e.stopPropagation(); audioUnlock();
   atk.id = e.pointerId; atk.x = e.clientX; atk.y = e.clientY;
-  input.attackTouch = true; input.attackLatch = true; btnAttack.classList.add('down');
+  input.attackTouch = true; input.attackLatch = true; btnAttack.classList.add('down'); dismissMenu();
   try { btnAttack.setPointerCapture(e.pointerId); } catch (_) {}
 });
 btnAttack.addEventListener('pointermove', e => {
@@ -2080,6 +2081,8 @@ function closeActMenu() {
   actEl.classList.remove('on', 'drag'); document.body.classList.remove('menu');
   document.querySelectorAll('.az').forEach(z => z.classList.remove('hot'));
 }
+// The (tap-opened) item menu closes when you touch empty space or press attack; the pad, buttons and menu itself keep it open
+function dismissMenu() { if (actMenu.idx !== null && !actMenu.drag) closeActMenu(); }
 function zoneAt(x, y) {
   for (const z of document.querySelectorAll('.az')) {
     const r = z.getBoundingClientRect();
