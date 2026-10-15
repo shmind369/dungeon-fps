@@ -76,6 +76,15 @@ body.playing #hud{display:block}
   font-size:14px;color:var(--gold);pointer-events:none;opacity:0;transition:opacity .15s;text-shadow:0 0 4px #000}
 #itemsWrap .more.on{opacity:.9}
 #moreL{left:calc(50% - min(calc(50vw - 8px - var(--safe-l)),280px))}
+/* pull the row past its left end to reveal 整頓; release to sort */
+#items .slot{transform:translateX(var(--pull,0px))}
+#items:not(.pulling) .slot{transition:transform .22s ease-out}
+#sortHint{position:absolute;bottom:calc(8px + var(--safe-b));height:66px;width:84px;left:calc(50% - min(calc(50vw - 8px - var(--safe-l)),280px));
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;opacity:0;pointer-events:none;color:#cfc6b8;text-shadow:0 1px 3px #000}
+#sortHint .si{font-size:22px;line-height:24px}
+#sortHint b{font-size:15px;font-weight:normal;letter-spacing:1px}
+#sortHint.armed{color:var(--gold)}
+#sortHint.armed .si{transform:scale(1.2)}
 #moreR{right:calc(50% - min(calc(50vw - 8px - var(--safe-r)),280px))}
 #equip{position:absolute;right:calc(10px + var(--safe-r));bottom:calc(8px + var(--safe-b));font-size:12px;color:var(--dim);
   background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:5px 8px;line-height:1.5}
@@ -220,7 +229,7 @@ h2{margin:0 0 14px;font-weight:normal;color:var(--gold)}
   <div id="crosshair"></div>
   <div id="pick"><div id="pickName"></div><button id="pickBtn" type="button"></button></div>
   <div id="banner"></div>
-  <div id="itemsWrap"><div id="items"></div><div class="more" id="moreL">◀</div><div class="more" id="moreR">▶</div></div>
+  <div id="itemsWrap"><div id="items"></div><div id="sortHint"><span class="si">⇄</span><b>整頓</b></div><div class="more" id="moreL">◀</div><div class="more" id="moreR">▶</div></div>
   <div id="equip"></div>
   <div id="bigmap"><canvas id="bigmapCanvas" width="640" height="640"></canvas></div>
 </div>
@@ -262,6 +271,7 @@ h2{margin:0 0 14px;font-weight:normal;color:var(--gold)}
     <b>⚔長押し</b> → ゲージが溜まったら離して「斬撃」<br>
     足元にアイテムや階段があると、画面中央に<b>名前</b>と<b>「拾う」「降りる」ボタン</b>が出ます<br>
     持ち物は最大10個。アイテム欄は<b>左右にスワイプ</b>でスクロール（7個目以降も見られます）<br>
+    アイテム欄を<b>左端から右へ引っ張って離す</b>と「整頓」（左から 武器 → 盾 → 投擲 → その他 の順に並べ替え）<br>
     アイテム枠をタップ → 詳細と、移動パッドの上に「置く」「投げる」「使う」が出ます（空いている所のタップ・攻撃ボタン・✕・もう一度タップで閉じる）<br>
     アイテム枠を<b>上へドラッグ</b> → 同じ表示が出て、指を離した位置のコマンドを実行（それ以外で離すとキャンセル）<br>
     <b>メニューを開いている間も時間は進み、敵も襲ってきます。</b>移動パッドと攻撃ボタンはそのまま使えます<br>
@@ -346,7 +356,7 @@ const WALL_H = 1.5;
 const EYE_H = 0.62;
 const PLAYER_R = 0.24;
 const INV_SIZE = 10;
-const MOVE_SCALE = 0.75;                       // player and monster walking speed (1 = original)
+const MOVE_SCALE = 0.375;                      // player and monster walking speed (1 = original)
 const WALK_SPEED = 2.9 * MOVE_SCALE, RUN_SPEED = 4.4 * MOVE_SCALE;
 // Waist-up framing, character centered. Portrait screens have a much taller FOV, so the camera sits closer there.
 const CAM_LAND = { dist: 0.95, shoulder: 0, height: 1.06 };
@@ -1347,6 +1357,19 @@ function dropItem(idx) {
   spawnFloorItem(it, player.x, player.z);
   addMsg(`${invName(it)}を置いた`); SFX.pickup(); refreshItems();
 }
+/* Sort the inventory: 武器 -> 盾 -> 投擲 -> その他 (stronger gear first, equipped first, same kinds together) */
+const isThrowable = it => !!(ITEM_DEFS[it.key] && (ITEM_DEFS[it.key].kind === 'bomb' || ITEM_DEFS[it.key].keepOnHit));
+const sortCategory = it => it.key === 'weapon' ? 0 : it.key === 'armor' ? 1 : isThrowable(it) ? 2 : 3;
+function sortInventory() {
+  closeActMenu();
+  const keep = player.inv[player.sel], order = Object.keys(ITEM_DEFS);
+  player.inv.sort((a, b) => sortCategory(a) - sortCategory(b)
+    || (isGear(a) ? (b.tier - a.tier) || ((b.equipped ? 1 : 0) - (a.equipped ? 1 : 0)) : 0)
+    || (order.indexOf(a.key) - order.indexOf(b.key)));
+  player.sel = Math.max(0, player.inv.indexOf(keep));      // the selection follows the item
+  refreshItems(); snapScrollTo(0);
+  addMsg('持ち物を整頓した', '#9fd0ff'); SFX.pickup(); vibrate(20);
+}
 function useItem(idx) {
   if (state !== 'play') return;
   const it = player.inv[idx];
@@ -2206,7 +2229,7 @@ function slotDown(e, i, el) {
   if (state !== 'play') return;
   cancelAnimationFrame(snapAnim);
   const box = $('#items');
-  Object.assign(actMenu, { pid: e.pointerId, sx: e.clientX, sy: e.clientY, el, pending: i, mode: null, sl0: box.scrollLeft, samples: [[performance.now(), e.clientX]] });
+  Object.assign(actMenu, { pid: e.pointerId, sx: e.clientX, sy: e.clientY, el, pending: i, mode: null, sl0: box.scrollLeft, samples: [[performance.now(), e.clientX]], pull: 0 });
   try { el.setPointerCapture(e.pointerId); } catch (_) {}
 }
 function slotMove(e) {
@@ -2223,10 +2246,12 @@ function slotMove(e) {
   }
   if (actMenu.mode === 'scroll' && e.clientY < $('#items').getBoundingClientRect().top - 24 && player.inv[actMenu.pending]) {
     // a sideways gesture that leaves the row upward (e.g. a shallow drag toward a command) becomes a drag
-    slotEndScroll(); actMenu.mode = 'drag'; player.sel = actMenu.pending; refreshItems(); openActMenu(actMenu.pending, true);
+    setPull(0); slotEndScroll(); actMenu.mode = 'drag'; player.sel = actMenu.pending; refreshItems(); openActMenu(actMenu.pending, true);
   }
   if (actMenu.mode === 'scroll') {
-    $('#items').scrollLeft = actMenu.sl0 - dx;
+    const want = actMenu.sl0 - dx;
+    $('#items').scrollLeft = Math.max(0, want);
+    setPull(want < 0 ? -want : 0);                         // dragging on past the left end pulls out the 整頓 hint
     const sm = actMenu.samples; sm.push([performance.now(), e.clientX]); while (sm.length > 2 && sm[0][0] < performance.now() - 90) sm.shift();
     return;
   }
@@ -2237,6 +2262,18 @@ function slotMove(e) {
     actMenu.hot = hot;
     document.querySelectorAll('.az').forEach(z => z.classList.toggle('hot', z.dataset.a === hot));
   }
+}
+const SORT_PULL = 90;   // px of pull past the left end that arms the sort
+function setPull(raw) {
+  const box = $('#items'), hint = $('#sortHint'), armed = raw >= SORT_PULL;
+  if (raw > 0 && !box.classList.contains('pulling')) box.classList.add('pulling');
+  if (raw === 0) box.classList.remove('pulling');
+  box.style.setProperty('--pull', Math.min(raw * 0.55, 84) + 'px');
+  hint.style.opacity = clamp(raw / 55, 0, 1);
+  if (armed && !hint.classList.contains('armed')) vibrate(12);
+  hint.classList.toggle('armed', armed);
+  hint.querySelector('b').textContent = armed ? '離して整頓' : '整頓';
+  actMenu.pull = raw;
 }
 function slotEndScroll() {
   const sm = actMenu.samples || [], box = $('#items');
@@ -2252,14 +2289,16 @@ function slotUp(e) {
     const a = zoneAt(e.clientX, e.clientY);
     if (a) doAction(a, idx); else closeActMenu();   // released on empty space: nothing happens
   } else if (mode === 'scroll') {
-    slotEndScroll();
+    const armed = actMenu.pull >= SORT_PULL;
+    setPull(0);
+    if (armed) { sortInventory(); } else slotEndScroll();       // released while "整頓" was showing -> sort
   } else {
     if (actMenu.idx === idx && !actMenu.drag) { closeActMenu(); return; }   // tapping the open item again closes the menu
     player.sel = idx; refreshItems();                // a tap selects...
     if (player.inv[idx]) openActMenu(idx, false);    // ...and opens the menu (the game keeps running)
   }
 }
-function slotCancel() { const m = actMenu.mode; if (actMenu.drag) closeActMenu(); actMenu.pid = null; actMenu.mode = null; if (m === 'scroll') slotEndScroll(); }
+function slotCancel() { const m = actMenu.mode; if (actMenu.drag) closeActMenu(); actMenu.pid = null; actMenu.mode = null; if (m === 'scroll') { setPull(0); slotEndScroll(); } }
 $('#items').addEventListener('wheel', e => { e.preventDefault(); const b = $('#items'); snapNearest(b.scrollLeft + (Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY) * 1.2); }, { passive: false });
 document.querySelectorAll('.az').forEach(z => z.addEventListener('pointerdown', e => {
   e.preventDefault(); e.stopPropagation();
