@@ -581,7 +581,7 @@ const THEMES = [
 /* ---------- Player character: the rigged 中華娘 model (china.glb) ---------- */
 const HERO_SCALE = 0.6;      // the model is 1.74 m tall; she is shown ~1.05 m so the camera framing stays as tuned
 const HERO_HIPS_Y = 0.94;    // rest height of the Hips bone in model units
-const FP_SCALE = 1.2;       // first person: the arms are drawn larger, like a view model, so the hands reach into view
+const FP_SCALE = 0.6;       // first person: the arms are drawn larger, like a view model, so the hands reach into view
 const fpScene = new THREE.Scene();   // first-person pass: only her arms, drawn on top of the world
 fpScene.add(new THREE.AmbientLight(0xffffff, 1.05));
 const fpLight = new THREE.PointLight(0xfff0e0, 2.4, 6, 1.2); fpScene.add(fpLight);
@@ -663,6 +663,7 @@ function syncRig() {
   r.neck.rotation.set(h.head.rotation.x * 0.3, h.head.rotation.y * 0.3, h.head.rotation.z * 0.3);
   r.head.rotation.set(h.head.rotation.x * 0.7, h.head.rotation.y * 0.7, h.head.rotation.z * 0.7);
   const hide = h.fp ? 0.001 : 1; r.neck.scale.setScalar(hide);   // first person: no head in the way of the camera
+
   for (let i = 0; i < 2; i++) {
     r.uarm[i].rotation.copy(h.arms[i].shoulder.rotation); r.farm[i].rotation.copy(h.arms[i].elbow.rotation);
     r.thigh[i].rotation.copy(h.legs[i].thigh.rotation); r.shin[i].rotation.copy(h.legs[i].knee.rotation);
@@ -1799,15 +1800,15 @@ function animateHeroine(dt, idleOnly) {
   // Standing still: both arms simply hang down and sway a little (the model's rest pose). While moving they swing / guard,
   // blending in and out with `mv` so starting and stopping is smooth.
   const sway = Math.sin(t * 1.1) * 0.03 * (1 - mv);
-  const guardR = armed ? [-0.4, 0, -0.2, -0.75 - 0.2 * run] : [-0.7, -0.55, -0.05, -1.75 - 0.2 * run];        // [pitch, yaw, roll, elbow] while moving
-  const guardL = armed ? [0, 0, 0.14, -0.3 - 0.35 * mv - 0.5 * run * mv] : [-0.7, 0.55, 0.05, -1.75 - 0.2 * run];
-  const swingL = armed ? s1 * amp * pump * mv - 0.08 : -0.7 + s1 * amp * 0.3 * mv;
-  const swingR = armed ? -s1 * amp * 0.35 * mv : -0.7 - s1 * amp * 0.3 * mv;
+  // Moving: a relaxed walk / jog swing. Arms stay low, elbows bent a little (more when running), swinging opposite to the legs.
   const w = easeInOut(mv);                                   // 0 = standing, 1 = moving
-  LA.shoulder.rotation.set(lerp(0.02 + sway, swingL + (armed ? 0 : 0), w) + idleBreath * (1 - w), lerp(0, guardL[1], w), lerp(0.05, guardL[2], w));
-  LA.elbow.rotation.x = lerp(-0.12, guardL[3], w);
-  RA.shoulder.rotation.set(lerp(0.02 - sway, (armed ? guardR[0] : -0.7) + swingR, w) + idleBreath * (1 - w), lerp(0, guardR[1], w), lerp(-0.05, guardR[2], w));
-  RA.elbow.rotation.x = lerp(-0.12, guardR[3], w);
+  const swing = (0.3 + 0.3 * run) * (0.55 + 0.45 * k);        // arm swing angle grows with speed
+  const bendL = -0.2 - 0.55 * run, bendR = armed ? -0.35 - 0.45 * run : -0.2 - 0.55 * run;
+  const aimR = armed ? -0.18 : 0;                              // the saber hand carries a little forward
+  LA.shoulder.rotation.set(lerp(0.02 + sway, s1 * swing, w) + idleBreath * (1 - w), lerp(0, 0.04, w), lerp(0.05, 0.1, w));
+  LA.elbow.rotation.x = lerp(-0.12, bendL - Math.max(0, s1) * 0.2 * run, w);
+  RA.shoulder.rotation.set(lerp(0.02 - sway, -s1 * swing * (armed ? 0.55 : 1) + aimR, w) + idleBreath * (1 - w), lerp(0, -0.04, w), lerp(-0.05, -0.1, w));
+  RA.elbow.rotation.x = lerp(-0.12, bendR - Math.max(0, -s1) * 0.2 * run, w);
   h.spin = 0;
   let bladeOut = 0;   // 0 = held forward, 1 = extended along the arm
   if (charge > 0) {
@@ -1862,17 +1863,24 @@ function animateHeroine(dt, idleOnly) {
       }
     }
   }
-  if (h.fp && !swinging && charge === 0) {
-    // first person: hands held up in front, low in view; the saber arm leads
-    const sw = Math.sin(p) * 0.06 * mv;
-    // (bone rest pose = arms hanging at her sides, so the inward yaw/roll brings the hands to the middle of the view)
-    RA.shoulder.rotation.set(-1.2 + sw, 0.2, 0.1); RA.elbow.rotation.x = -0.35;
-    LA.shoulder.rotation.set(-1.2 - sw, -0.2, -0.05); LA.elbow.rotation.x = -0.45;
-    bladeOut = 0.45;
-  }
   if (h.fp) h.spin = 0;
+  // first person: no arms in view normally; during an attack they swing up into the bottom of the screen and drop back out
+  const fpIn = !h.fp ? 1 : swinging ? Math.sin(clamp(player.swingT, 0, 1) * Math.PI) : (charge > 0 ? clamp(charge * 2, 0, 1) : 0);
+  h.fpShow = fpIn;
+  if (h.fp && (swinging || charge > 0)) {
+    // first person: only the striking arm is posed, as a clean sweep across the bottom of the view (right -> left),
+    // with the body kept still so nothing else swings into the lens
+    const st = swinging ? clamp(player.swingT, 0, 1) : 0.15;
+    const sweep = easeInOut(clamp((st - 0.12) / 0.5, 0, 1));
+    const arm = (h.combo ? LA : RA), other = h.combo ? RA : LA;
+    h.body.rotation.set(0, 0, 0); h.torso.rotation.set(0, 0, 0); h.hips.rotation.set(0, 0, 0); h.body.position.y = 0;
+    arm.shoulder.rotation.set(-1.5, lerp(0.3, 0.6, sweep) * (h.combo ? -1 : 1), 0.1 * (h.combo ? -1 : 1));
+    arm.elbow.rotation.x = -0.1;
+    other.shoulder.rotation.set(0.02, 0, 0.05); other.elbow.rotation.x = -0.12;
+    bladeOut = 1 - easeInOut(clamp((st - 0.6) / 0.4, 0, 1));
+  }
   // standing still: the hanging hand lets the saber point down along the leg
-  const hangBlend = (1 - easeInOut(mv)) * (swinging || charge > 0 ? 0 : 1) * (h.fp ? 0 : 1);
+  const hangBlend = (1 - easeInOut(mv)) * (swinging || charge > 0 ? 0 : 1) * (h.fp ? 0 : 1);   // (first person: no hanging)
   h.weapon.rotation.x = lerp(lerp(Math.PI / 2, Math.PI * 0.95, bladeOut), Math.PI * 1.02, hangBlend);
 
   // ---------- hit reaction / death ----------
@@ -1942,9 +1950,10 @@ function renderScene(dt) {
   placeHeroine(fpMode);
   animateHeroine(dt, false);
   if (fpMode) {
+    heroine.opacity = 1; heroine.mats.forEach(m => { m.opacity = 1; m.depthWrite = true; });   // no see-through fade in first person
     updateFpCamera(dt);
     placeFpRig();
-    heroine.root.visible = heroine.ready;
+    heroine.root.visible = heroine.ready && (heroine.fpShow ?? 0) > 0.2;   // first person: arms exist only while attacking
   } else {
     updateCamera(dt);
     updateHeroineFade(dt);
