@@ -1796,19 +1796,18 @@ function animateHeroine(dt, idleOnly) {
   const [RA, LA] = h.arms; // arms[0] is the right arm (side -1)
   const idleBreath = Math.sin(t * 2.3) * 0.025 * (1 - mv);
   const pump = 0.7 + 0.5 * run;
-  if (armed) {
-    // saber arm held ready in front of the body; free arm swings
-    LA.shoulder.rotation.set(s1 * amp * pump * mv - 0.08 + idleBreath, 0, 0.14);       // each arm swings with the opposite leg
-    LA.elbow.rotation.x = -0.3 - 0.35 * mv - 0.5 * run * mv;
-    RA.shoulder.rotation.set(-s1 * amp * 0.35 * mv - 0.4 + idleBreath, 0, -0.2);
-    RA.elbow.rotation.x = -0.75 - 0.2 * run * mv;
-  } else {
-    // bare hands: fists up in a guard, pumping when running
-    LA.shoulder.rotation.set(-0.7 + s1 * amp * 0.3 * mv + idleBreath, 0.55, 0.05);
-    LA.elbow.rotation.x = -1.75 - 0.2 * run * mv;
-    RA.shoulder.rotation.set(-0.7 - s1 * amp * 0.3 * mv + idleBreath, -0.55, -0.05);
-    RA.elbow.rotation.x = -1.75 - 0.2 * run * mv;
-  }
+  // Standing still: both arms simply hang down and sway a little (the model's rest pose). While moving they swing / guard,
+  // blending in and out with `mv` so starting and stopping is smooth.
+  const sway = Math.sin(t * 1.1) * 0.03 * (1 - mv);
+  const guardR = armed ? [-0.4, 0, -0.2, -0.75 - 0.2 * run] : [-0.7, -0.55, -0.05, -1.75 - 0.2 * run];        // [pitch, yaw, roll, elbow] while moving
+  const guardL = armed ? [0, 0, 0.14, -0.3 - 0.35 * mv - 0.5 * run * mv] : [-0.7, 0.55, 0.05, -1.75 - 0.2 * run];
+  const swingL = armed ? s1 * amp * pump * mv - 0.08 : -0.7 + s1 * amp * 0.3 * mv;
+  const swingR = armed ? -s1 * amp * 0.35 * mv : -0.7 - s1 * amp * 0.3 * mv;
+  const w = easeInOut(mv);                                   // 0 = standing, 1 = moving
+  LA.shoulder.rotation.set(lerp(0.02 + sway, swingL + (armed ? 0 : 0), w) + idleBreath * (1 - w), lerp(0, guardL[1], w), lerp(0.05, guardL[2], w));
+  LA.elbow.rotation.x = lerp(-0.12, guardL[3], w);
+  RA.shoulder.rotation.set(lerp(0.02 - sway, (armed ? guardR[0] : -0.7) + swingR, w) + idleBreath * (1 - w), lerp(0, guardR[1], w), lerp(-0.05, guardR[2], w));
+  RA.elbow.rotation.x = lerp(-0.12, guardR[3], w);
   h.spin = 0;
   let bladeOut = 0;   // 0 = held forward, 1 = extended along the arm
   if (charge > 0) {
@@ -1872,7 +1871,9 @@ function animateHeroine(dt, idleOnly) {
     bladeOut = 0.45;
   }
   if (h.fp) h.spin = 0;
-  h.weapon.rotation.x = lerp(Math.PI / 2, Math.PI * 0.95, bladeOut);
+  // standing still: the hanging hand lets the saber point down along the leg
+  const hangBlend = (1 - easeInOut(mv)) * (swinging || charge > 0 ? 0 : 1) * (h.fp ? 0 : 1);
+  h.weapon.rotation.x = lerp(lerp(Math.PI / 2, Math.PI * 0.95, bladeOut), Math.PI * 1.02, hangBlend);
 
   // ---------- hit reaction / death ----------
   h.hurtT = Math.max(0, h.hurtT - dt * 3.2);
