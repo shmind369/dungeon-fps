@@ -293,7 +293,7 @@ h2{margin:0 0 14px;font-weight:normal;color:var(--gold)}
     最初は素手で何も装備していません。武器・盾はアイテム欄から「装備する」。装備中のアイテムには<b>Eマーク</b>が付き、もう一度使うと外せます<br>
     アイテムを投げて<b>モンスターに当てると、そのアイテムは消えます</b>（外れると床に落ちて拾えます）<br>
     <h3>🗺 ルール</h3>
-    地下10階に潜むドラゴンを倒すのが目的。歩くと満腹度が減り、0になるとHPが減っていきます。
+    地下5階に潜むドラゴンを倒すのが目的。歩くと満腹度が減り、0になるとHPが減っていきます。
     敵は攻撃の直前に<b>赤く光る</b>ので、そのタイミングで下がれば避けられます。
   </div>
   <div class="menu" style="margin-top:16px"><button class="mbtn primary" data-act="back">もどる</button></div>
@@ -333,7 +333,8 @@ h2{margin:0 0 14px;font-weight:normal;color:var(--gold)}
 <div id="fade"></div>
 <div id="loading">読み込み中…</div>
 
-<script src="https://cdn.jsdelivr.net/npm/three@0.158.0/build/three.min.js"></script>
+<script src="vendor/three.min.js"></script>
+<script src="vendor/GLTFLoader.js"></script>
 <script>
 'use strict';
 if (!window.THREE) {
@@ -351,7 +352,7 @@ const randi = (a, b) => Math.floor(rand(a, b + 1));
 const pick = a => a[Math.floor(Math.random() * a.length)];
 const lerp = (a, b, t) => a + (b - a) * t;
 
-const LAST_FLOOR = 10;
+const LAST_FLOOR = 5;
 const WALL_H = 1.5;
 const EYE_H = 0.62;
 const PLAYER_R = 0.24;
@@ -570,150 +571,123 @@ const wallMat = new THREE.MeshLambertMaterial({ map: wallTex });
 const floorMat = new THREE.MeshLambertMaterial({ map: floorTex });
 const ceilMat = new THREE.MeshLambertMaterial({ map: ceilTex });
 const THEMES = [
-  { upTo: 3, wall: 0xffffff, floor: 0xffffff, fog: 0.17, name: '朽ちた地下道' },
-  { upTo: 6, wall: 0xb8d0a8, floor: 0xc8d8b8, fog: 0.19, name: '苔むした回廊' },
-  { upTo: 9, wall: 0xa8b8e0, floor: 0xb0bce0, fog: 0.2, name: '凍える霊廟' },
-  { upTo: 10, wall: 0xe8a090, floor: 0xe0a898, fog: 0.15, name: '竜の巣' },
+  { upTo: 1, wall: 0xffffff, floor: 0xffffff, fog: 0.17, name: '朽ちた地下道' },
+  { upTo: 2, wall: 0xb8d0a8, floor: 0xc8d8b8, fog: 0.19, name: '苔むした回廊' },
+  { upTo: 3, wall: 0xc8c0a0, floor: 0xd0c8a8, fog: 0.19, name: '砂に埋もれた墓所' },
+  { upTo: 4, wall: 0xa8b8e0, floor: 0xb0bce0, fog: 0.2, name: '凍える霊廟' },
+  { upTo: 5, wall: 0xe8a090, floor: 0xe0a898, fog: 0.15, name: '竜の巣' },
 ];
 
-/* ---------- Player character: procedural "中華娘" ---------- */
-const toon = (color, extra) => new THREE.MeshToonMaterial(Object.assign({ color }, extra || {}));
-const HM = {
-  skin: toon(0xffdcc8), hair: toon(0x221a24), dress: toon(0xc81f2e), dress2: toon(0x9c1622), gold: toon(0xeab446),
-  shoe: toon(0x241612), white: toon(0xf5f0e8), eye: toon(0x2a1210), blade: toon(0xcfd6de), grip: toon(0x3a2416), lip: toon(0xe0707a),
-};
+/* ---------- Player character: the rigged 中華娘 model (china.glb) ---------- */
+const HERO_SCALE = 0.6;      // the model is 1.74 m tall; she is shown ~1.05 m so the camera framing stays as tuned
+const HERO_HIPS_Y = 0.94;    // rest height of the Hips bone in model units
+const FP_SCALE = 1.2;       // first person: the arms are drawn larger, like a view model, so the hands reach into view
+const fpScene = new THREE.Scene();   // first-person pass: only her arms, drawn on top of the world
+fpScene.add(new THREE.AmbientLight(0xffffff, 1.05));
+const fpLight = new THREE.PointLight(0xfff0e0, 2.4, 6, 1.2); fpScene.add(fpLight);
+const toonMat = color => new THREE.MeshToonMaterial({ color });
 function part(geo, mat, x, y, z, parent) {
   const m = new THREE.Mesh(geo, mat); m.position.set(x || 0, y || 0, z || 0);
   if (parent) parent.add(m); return m;
 }
 function buildHeroine() {
-  // Model faces +Z. Her right side is -X.
+  // All the pose maths runs on plain "proxy" nodes (as before); syncRig() copies them onto the model's bones.
+  // Model faces +Z; her right side is -X, so index 0 of arms/legs is her right side.
+  const nd = () => new THREE.Object3D();
   const root = new THREE.Group();
-  const body = new THREE.Group(); root.add(body);
-  const hips = new THREE.Group(); hips.position.y = 0.44; body.add(hips);
-  const legs = [-1, 1].map(side => {
-    const thigh = new THREE.Group(); thigh.position.set(0.052 * side, 0, 0); hips.add(thigh);
-    part(new THREE.CylinderGeometry(0.039, 0.031, 0.22, 8), HM.skin, 0, -0.11, 0, thigh);
-    const knee = new THREE.Group(); knee.position.y = -0.22; thigh.add(knee);
-    part(new THREE.CylinderGeometry(0.031, 0.023, 0.2, 8), HM.white, 0, -0.1, 0, knee);
-    part(new THREE.BoxGeometry(0.058, 0.04, 0.11), HM.shoe, 0, -0.205, 0.022, knee);
-    return { thigh, knee };
-  });
-  // qipao skirt (moves with hips) with side slits suggested by two panels
-  const skirtF = part(new THREE.CylinderGeometry(0.098, 0.122, 0.22, 12, 1, false, -Math.PI * 0.42, Math.PI * 0.84), HM.dress, 0, -0.05, 0, hips);
-  const skirtB = part(new THREE.CylinderGeometry(0.098, 0.122, 0.22, 12, 1, false, Math.PI * 0.58, Math.PI * 0.84), HM.dress, 0, -0.05, 0, hips);
-  skirtF.material = HM.dress; skirtF.scale.z = skirtB.scale.z = 0.8;
-  [skirtF, skirtB].forEach(m => { m.material = m.material.clone(); m.material.side = THREE.DoubleSide; });
-  part(new THREE.CylinderGeometry(0.1, 0.1, 0.03, 12), HM.dress, 0, 0.055, 0, hips).scale.z = 0.8;
-  // torso pivots at the waist so it can twist
-  const torso = new THREE.Group(); torso.position.y = 0.44; body.add(torso);
-  part(new THREE.CylinderGeometry(0.102, 0.088, 0.17, 12), HM.dress, 0, 0.1, 0, torso).scale.z = 0.72;
-  part(new THREE.CylinderGeometry(0.094, 0.104, 0.11, 12), HM.dress, 0, 0.235, 0, torso).scale.z = 0.74;
-  part(new THREE.CylinderGeometry(0.09, 0.09, 0.018, 12), HM.gold, 0, 0.02, 0, torso).scale.z = 0.78;  // sash
-  const flap = part(new THREE.BoxGeometry(0.014, 0.12, 0.01), HM.gold, 0.035, 0.24, 0.075, torso); flap.rotation.z = 0.7;
-  part(new THREE.CylinderGeometry(0.045, 0.05, 0.045, 10), HM.gold, 0, 0.305, 0, torso);       // mandarin collar
-  part(new THREE.CylinderGeometry(0.028, 0.03, 0.04, 8), HM.skin, 0, 0.33, 0, torso);
-  // head
-  const head = new THREE.Group(); head.position.y = 0.43; torso.add(head);
-  part(new THREE.SphereGeometry(0.1, 18, 14), HM.skin, 0, 0, 0, head).scale.set(0.95, 1, 0.95);
-  part(new THREE.SphereGeometry(0.108, 18, 14), HM.hair, 0, 0.016, -0.02, head);
-  part(new THREE.BoxGeometry(0.17, 0.05, 0.04), HM.hair, 0, 0.07, 0.072, head);                // bangs
-  [-1, 1].forEach(side => {
-    part(new THREE.BoxGeometry(0.03, 0.13, 0.05), HM.hair, 0.088 * side, -0.04, 0.03, head);   // side locks
-    part(new THREE.BoxGeometry(0.024, 0.032, 0.008), HM.eye, 0.036 * side, 0.0, 0.092, head);  // eyes
-  });
-  part(new THREE.BoxGeometry(0.022, 0.006, 0.006), HM.lip, 0, -0.05, 0.09, head);
-  // twin buns with gold rings and long red ribbons
-  const ribbons = [];
-  [-1, 1].forEach(side => {
-    const bun = new THREE.Group(); bun.position.set(0.078 * side, 0.088, -0.03); head.add(bun);
-    part(new THREE.SphereGeometry(0.05, 12, 10), HM.hair, 0, 0, 0, bun);
-    const ring = part(new THREE.TorusGeometry(0.044, 0.009, 6, 14), HM.gold, 0, -0.012, 0, bun); ring.rotation.x = Math.PI / 2;
-    const rib = new THREE.Group(); rib.position.set(0.02 * side, -0.01, -0.03); bun.add(rib);
-    part(new THREE.BoxGeometry(0.022, 0.16, 0.005), HM.dress, 0, -0.08, 0, rib);
-    part(new THREE.BoxGeometry(0.022, 0.012, 0.006), HM.gold, 0, -0.16, 0, rib);
-    ribbons.push(rib);
-  });
-  // arms
-  const arms = [-1, 1].map(side => {
-    const shoulder = new THREE.Group(); shoulder.position.set(0.122 * side, 0.27, 0); shoulder.rotation.order = 'YXZ'; torso.add(shoulder);
-    part(new THREE.SphereGeometry(0.04, 10, 8), HM.dress, 0, -0.01, 0, shoulder);
-    part(new THREE.CylinderGeometry(0.036, 0.034, 0.08, 8), HM.dress, 0, -0.04, 0, shoulder);  // short puff sleeve
-    part(new THREE.CylinderGeometry(0.036, 0.036, 0.012, 8), HM.gold, 0, -0.08, 0, shoulder);
-    part(new THREE.CylinderGeometry(0.025, 0.023, 0.08, 8), HM.skin, 0, -0.12, 0, shoulder);
-    const elbow = new THREE.Group(); elbow.position.y = -0.155; shoulder.add(elbow);
-    part(new THREE.CylinderGeometry(0.023, 0.019, 0.14, 8), HM.skin, 0, -0.07, 0, elbow);
-    part(new THREE.SphereGeometry(0.026, 8, 6), HM.skin, 0, -0.15, 0, elbow);
-    return { shoulder, elbow, side };
-  });
-  // Chinese saber (dao) in the right hand; blade points along +Y of the weapon group
-  const weapon = new THREE.Group(); weapon.position.set(0, -0.15, 0.0); weapon.rotation.x = Math.PI / 2;
-  arms[0].elbow.add(weapon);
-  const blade = part(new THREE.BoxGeometry(0.04, 0.4, 0.008), HM.blade.clone(), 0, 0.24, 0, weapon);
+  const tilt = new THREE.Group(); root.add(tilt);                     // falls over when hurt / dead
+  const holder = new THREE.Group(); holder.scale.setScalar(HERO_SCALE); tilt.add(holder);
+  const arms = [-1, 1].map(side => ({ shoulder: nd(), elbow: nd(), side }));
+  arms.forEach(a => { a.shoulder.rotation.order = 'YXZ'; });
+  const legs = [-1, 1].map(side => ({ thigh: nd(), knee: nd(), side }));
+  // Chinese saber (dao): blade runs along +Y of the weapon group; it is parented to her right hand once the model has loaded
+  const gold = toonMat(0xeab446), grip = toonMat(0x3a2416), red = toonMat(0xc81f2e);
+  const weapon = new THREE.Group(); weapon.rotation.x = Math.PI / 2; weapon.visible = false; root.add(weapon);
+  const blade = part(new THREE.BoxGeometry(0.04, 0.4, 0.008), toonMat(0xcfd6de), 0, 0.24, 0, weapon);
   const tip = part(new THREE.BoxGeometry(0.05, 0.07, 0.008), blade.material, 0.008, 0.45, 0, weapon); tip.rotation.z = 0.5;
-  part(new THREE.BoxGeometry(0.075, 0.016, 0.03), HM.gold, 0, 0.035, 0, weapon);
-  part(new THREE.BoxGeometry(0.022, 0.09, 0.022), HM.grip, 0, -0.015, 0, weapon);
+  part(new THREE.BoxGeometry(0.075, 0.016, 0.03), gold, 0, 0.035, 0, weapon);
+  part(new THREE.BoxGeometry(0.022, 0.09, 0.022), grip, 0, -0.015, 0, weapon);
   const tassel = new THREE.Group(); tassel.position.y = -0.065; weapon.add(tassel);
-  part(new THREE.BoxGeometry(0.014, 0.09, 0.014), HM.dress, 0, -0.045, 0, tassel);
-  root.traverse(o => { if (o.isMesh) o.castShadow = false; });
-  return { root, body, hips, torso, head, legs, arms, weapon, blade, ribbons, tassel,
-    phase: 0, face: 0, hurtT: 0, spin: 0, deathT: 0 };
+  part(new THREE.BoxGeometry(0.014, 0.09, 0.014), red, 0, -0.045, 0, tassel);
+  return { root, tilt, holder, body: nd(), hips: nd(), torso: nd(), head: nd(), legs, arms, weapon, blade, ribbons: [], tassel,
+    phase: 0, face: 0, hurtT: 0, spin: 0, deathT: 0, rig: null, ready: false, fp: false, mats: new Set(), opacity: 1 };
 }
 const heroine = buildHeroine();
 scene.add(heroine.root);
-// All of her materials are transparent-capable so she can fade out when something is behind her
-heroine.mats = new Set();
-heroine.root.traverse(o => { if (o.isMesh) heroine.mats.add(o.material); });
-heroine.mats.forEach(m => { m.transparent = true; });
-heroine.opacity = 1;
+heroine.root.visible = false;   // shown once china.glb has loaded
 const sword = { userData: { blade: heroine.blade } };
 
-/* ---------- First-person view model: her sleeve, hand and dao ---------- */
-const fpPivot = new THREE.Group();
-const fp = (() => {
-  const g = new THREE.Group();
-  const mk = (geo, color, x, y, z) => {
-    const m = new THREE.Mesh(geo, new THREE.MeshToonMaterial({ color, depthTest: false, depthWrite: false }));
-    m.renderOrder = 999; m.position.set(x || 0, y || 0, z || 0); g.add(m); return m;
-  };
-  const blade = mk(new THREE.BoxGeometry(0.045, 0.5, 0.01), 0xcfd6de, 0, 0.33, 0);
-  const tip = mk(new THREE.BoxGeometry(0.055, 0.08, 0.01), 0xcfd6de, 0.01, 0.6, 0); tip.material = blade.material; tip.rotation.z = 0.5;
-  const swordParts = [blade, tip,
-    mk(new THREE.BoxGeometry(0.1, 0.02, 0.04), 0xeab446, 0, 0.06, 0),         // guard
-    mk(new THREE.BoxGeometry(0.03, 0.11, 0.03), 0x3a2416, 0, 0, 0),           // grip
-    mk(new THREE.BoxGeometry(0.018, 0.1, 0.018), 0xc81f2e, 0, -0.1, 0)];      // tassel
-  mk(new THREE.SphereGeometry(0.04, 10, 8), 0xffdcc8, 0, 0, 0.005);            // hand
-  const fore = mk(new THREE.CylinderGeometry(0.033, 0.04, 0.26, 10), 0xffdcc8, 0.02, -0.12, 0.12); fore.rotation.x = 1.2;
-  const cuff = mk(new THREE.CylinderGeometry(0.05, 0.05, 0.03, 10), 0xeab446, 0.03, -0.18, 0.24); cuff.rotation.x = 1.2;
-  const sleeve = mk(new THREE.CylinderGeometry(0.055, 0.06, 0.2, 10), 0xc81f2e, 0.04, -0.24, 0.34); sleeve.rotation.x = 1.2;
-  return { g, blade, swordParts };
-})();
-fpPivot.add(fp.g); fpPivot.visible = false;
-camera.add(fpPivot);
+function loadHeroineModel() {
+  new THREE.GLTFLoader().load('china.glb', gltf => {
+    const model = gltf.scene, B = {};
+    model.traverse(o => { if (o.isBone) B[o.name] = o; });
+    model.traverse(o => {
+      if (!o.isMesh) return;
+      o.frustumCulled = false;                                   // skinned: the static bounds are wrong while she moves
+      const m = o.material;
+      m.roughness = 0.85; m.metalness = 0; m.transparent = true;   // transparent so she can fade out when something is behind her
+      if (m.map) { m.emissiveMap = m.map; m.emissive = new THREE.Color(0.34, 0.34, 0.34); }   // stays readable in the dark dungeon
+      heroine.mats.add(m);
+    });
+    heroine.holder.add(model);
+    const pair = n => [B['Right' + n], B['Left' + n]];
+    heroine.rig = { hips: B.Hips, spine: B.Spine, chest: B.Chest, neck: B.Neck, head: B.Head,
+      uarm: pair('UpperArm'), farm: pair('Forearm'), hand: pair('Hand'), thigh: pair('UpperLeg'), shin: pair('LowerLeg'), foot: pair('Foot') };
+    heroine.rig.uarm.forEach(b => { b.rotation.order = 'YXZ'; });
+    B.RightHand.add(heroine.weapon);                             // the saber lives in her right hand
+    heroine.weapon.scale.setScalar(1 / HERO_SCALE); heroine.weapon.position.set(0, -0.07, 0.01);
+    heroine.ready = true; heroine.root.visible = true;
+  }, undefined, err => { console.error('china.glb', err); });
+}
+loadHeroineModel();
+// first-person: her arms are drawn in a second pass on top of the world; the model lives in fpScene then
+function placeHeroine(fp) {
+  const want = fp ? fpScene : scene;
+  if (heroine.root.parent !== want) want.add(heroine.root);
+  heroine.fp = fp;
+}
+// copy the proxy pose onto the real bones
+function syncRig() {
+  const h = heroine, r = h.rig;
+  if (!r) return;
+  const S = h.fp ? FP_SCALE : HERO_SCALE;
+  h.holder.scale.setScalar(S);
+  h.weapon.scale.setScalar((h.fp ? 1.15 : 1) / S);
+  r.hips.position.set(h.hips.position.x / S, HERO_HIPS_Y + h.body.position.y / S, 0);
+  // upper body = lean (body) + twist/tilt (torso); the hips keep a little of it and the rest is shared by spine and chest
+  const pitch = h.body.rotation.x + h.torso.rotation.x, roll = h.body.rotation.z + h.torso.rotation.z, yaw = h.torso.rotation.y;
+  r.hips.rotation.set(pitch * 0.2, h.hips.rotation.y, roll * 0.2);
+  const ux = pitch * 0.4, uy = (yaw - h.hips.rotation.y) * 0.5, uz = roll * 0.4;
+  r.spine.rotation.set(ux, uy, uz); r.chest.rotation.set(ux, uy, uz);
+  r.chest.scale.set(1, h.torso.scale.y, 1);
+  r.neck.rotation.set(h.head.rotation.x * 0.3, h.head.rotation.y * 0.3, h.head.rotation.z * 0.3);
+  r.head.rotation.set(h.head.rotation.x * 0.7, h.head.rotation.y * 0.7, h.head.rotation.z * 0.7);
+  const hide = h.fp ? 0.001 : 1; r.neck.scale.setScalar(hide);   // first person: no head in the way of the camera
+  for (let i = 0; i < 2; i++) {
+    r.uarm[i].rotation.copy(h.arms[i].shoulder.rotation); r.farm[i].rotation.copy(h.arms[i].elbow.rotation);
+    r.thigh[i].rotation.copy(h.legs[i].thigh.rotation); r.shin[i].rotation.copy(h.legs[i].knee.rotation);
+    r.foot[i].rotation.set(-(h.legs[i].thigh.rotation.x + h.legs[i].knee.rotation.x) * 0.55, 0, 0);   // keep the soles flat
+  }
+}
+// first person: line the model's head up with the camera (slightly behind it) so her arms hang in front of the lens
+function placeFpRig() {
+  const h = heroine; if (!h.rig) return;
+  h.root.rotation.y = h.face;
+  h.root.position.set(player.x, 0, player.z);
+  h.root.updateMatrixWorld(true);
+  const hp = new THREE.Vector3(); h.rig.head.getWorldPosition(hp);
+  const fwd = forward();
+  h.root.position.x += camera.position.x - hp.x;
+  h.root.position.y += camera.position.y - hp.y;
+  h.root.position.z += camera.position.z - hp.z;
+  h.root.updateMatrixWorld(true);
+  fpLight.position.copy(camera.position);
+}
 function updateFpCamera(dt) {
-  const bobY = Math.sin(player.bob * 2) * 0.025, bobX = Math.cos(player.bob) * 0.015;
+  const bobY = Math.sin(player.bob * 2) * 0.02;
   const sk = shake * shake * 0.12;
   camera.position.set(player.x + rand(-sk, sk), EYE_H + bobY + rand(-sk, sk), player.z + rand(-sk, sk));
   camera.rotation.set(player.pitch, player.yaw, 0);
-  // weapon swing (same feel as the FPS version)
-  const st = player.swingT;
-  const charge = player.charging ? clamp((player.chargeT - 0.2) / 0.8, 0, 1) : 0;
-  let rz = -0.35, rx = 0.15, px = 0.3, py = -0.3, pz = -0.55;
-  if (st < 1) {
-    const e = st < 0.5 ? st * 2 : 1;
-    rz = lerp(0.9, -1.9, e); rx = -0.6 * Math.sin(st * Math.PI); px = lerp(0.36, -0.05, e); py = -0.28;
-    if (st > 0.5) { const r = (st - 0.5) * 2; rz = lerp(-1.9, -0.35, r); px = lerp(-0.05, 0.3, r); rx = lerp(-0.6, 0.15, r); }
-  } else if (charge > 0) {
-    rz = lerp(-0.35, 0.8, charge); px = 0.32 + rand(-1, 1) * 0.006 * charge; py = -0.28 + rand(-1, 1) * 0.006 * charge; rx = lerp(0.15, 0.4, charge);
-  }
-  const ax = camera.aspect < 1 ? 0.55 : 1;
-  fpPivot.scale.setScalar(camera.aspect < 1 ? 0.8 : 0.85);
-  fpPivot.position.set((px + bobX) * ax, py + bobY * 0.6, pz);
-  fpPivot.rotation.set(rx, 0, rz);
-  const armed = player.weapon > 0;
-  fp.swordParts.forEach(m => { m.visible = armed; });   // bare hands: only the fist/sleeve show
-  fp.blade.material.color.set(WEAPONS[player.weapon].color);
-  fp.blade.material.emissive.setRGB(player.chargedReady ? 0.45 + 0.3 * Math.sin(stats.time * 20) : charge * 0.25, player.chargedReady ? 0.6 : charge * 0.3, player.chargedReady ? 0.9 : charge * 0.4);
 }
 function setView(mode, announce) {
   settings.view = mode; saveSettings();
@@ -977,9 +951,9 @@ class Enemy {
   constructor(type, x, z) {
     const d = ENEMY_DEFS[type];
     this.type = type; this.d = d;
-    const m = 1 + 0.22 * (floor - 1);
+    const m = 1 + 0.4 * (floor - 1);
     this.maxHp = this.hp = Math.round(d.hp * (d.boss ? 1 : m));
-    this.atk = Math.round(d.atk * (d.boss ? 1 : 1 + 0.13 * (floor - 1)));
+    this.atk = Math.round(d.atk * (d.boss ? 1 : 1 + 0.24 * (floor - 1)));
     this.x = x; this.z = z; this.vx = 0; this.vz = 0; this.kx = 0; this.kz = 0;
     this.aggro = !!d.boss; this.cd = rand(0.3, 1); this.windup = 0; this.fireCd = 2;
     this.wanderT = 0; this.wdx = 0; this.wdz = 0; this.flash = 0; this.t = Math.random() * 10; this.seen = false;
@@ -1016,7 +990,7 @@ class Enemy {
     burst(this.x, this.d.scale * 0.5, this.z, this.d.color, 28, 3, 0.9);
     SFX.kill(); stats.kills++;
     if (this.d.boss) { onBossDefeated(this); return; }
-    gainExp(this.d.exp + Math.floor(floor / 2));
+    gainExp(this.d.exp + floor);
     if (Math.random() < 0.28) dropRandomItem(this.x, this.z);
   }
   update(dt) {
@@ -1083,10 +1057,10 @@ class Item {
 }
 function makeLoot(x, z) {
   const r = Math.random();
-  const tierCap = Math.min(WEAPONS.length - 1, 1 + Math.floor(floor / 2));
+  const tierCap = Math.min(WEAPONS.length - 1, 1 + floor);
   if (r < 0.1) return new Item('weapon', x, z, { tier: clamp(randi(Math.max(1, tierCap - 2), tierCap), 1, WEAPONS.length - 1), icon: '🗡️' });
-  if (r < 0.18) return new Item('armor', x, z, { tier: clamp(randi(1, Math.min(ARMORS.length - 1, 1 + Math.floor(floor / 3))), 1, ARMORS.length - 1), icon: '🛡️' });
-  const table = ['bread', 'bread', 'potion', 'potion', 'meat', 'bomb', 'bomb', 'scroll', floor >= 4 ? 'elixir' : 'potion'];
+  if (r < 0.18) return new Item('armor', x, z, { tier: clamp(randi(1, Math.min(ARMORS.length - 1, 1 + Math.floor(floor / 2))), 1, ARMORS.length - 1), icon: '🛡️' });
+  const table = ['bread', 'bread', 'potion', 'potion', 'meat', 'bomb', 'bomb', 'scroll', floor >= 3 ? 'elixir' : 'potion'];
   return new Item(pick(table), x, z);
 }
 function dropRandomItem(x, z) { items.push(makeLoot(x, z)); }
@@ -1239,19 +1213,19 @@ function loadFloor() {
     const pool = ['zombie'];
     if (floor >= 2) pool.push('bat');
     if (floor >= 3) pool.push('mummy');
-    if (floor >= 6) pool.push('mummy', 'bat');
+    if (floor >= 4) pool.push('mummy', 'bat');
     for (const r of dun.rooms) {
       if (r === dun.start) continue;
-      const n = randi(1, 2) + Math.floor(floor / 3) + (r.w * r.h > 40 ? 1 : 0);
+      const n = randi(1, 2) + Math.floor(floor / 2) + (r.w * r.h > 40 ? 1 : 0);
       for (let i = 0; i < n; i++) {
         const x = randi(r.x, r.x + r.w - 1) + 0.5, z = randi(r.y, r.y + r.h - 1) + 0.5;
         enemies.push(new Enemy(pick(pool), x, z));
       }
     }
-    const nItems = 4 + Math.floor(floor / 2) + randi(0, 2);
+    const nItems = 5 + floor + randi(0, 2);
     for (let i = 0; i < nItems; i++) { const [x, z] = randomFloorTile(); items.push(makeLoot(x, z)); }
     // always at least one food per floor
-    const [fx2, fz2] = randomFloorTile(); items.push(new Item(floor % 3 === 0 ? 'meat' : 'bread', fx2, fz2));
+    const [fx2, fz2] = randomFloorTile(); items.push(new Item(floor % 2 === 0 ? 'meat' : 'bread', fx2, fz2));
   }
   heroine.face = Math.atan2(-Math.sin(player.yaw), -Math.cos(player.yaw)); // start facing away from the camera
   updateHud(true); refreshItems();
@@ -1265,7 +1239,7 @@ function onBossDefeated(e) {
   showBanner('VICTORY', '脱出の光が現れた');
   const sx = Math.floor(e.x), sz = Math.floor(e.z);
   if (dun.g[sz] && dun.g[sz][sx] === 0) placeStairs(sx, sz); else placeStairs(dun.rooms[1].cx, dun.rooms[1].cy);
-  items.push(new Item('elixir', e.x + 0.6, e.z));
+  items.push(new Item('elixir', dun.stairs.x + 0.5 + 1.6, dun.stairs.y + 0.5 + (dun.g[dun.stairs.y + 1] && dun.g[dun.stairs.y + 1][dun.stairs.x + 1] === 0 ? 0 : -1)));   // dropped a little away from the exit
 }
 
 /* =========================================================
@@ -1347,7 +1321,8 @@ function pickupNear() {
 }
 function interact() {
   if (state !== 'play') return;
-  if (nearItem) pickupNear(); else descend();
+  if (floor === LAST_FLOOR && bossDefeated && onStairs()) descend();   // the exit wins over an item lying on it
+  else if (nearItem) pickupNear(); else descend();
 }
 function dropItem(idx) {
   const it = player.inv[idx];
@@ -1708,7 +1683,8 @@ function update(dt) {
   if (stairsBeam) { stairsBeam.rotation.y += dt; stairsBeam.material.opacity = 0.7 + Math.sin(stats.time * 3) * 0.3; }
   for (const t of dmgTexts) t.t += dt;
   dmgTexts = dmgTexts.filter(t => t.t < 0.9);
-  if (nearItem) setPick(`i:${nearItem.key}${nearItem.tier ?? ''}`, invIcon(nearItem), invName(nearItem), '拾う');
+  if (onStairs() && floor === LAST_FLOOR && bossDefeated) setPick('stairs', '🌟', '脱出口', '脱出');
+  else if (nearItem) setPick(`i:${nearItem.key}${nearItem.tier ?? ''}`, invIcon(nearItem), invName(nearItem), '拾う');
   else if (onStairs()) setPick('stairs', '🪜', floor === LAST_FLOOR ? '脱出口' : '階段', floor === LAST_FLOOR ? '脱出' : '降りる');
   else setPick(null);
 }
@@ -1754,7 +1730,7 @@ function updateCamera(dt) {
   camera.position.set(sx - fx * d + rand(-sk, sk), clamp(py - fy * d, 0.18, WALL_H - 0.1) + rand(-sk, sk), sz - fz * d + rand(-sk, sk));
   camera.rotation.set(pitch, yaw, 0);
   // hide the model when the camera is squeezed right up against her
-  heroine.root.visible = Math.hypot(camera.position.x - px, camera.position.z - pz) > 0.25;
+  heroine.root.visible = heroine.ready && Math.hypot(camera.position.x - px, camera.position.z - pz) > 0.25;
 }
 
 const angDiff = (a, b) => { let d = (b - a) % (Math.PI * 2); if (d > Math.PI) d -= Math.PI * 2; if (d < -Math.PI) d += Math.PI * 2; return d; };
@@ -1795,7 +1771,8 @@ function animateHeroine(dt, idleOnly) {
   // ---------- locomotion (legs, hips, torso counter-twist) ----------
   const amp = 0.28 + 0.5 * k + 0.12 * run;          // stride grows with speed
   const s1 = Math.sin(p), c1 = Math.cos(p);
-  const [L, Rr] = h.legs;
+  const [L, Rr] = h.legs;   // [her right, her left]
+  h.tilt.rotation.x = 0; h.tilt.position.y = 0;
   L.thigh.rotation.x = s1 * amp * mv;  Rr.thigh.rotation.x = -s1 * amp * mv;
   // knees fold while the leg swings through, extra at a run
   const fl = 0.55 + 0.9 * run;
@@ -1821,16 +1798,16 @@ function animateHeroine(dt, idleOnly) {
   const pump = 0.7 + 0.5 * run;
   if (armed) {
     // saber arm held ready in front of the body; free arm swings
-    LA.shoulder.rotation.set(-s1 * amp * pump * mv - 0.08 + idleBreath, 0, 0.14);
+    LA.shoulder.rotation.set(s1 * amp * pump * mv - 0.08 + idleBreath, 0, 0.14);       // each arm swings with the opposite leg
     LA.elbow.rotation.x = -0.3 - 0.35 * mv - 0.5 * run * mv;
-    RA.shoulder.rotation.set(s1 * amp * 0.35 * mv - 0.4 + idleBreath, 0, -0.2);
+    RA.shoulder.rotation.set(-s1 * amp * 0.35 * mv - 0.4 + idleBreath, 0, -0.2);
     RA.elbow.rotation.x = -0.75 - 0.2 * run * mv;
   } else {
     // bare hands: fists up in a guard, pumping when running
-    LA.shoulder.rotation.set(-0.75 - s1 * amp * 0.3 * mv + idleBreath, 0.15, 0.22);
-    LA.elbow.rotation.x = -1.7 - 0.2 * run * mv;
-    RA.shoulder.rotation.set(-0.75 + s1 * amp * 0.3 * mv + idleBreath, -0.15, -0.22);
-    RA.elbow.rotation.x = -1.7 - 0.2 * run * mv;
+    LA.shoulder.rotation.set(-0.7 + s1 * amp * 0.3 * mv + idleBreath, 0.55, 0.05);
+    LA.elbow.rotation.x = -1.75 - 0.2 * run * mv;
+    RA.shoulder.rotation.set(-0.7 - s1 * amp * 0.3 * mv + idleBreath, -0.55, -0.05);
+    RA.elbow.rotation.x = -1.75 - 0.2 * run * mv;
   }
   h.spin = 0;
   let bladeOut = 0;   // 0 = held forward, 1 = extended along the arm
@@ -1886,6 +1863,15 @@ function animateHeroine(dt, idleOnly) {
       }
     }
   }
+  if (h.fp && !swinging && charge === 0) {
+    // first person: hands held up in front, low in view; the saber arm leads
+    const sw = Math.sin(p) * 0.06 * mv;
+    // (bone rest pose = arms hanging at her sides, so the inward yaw/roll brings the hands to the middle of the view)
+    RA.shoulder.rotation.set(-1.2 + sw, 0.2, 0.1); RA.elbow.rotation.x = -0.35;
+    LA.shoulder.rotation.set(-1.2 - sw, -0.2, -0.05); LA.elbow.rotation.x = -0.45;
+    bladeOut = 0.45;
+  }
+  if (h.fp) h.spin = 0;
   h.weapon.rotation.x = lerp(Math.PI / 2, Math.PI * 0.95, bladeOut);
 
   // ---------- hit reaction / death ----------
@@ -1900,7 +1886,7 @@ function animateHeroine(dt, idleOnly) {
   if (state === 'dead') {
     h.deathT = Math.min(1, h.deathT + dt * 2.2);
     const d = easeOut(h.deathT);
-    h.body.rotation.x = -d * 1.45; h.body.position.y = d * 0.08;
+    h.tilt.rotation.x = -d * 1.45; h.tilt.position.y = d * 0.08;
     LA.shoulder.rotation.z = 0.7 * d; RA.shoulder.rotation.z = -0.7 * d;
   } else h.deathT = 0;
   h.root.rotation.y = h.face + h.spin;
@@ -1909,10 +1895,11 @@ function animateHeroine(dt, idleOnly) {
   const wag = clamp(h.turn * 0.05, -0.5, 0.5);
   for (const r of h.ribbons) { r.rotation.x = 0.12 + k * 0.85 * mv + Math.sin(t * 3 + p) * 0.1 + (swinging ? 0.4 : 0); r.rotation.z = -wag + Math.sin(t * 2.4 + p * 0.5) * 0.06; }
   h.tassel.rotation.x = Math.sin(t * 4) * 0.2 - (swinging ? 0.8 : 0) - k * 0.5 * mv;
-  h.weapon.visible = armed;   // bare hands: no saber in her hand
+  h.weapon.visible = armed && h.ready;   // bare hands: no saber in her hand
   // blade glow while charging
   h.blade.material.color.set(WEAPONS[player.weapon].color);
   h.blade.material.emissive.setRGB(player.chargedReady ? 0.45 + 0.3 * Math.sin(t * 20) : charge * 0.25, player.chargedReady ? 0.6 : charge * 0.3, player.chargedReady ? 0.9 : charge * 0.4);
+  syncRig();
   // soft footsteps on each foot-fall
   if (!idleOnly && state === 'play' && mv > 0.5 && Math.floor(p / Math.PI) !== Math.floor(prevPhase / Math.PI)) SFX.step();
 }
@@ -1950,12 +1937,14 @@ function updateHeroineFade(dt) {
 
 function renderScene(dt) {
   player.swingT = Math.min(1, player.swingT + dt / (player.swingCharged ? 0.42 : 0.3));
+  const fpMode = settings.view === 'fps';
+  placeHeroine(fpMode);
   animateHeroine(dt, false);
-  if (settings.view === 'fps') {
+  if (fpMode) {
     updateFpCamera(dt);
-    heroine.root.visible = false; fpPivot.visible = true;
+    placeFpRig();
+    heroine.root.visible = heroine.ready;
   } else {
-    fpPivot.visible = false;
     updateCamera(dt);
     updateHeroineFade(dt);
   }
@@ -1971,7 +1960,16 @@ function renderScene(dt) {
     if (ch) slashPivot.rotation.y = heroine.face + heroine.spin;
     if (t >= 1) slashMesh.visible = false;
   }
-  renderer.render(scene, camera);
+  if (fpMode && heroine.ready) {
+    // two passes: the world, then (depth cleared) her arms on top so they never sink into walls
+    renderer.autoClear = false; renderer.clear();
+    renderer.render(scene, camera);
+    renderer.clearDepth();
+    const f0 = camera.fov; camera.fov = camera.aspect < 1 ? 50 : 42; camera.updateProjectionMatrix();    // view-model lens: arms look natural, not stretched
+    renderer.render(fpScene, camera);
+    camera.fov = f0; camera.updateProjectionMatrix();
+    renderer.autoClear = true;
+  } else renderer.render(scene, camera);
 }
 
 function drawFx() {
@@ -2469,8 +2467,9 @@ function renderTitleScene(dt) {
   titleT += dt;
   const cx = dun.start.cx + 0.5, cz = dun.start.cy + 0.5;
   player.x = cx; player.z = cz; player.vx = player.vz = 0;
+  placeHeroine(false);
   heroine.face = 0; animateHeroine(dt, true);
-  heroine.root.visible = true; fpPivot.visible = false;
+  heroine.root.visible = heroine.ready;
   const a = titleT * 0.25, r = 1.25;
   camera.position.set(cx + Math.sin(a) * r, 0.75, cz + Math.cos(a) * r);
   camera.lookAt(cx, 0.6, cz);
