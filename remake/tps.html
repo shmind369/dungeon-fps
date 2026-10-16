@@ -90,6 +90,11 @@ body.playing #hud{display:block}
   background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:5px 8px;line-height:1.5}
 body.touch #equip{display:none}
 
+#compass{position:absolute;right:calc(8px + var(--safe-r));top:calc(8px + var(--safe-t) + 112px);width:58px;display:flex;flex-direction:column;align-items:center;gap:1px;pointer-events:none;
+  text-shadow:0 0 3px #000,0 1px 2px #000}
+#compass canvas{display:block;width:58px;height:58px}
+#compassHour{font-size:16px;line-height:18px;color:#fff;letter-spacing:1px}
+#compassDir{font-size:11px;line-height:12px;color:var(--dim);height:12px}
 #msgs{position:absolute;left:calc(10px + var(--safe-l));top:calc(var(--map) + 36px + var(--safe-t));display:flex;flex-direction:column;gap:4px;max-width:70vw}
 .msg{font-size:14px;background:rgba(0,0,0,.55);padding:3px 8px;border-radius:6px;width:fit-content;transition:opacity .6s}
 /* Big centre prompt: item / stairs name with its command button underneath */
@@ -225,6 +230,7 @@ h2{margin:0 0 14px;font-weight:normal;color:var(--gold)}
     </div>
     <div id="topRight"><button class="iconBtn viewBtn" id="btnView" aria-label="視点変更"><span id="viewIcon">🎥</span><small id="viewLabel">三人称</small></button><button class="iconBtn" id="btnPause" aria-label="ポーズ">❚❚</button></div>
   </div>
+  <div id="compass"><canvas id="compassCv" width="116" height="116"></canvas><div id="compassHour">0時</div><div id="compassDir">北</div></div>
   <div id="msgs"></div>
   <div id="crosshair"></div>
   <div id="pick"><div id="pickName"></div><button id="pickBtn" type="button"></button></div>
@@ -2060,6 +2066,30 @@ function drawArrow(c, ang, color, alpha) {
 }
 
 // Outline-style map (no background): the whole floor always fits, explored area drawn as white edges
+// heading as a clock hour: north = 0, east = 3, south = 6, west = 9 (map up is -z, so heading clockwise from north = -yaw)
+let compassHour = -1;
+function updateCompass() {
+  const hr = ((Math.round(-player.yaw / (Math.PI / 6)) % 12) + 12) % 12;
+  if (hr === compassHour) return;
+  compassHour = hr;
+  $('#compassHour').textContent = hr + '時';
+  $('#compassDir').textContent = ({ 0: '北', 3: '東', 6: '南', 9: '西' })[hr] || '';
+  const cv = $('#compassCv'), g = cv.getContext('2d'), W = cv.width, c = W / 2, R = c - 5;
+  g.clearRect(0, 0, W, W);
+  g.fillStyle = 'rgba(14,10,22,.72)'; g.beginPath(); g.arc(c, c, R + 2, 0, 7); g.fill();
+  g.strokeStyle = 'rgba(255,255,255,.75)'; g.lineWidth = 2; g.stroke();
+  for (let i = 0; i < 12; i++) {
+    const a = i * Math.PI / 6, sx = Math.sin(a), sy = -Math.cos(a), major = i % 3 === 0;
+    g.strokeStyle = i === hr ? '#ffd35e' : 'rgba(255,255,255,.7)'; g.lineWidth = major ? 3 : 2;
+    g.beginPath(); g.moveTo(c + sx * (R - (major ? 14 : 8)), c + sy * (R - (major ? 14 : 8))); g.lineTo(c + sx * (R - 2), c + sy * (R - 2)); g.stroke();
+  }
+  g.fillStyle = '#fff'; g.font = 'bold 18px sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
+  [[0, 0], [3, 3], [6, 6], [9, 9]].forEach(([n, i]) => { const a = i * Math.PI / 6; g.fillText(n, c + Math.sin(a) * (R - 26), c - Math.cos(a) * (R - 26)); });
+  const a = hr * Math.PI / 6, sx = Math.sin(a), sy = -Math.cos(a);
+  g.strokeStyle = '#ff5a4a'; g.lineWidth = 5; g.lineCap = 'round';
+  g.beginPath(); g.moveTo(c - sx * 8, c - sy * 8); g.lineTo(c + sx * (R - 12), c + sy * (R - 12)); g.stroke();
+  g.fillStyle = '#fff'; g.beginPath(); g.arc(c, c, 5, 0, 7); g.fill();
+}
 function drawMap(cv, big) {
   const c = cv.getContext('2d');
   const S = cv.width, w = dun.w, h = dun.h;
@@ -2459,6 +2489,7 @@ function frame(now) {
   if (dun && (state === 'play' || state === 'pause' || state === 'transition' || state === 'dead')) {
     renderScene(state === 'pause' ? 0 : dt);
     mapTimer -= dt;
+    updateCompass();
     if (mapTimer <= 0 && state === 'play') {
       mapTimer = 0.08;
       drawMap($('#minimap'), false);
