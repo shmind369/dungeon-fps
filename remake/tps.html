@@ -578,9 +578,9 @@ const THEMES = [
   { upTo: 5, wall: 0xe8a090, floor: 0xe0a898, fog: 0.15, name: '竜の巣' },
 ];
 
-/* ---------- Player character: the rigged 中華娘 model (china.glb) ---------- */
-const HERO_SCALE = 0.6;      // the model is 1.74 m tall; she is shown ~1.05 m so the camera framing stays as tuned
-const HERO_HIPS_Y = 0.94;    // rest height of the Hips bone in model units
+/* ---------- Player character: the rigged hero model (hero.glb) ---------- */
+const HERO_SCALE = 0.6;      // the model is 1.74 m tall; he is shown ~1.05 m so the camera framing stays as tuned
+const HERO_HIPS_Y = 0.88;    // rest height of the Hips bone in model units
 const FP_SCALE = 0.6;       // first person: the arms are drawn larger, like a view model, so the hands reach into view
 const fpScene = new THREE.Scene();   // first-person pass: only her arms, drawn on top of the world
 fpScene.add(new THREE.AmbientLight(0xffffff, 1.05));
@@ -614,11 +614,11 @@ function buildHeroine() {
 }
 const heroine = buildHeroine();
 scene.add(heroine.root);
-heroine.root.visible = false;   // shown once china.glb has loaded
+heroine.root.visible = false;   // shown once hero.glb has loaded
 const sword = { userData: { blade: heroine.blade } };
 
 function loadHeroineModel() {
-  new THREE.GLTFLoader().load('china.glb', gltf => {
+  new THREE.GLTFLoader().load('hero.glb', gltf => {
     const model = gltf.scene, B = {};
     model.traverse(o => { if (o.isBone) B[o.name] = o; });
     model.traverse(o => {
@@ -637,7 +637,7 @@ function loadHeroineModel() {
     B.RightHand.add(heroine.weapon);                             // the saber lives in her right hand
     heroine.weapon.scale.setScalar(1 / HERO_SCALE); heroine.weapon.position.set(0, -0.07, 0.01);
     heroine.ready = true; heroine.root.visible = true;
-  }, undefined, err => { console.error('china.glb', err); });
+  }, undefined, err => { console.error('hero.glb', err); });
 }
 loadHeroineModel();
 // first-person: her arms are drawn in a second pass on top of the world; the model lives in fpScene then
