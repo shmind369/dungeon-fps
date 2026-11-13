@@ -2184,6 +2184,18 @@ function updateCompass() {
   g.beginPath(); g.moveTo(c - sx * 8, c - sy * 8); g.lineTo(c + sx * (R - 12), c + sy * (R - 12)); g.stroke();
   g.fillStyle = '#fff'; g.beginPath(); g.arc(c, c, 5, 0, 7); g.fill();
 }
+// World-space front of the hero model on the XZ plane. The model's front is its local +Z axis
+// (root.rotation.y = atan2(vx, vz)), so this follows her actual turning, including spin attacks.
+const _heroDir = new THREE.Vector3();
+function heroFacing() {
+  if (heroine.ready) {
+    heroine.root.updateMatrixWorld();
+    heroine.root.getWorldDirection(_heroDir);
+    const l = Math.hypot(_heroDir.x, _heroDir.z);
+    if (l > 1e-4) return [_heroDir.x / l, _heroDir.z / l];
+  }
+  return [Math.sin(heroine.face), Math.cos(heroine.face)];
+}
 function drawMap(cv, big) {
   const c = cv.getContext('2d');
   const S = cv.width, w = dun.w, h = dun.h;
@@ -2225,8 +2237,8 @@ function drawMap(cv, big) {
     if (Math.hypot(e.x - player.x, e.z - player.z) > 7 || !los(player.x, player.z, e.x, e.z)) continue;
     dot(e.x, e.z, R0 * (e.d.boss ? 1.6 : 1), '#ff4a3a');
   }
-  // player: yellow dot with a small heading tick
-  const px = X(player.x), py = Y(player.z), f = forward();
+  // player: yellow dot with a small heading tick showing the hero MODEL's facing (not the camera's)
+  const px = X(player.x), py = Y(player.z), f = heroFacing();
   c.lineCap = 'round';
   c.beginPath(); c.moveTo(px + f[0] * R0 * 4.4, py + f[1] * R0 * 4.4); c.lineTo(px, py);
   c.strokeStyle = 'rgba(0,0,0,0.7)'; c.lineWidth = R0 * 0.36 + 1.4; c.stroke();
