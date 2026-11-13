@@ -183,6 +183,48 @@ body.menu #joyHint{display:none}
   #stats{flex-basis:auto;flex:1}
 }
 
+/* ---------- Portrait: split screen ----------
+   Top = 3D view + HUD info, bottom = dedicated control panel (items / pad / attack / item actions).
+   Nothing in the panel overlaps the 3D view, so the player's fingers never cover the hero. */
+#ctrlPanel{display:none}
+@media (orientation:portrait){
+  :root{
+    --pad:128px; --ctrlGap:8px; --itemsH:66px;
+    /* panel = gap + items row + gap + pad + bottom margin + home-indicator area */
+    --ctrlH:calc(var(--ctrlGap) + var(--itemsH) + var(--ctrlGap) + var(--pad) + 12px + var(--safe-b));
+    --padBottom:calc(12px + var(--safe-b));
+    --itemsBottom:calc(var(--padBottom) + var(--pad) + var(--ctrlGap));
+  }
+  #view,#fx,#vignette{inset:0 0 auto 0;height:calc(100% - var(--ctrlH))}
+  #ctrlPanel{position:fixed;left:0;right:0;bottom:0;height:var(--ctrlH);z-index:1;pointer-events:none;
+    background:linear-gradient(#141019,#0b090f);border-top:1px solid var(--line);box-shadow:0 -4px 12px rgba(0,0,0,.6)}
+  body.playing #ctrlPanel{display:block}
+  #banner{top:calc((100% - var(--ctrlH)) * .3)}
+  #pick{top:calc((100% - var(--ctrlH)) * .42)}
+  #bigmap{bottom:var(--ctrlH)}
+  #bigmap canvas{width:min(86vw,calc((100vh - var(--ctrlH)) * .86));height:min(86vw,calc((100vh - var(--ctrlH)) * .86))}
+
+  /* items row: top of the panel */
+  #items,#itemsWrap .more,#sortHint{bottom:var(--itemsBottom)}
+  #equip{bottom:var(--padBottom)}
+
+  /* pad (centre) + attack (right, or left in left-handed mode) under the items row */
+  #joyBase{bottom:var(--padBottom);width:var(--pad);height:var(--pad);margin-left:calc(var(--pad) / -2)}
+  #joyHint{bottom:calc(var(--padBottom) + var(--pad) / 2 - 8px);left:auto;right:calc(50% + var(--pad) / 2 + 10px);transform:none}
+  body.left #joyHint{right:auto;left:calc(50% + var(--pad) / 2 + 10px)}
+  #btnAttack{--atk:min(96px,calc(50vw - var(--pad) / 2 - 34px));width:var(--atk);height:var(--atk);
+    bottom:calc(var(--padBottom) + (var(--pad) - var(--atk)) / 2)}
+
+  /* item actions (置く/投げる/使う): a column in the free side of the panel, opposite the attack button */
+  #actZones{left:calc(8px + var(--safe-l));bottom:var(--padBottom);height:var(--pad);
+    width:calc(50% - var(--pad) / 2 - 16px - var(--safe-l));max-width:none;flex-direction:column;gap:6px}
+  body.left #actZones{left:auto;right:calc(8px + var(--safe-r));width:calc(50% - var(--pad) / 2 - 16px - var(--safe-r))}
+  .az{font-size:16px;border-radius:10px}
+  #actHint{bottom:calc(var(--ctrlH) + 6px);left:0;right:0;text-align:center}
+}
+@media (orientation:portrait) and (max-height:720px){ :root{--pad:116px} }
+@media (orientation:portrait) and (max-height:600px){ :root{--pad:104px; --ctrlGap:6px} }
+
 /* ---------- Screens ---------- */
 .screen{position:fixed;inset:0;z-index:10;display:none;align-items:center;justify-content:center;padding:20px;
   background:radial-gradient(ellipse at center,rgba(30,18,28,.88),rgba(5,4,8,.96))}
@@ -216,6 +258,7 @@ h2{margin:0 0 14px;font-weight:normal;color:var(--gold)}
 <canvas id="view"></canvas>
 <canvas id="fx"></canvas>
 <div id="vignette"></div>
+<div id="ctrlPanel"></div>
 <div id="touchLayer"></div>
 
 <div id="hud">
@@ -457,18 +500,32 @@ scene.add(flashLight);
 
 const fx = $('#fx'), fctx = fx.getContext('2d');
 let W = innerWidth, H = innerHeight, DPR = 1;
+// Portrait split framing: where the horizon (screen centre of the old full-screen view) sits in the 3D area,
+// and how much wider the lens shows than before so the hero doesn't swamp the shorter view.
+const VIEW_HORIZON = 0.45, VIEW_ZOOM_OUT = 1.12;
 
 function resize() {
-  W = innerWidth; H = innerHeight;
+  // In portrait the 3D view only fills the area above the control panel (see #ctrlPanel CSS).
+  const r = viewCanvas.getBoundingClientRect();
+  W = Math.round(r.width) || innerWidth; H = Math.round(r.height) || innerHeight;
+  const ctrlH = Math.max(0, innerHeight - H);
+  const fullH = H + ctrlH;   // camera framing is computed as if the view were still full screen…
   const cap = settings.quality === 'low' ? 0.75 : settings.quality === 'high' ? 2 : 1.25;
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, cap));
   renderer.setSize(W, H, false);
-  const aspect = W / H;
+  const aspect = W / fullH;
   camera.aspect = aspect;
   // Keep horizontal FOV comfortable in portrait without extreme distortion
   if (aspect >= 1) camera.fov = settings.view === 'fps' ? 72 : 64;
   else camera.fov = Math.min(100, 2 * Math.atan(Math.tan(THREE.MathUtils.degToRad(42)) / aspect) * 180 / Math.PI);
+  // …then the unused ceiling band is cropped away: a W×H window of that virtual frame is rendered, slightly
+  // zoomed out, with the horizon lowered to VIEW_HORIZON so the hero sits fully above the controls.
+  if (ctrlH > 0) {
+    const vw = W * VIEW_ZOOM_OUT, vh = H * VIEW_ZOOM_OUT;
+    camera.setViewOffset(W, fullH, (W - vw) / 2, fullH / 2 - VIEW_HORIZON * vh, vw, vh);
+  } else camera.clearViewOffset();
   camera.updateProjectionMatrix();
+  const xh = $('#crosshair'); if (xh) xh.style.top = ctrlH > 0 ? Math.round(VIEW_HORIZON * H) + 'px' : '';
   if (typeof CAM !== 'undefined') Object.assign(CAM, aspect >= 1 ? CAM_LAND : CAM_PORT);
   DPR = Math.min(window.devicePixelRatio || 1, 2);
   fx.width = W * DPR; fx.height = H * DPR;
