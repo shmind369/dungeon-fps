@@ -818,7 +818,7 @@ function updateParticles(dt) {
    Data: enemies & items
    ========================================================= */
 const ENEMY_DEFS = {
-  zombie: { name: 'ゾンビ', hp: 18, atk: 5, speed: 1.15, exp: 4, scale: 0.95, r: 0.28, range: 0.95, windup: 0.45, cd: 1.1, tex: () => zombieTex, color: 0x6ea84a },
+  zombie: { name: 'ゾンビ', hp: 18, atk: 5, speed: 1.15, exp: 4, scale: 0.95, r: 0.28, range: 0.95, windup: 0.45, cd: 1.1, tex: () => zombieTex, color: 0x6ea84a, model3d: true },
   bat:    { name: 'コウモリ', hp: 8, atk: 3, speed: 2.7, exp: 3, scale: 0.5, r: 0.2, range: 0.8, windup: 0.3, cd: 0.9, fly: 0.75, erratic: true, tex: () => emojiTex('🦇'), color: 0x8a6aa0 },
   mummy:  { name: 'マミー', hp: 42, atk: 9, speed: 1.45, exp: 10, scale: 1.05, r: 0.3, range: 1.0, windup: 0.55, cd: 1.3, tex: () => mummyTex, color: 0xc8a870 },
   dragon: { name: 'ドラゴン', hp: 420, atk: 14, speed: 1.1, exp: 0, scale: 2.4, r: 0.75, range: 1.7, windup: 0.7, cd: 1.6, boss: true, fire: 2.4, tex: () => emojiTex('🐉'), color: 0xd85030 },
@@ -968,10 +968,11 @@ function disposeLevel() {
   if (!levelGroup) return;
   scene.remove(levelGroup);
   levelGroup.traverse(o => {
-    if (o.geometry && !o.isSprite) o.geometry.dispose();
+    if (o.geometry && !o.isSprite && !o.geometry.userData.shared) o.geometry.dispose();
     if (o.material && o.material !== wallMat && o.material !== floorMat && o.material !== ceilMat) o.material.dispose();
   });
   levelGroup = null;
+  Z3D.clear();
 }
 function themeFor(fl) { return THEMES.find(t => fl <= t.upTo); }
 function buildLevel() {
@@ -1021,6 +1022,180 @@ function placeStairs(x, y) {
 /* =========================================================
    Entities
    ========================================================= */
+/* ---------- 3D zombie ----------
+   Built at load time from jointed boxes with tiny pixel-art textures painted on canvases, so it adds no
+   download. Only the look changes: the Enemy class still drives position, AI, hits and attacks, and this
+   module just poses the body from that state (shamble, reach, raise-and-slam attack, flinch, collapse). */
+const Z3D = (() => {
+  let seed = 7;   // seeded so every zombie shares identical textures
+  const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+  const px = (g, x, y, c, w = 1, h = 1) => { g.fillStyle = c; g.fillRect(x, y, w, h); };
+  const noise = (g, s, base, shades, n) => {
+    g.fillStyle = base; g.fillRect(0, 0, s, s);
+    for (let i = 0; i < n; i++) px(g, rnd() * s | 0, rnd() * s | 0, shades[rnd() * shades.length | 0], 1 + (rnd() * 2 | 0), 1 + (rnd() * 2 | 0));
+  };
+  const SK = '#6f9e4c', SKS = ['#5f8a40', '#7fae58', '#56803a', '#86b45e', '#4f7536'];
+  const SH = '#3f6f7a', SHS = ['#355f69', '#4a7e88', '#2e535c'], BLOOD = '#5a2420';
+  const T = {
+    skin: canvasTex(16, (g, s) => { noise(g, s, SK, SKS, 60); px(g, 3, 9, '#7a3a2a', 2, 1); px(g, 11, 4, '#4a6a30', 2, 2); }),
+    face: canvasTex(16, (g, s) => {
+      noise(g, s, SK, SKS, 40);
+      px(g, 2, 5, '#1c2414', 5, 3); px(g, 9, 5, '#1c2414', 5, 3);        // sunken sockets
+      px(g, 4, 6, '#f4e85a', 2, 1); px(g, 10, 6, '#f4e85a', 2, 1);       // glowing eyes
+      px(g, 7, 8, '#33491f', 2, 2);                                      // nose hole
+      px(g, 3, 11, '#2a0e0c', 10, 3);                                    // mouth
+      for (let i = 0; i < 5; i++) px(g, 4 + i * 2, 11, '#e8e0c0');       // teeth
+      px(g, 5, 13, '#e8e0c0'); px(g, 9, 13, '#e8e0c0');
+      px(g, 12, 2, '#7a3a2a', 3, 1); px(g, 1, 10, BLOOD, 1, 3);
+    }),
+    scalp: canvasTex(16, (g, s) => {
+      noise(g, s, SK, SKS, 30);
+      px(g, 1, 2, '#3a2a1e', 4, 3); px(g, 2, 11, '#3a2a1e', 3, 3); px(g, 11, 12, '#3a2a1e', 3, 2);   // hair tufts
+      px(g, 6, 3, '#d77a8a', 7, 7); px(g, 7, 4, '#f0a0b0', 3, 1); px(g, 8, 6, '#b85a6a', 4, 1); px(g, 7, 8, '#f0a0b0', 4, 1);   // exposed brain
+      px(g, 5, 3, BLOOD, 1, 7);
+    }),
+    shirt: canvasTex(16, (g, s) => {
+      noise(g, s, SH, SHS, 50);
+      px(g, 2, 9, SK, 3, 3); px(g, 10, 3, SK, 2, 3); px(g, 12, 11, BLOOD, 3, 2); px(g, 6, 6, BLOOD, 1, 2);   // tears + stains
+      for (let x = 0; x < s; x += 3) px(g, x, 15, SK, 2, 1);                                                   // ragged hem
+    }),
+    chest: canvasTex(16, (g, s) => {
+      noise(g, s, SH, SHS, 40);
+      px(g, 5, 1, SK, 6, 13);                                            // shirt torn open
+      for (let y = 4; y < 12; y += 2) px(g, 6, y, '#d8d0b0', 4, 1);      // ribs
+      px(g, 7, 2, BLOOD, 2, 1); px(g, 2, 9, BLOOD, 2, 3); px(g, 12, 5, BLOOD, 1, 2);
+    }),
+    pants: canvasTex(16, (g, s) => { noise(g, s, '#5c4330', ['#4e3828', '#6a4e38', '#43301f'], 50); px(g, 3, 6, '#7a5a40', 4, 4); px(g, 10, 12, SK, 3, 3); }),
+    shoe: canvasTex(8, (g, s) => noise(g, s, '#2c241c', ['#3a3026', '#201a14'], 12)),
+  };
+  // shared geometry; limbs hang from their joint (origin at the top)
+  const geos = {};
+  const geo = (w, h, d, hang) => {
+    const k = [w, h, d, hang].join();
+    if (!geos[k]) { const g = new THREE.BoxGeometry(w, h, d); if (hang) g.translate(0, -h / 2, 0); g.userData.shared = true; geos[k] = g; }
+    return geos[k];
+  };
+  const grp = (parent, x, y, z) => { const o = new THREE.Group(); o.position.set(x, y, z); parent.add(o); return o; };
+  const HIP_Y = 0.49, STRIKE = 0.32, HIT = 0.22;
+
+  function build(e) {
+    const M = {};
+    for (const k in T) M[k] = new THREE.MeshLambertMaterial({ map: T[k], emissiveMap: T[k], emissive: new THREE.Color(0.3, 0.3, 0.3) });
+    const box = (parent, w, h, d, mat, hang, x = 0, y = 0, z = 0) => { const m = new THREE.Mesh(geo(w, h, d, hang), mat); m.position.set(x, y, z); parent.add(m); return m; };
+    const root = new THREE.Group(); root.rotation.order = 'YXZ'; root.scale.setScalar(e.d.scale);
+    const hips = grp(root, 0, HIP_Y, 0);
+    box(hips, 0.27, 0.11, 0.16, M.pants);
+    const legs = [-1, 1].map(sx => {
+      const thigh = grp(hips, sx * 0.075, -0.03, 0);
+      box(thigh, 0.11, 0.23, 0.12, M.pants, true);
+      const knee = grp(thigh, 0, -0.22, 0);
+      box(knee, 0.1, 0.21, 0.11, M.pants, true);
+      box(knee, 0.11, 0.05, 0.17, M.shoe, false, 0, -0.215, 0.03);
+      return { thigh, knee };
+    });
+    const spine = grp(hips, 0, 0.04, 0);
+    box(spine, 0.31, 0.32, 0.18, [M.shirt, M.shirt, M.shirt, M.shirt, M.chest, M.shirt], false, 0, 0.16, 0);   // +Z face = front
+    const neck = grp(spine, 0, 0.33, 0.02);
+    box(neck, 0.2, 0.21, 0.2, [M.skin, M.skin, M.scalp, M.skin, M.face, M.skin], false, 0, 0.11, 0.01);
+    const arms = [-1, 1].map(sx => {
+      const sh = grp(spine, sx * 0.2, 0.29, 0);
+      box(sh, 0.09, 0.2, 0.09, M.shirt, true);
+      const el = grp(sh, 0, -0.19, 0);
+      box(el, 0.075, 0.19, 0.075, M.skin, true);
+      box(el, 0.085, 0.08, 0.05, M.skin, true, 0, -0.19, 0);
+      return { sh, el, sx };
+    });
+    const z = { root, hips, spine, neck, legs, arms, mats: Object.values(M), face: Math.random() * Math.PI * 2, phase: Math.random() * 6,
+      mv: 0, strike: 0, hit: 0, prevWind: 0, wasHit: false, tw: 0, twA: 0, tint: -1 };
+    root.position.set(e.x, 0, e.z);
+    return z;
+  }
+
+  function animate(z, e, dt) {
+    const d = e.d, t = e.t;
+    const sp = Math.hypot(e.vx, e.vz);
+    z.mv = damp(z.mv, clamp(sp / 0.3, 0, 1), 8, dt);
+    z.phase += sp * dt * 13;
+    // facing: toward the player when close / attacking, otherwise along the walk
+    const dx = player.x - e.x, dz = player.z - e.z;
+    let target = null;
+    if (e.windup > 0 || z.strike > 0 || (e.aggro && Math.hypot(dx, dz) < 2.2)) target = Math.atan2(dx, dz);
+    else if (sp > 0.05) target = Math.atan2(e.vx, e.vz);
+    if (target !== null) z.face += angDiff(z.face, target) * Math.min(1, dt * 6);
+    // envelopes: windup -> strike (slam) and hit flinch
+    if (z.prevWind > 0 && e.windup <= 0 && e.flash <= 0) z.strike = STRIKE;
+    z.prevWind = e.windup;
+    z.strike = Math.max(0, z.strike - dt);
+    if (e.flash > 0.08 && !z.wasHit) z.hit = HIT;
+    z.wasHit = e.flash > 0;
+    z.hit = Math.max(0, z.hit - dt);
+    z.tw -= dt; if (z.tw < -1 && Math.random() < dt * 0.5) { z.tw = 0.14; z.twA = rand(-0.45, 0.45); }   // the odd neck twitch
+
+    let armX = -1.4 + Math.sin(t * 2.1) * 0.08, spineX = 0.32, headX = 0.12, elX = -0.3;
+    if (e.windup > 0) {
+      const k = easeOut(1 - e.windup / d.windup);
+      armX = lerp(armX, -2.75, k); spineX = lerp(spineX, -0.12, k); headX = lerp(headX, -0.25, k); elX = lerp(elX, -0.6, k);
+    } else if (z.strike > 0) {
+      const p = 1 - z.strike / STRIKE, a = p < 0.3 ? p / 0.3 : 1, b = p < 0.3 ? 0 : (p - 0.3) / 0.7;
+      armX = lerp(lerp(-2.75, -0.5, a), -1.4, b); spineX = lerp(lerp(-0.12, 0.62, a), 0.32, b); elX = lerp(-0.05, -0.3, b);
+    }
+    if (z.hit > 0) { const k = z.hit / HIT; spineX -= 0.5 * k; headX -= 0.45 * k; armX += 0.5 * k; }
+    const mv = z.mv;
+    z.root.position.set(e.x, 0, e.z);
+    z.root.rotation.y = z.face;
+    z.hips.position.y = HIP_Y + Math.abs(Math.cos(z.phase)) * 0.02 * mv;
+    z.hips.rotation.y = Math.sin(z.phase) * 0.12 * mv;
+    z.spine.rotation.set(spineX, 0, Math.sin(z.phase) * 0.08 * mv + Math.sin(t * 0.9) * 0.05);
+    z.neck.rotation.set(headX, 0, Math.sin(t * 1.3) * 0.16 + (z.tw > 0 ? z.twA : 0));
+    z.arms.forEach((a, i) => {
+      a.sh.rotation.set(armX + Math.sin(t * 2.3 + i * 1.7) * 0.12, 0, a.sx * 0.1);
+      a.el.rotation.x = elX + Math.sin(t * 1.9 + i) * 0.1;
+    });
+    z.legs.forEach((l, i) => {
+      const ph = z.phase + i * Math.PI, amp = i ? 0.42 : 0.26;   // one leg drags a little
+      l.thigh.rotation.x = Math.sin(ph) * amp * mv;
+      l.knee.rotation.x = 0.08 + Math.max(0, -Math.cos(ph)) * 0.55 * mv;
+    });
+    // tint: red on hit, pulsing orange while winding up (same cues the sprite used)
+    let tint = 0;
+    if (e.flash > 0) tint = 1;
+    else if (e.windup > 0) tint = 2 + (0.5 + 0.5 * Math.sin(t * 40));
+    if (tint !== z.tint) {
+      z.tint = tint;
+      for (const m of z.mats) {
+        if (tint === 1) m.emissive.setRGB(1, 0.25, 0.2);
+        else if (tint >= 2) { const k = tint - 2; m.emissive.setRGB(0.8, 0.3 + 0.25 * k, 0.1); }
+        else m.emissive.setRGB(0.3, 0.3, 0.3);
+      }
+    }
+  }
+
+  // collapse backwards, sink and fade, then free the materials
+  const dying = [];
+  function kill(z) {
+    z.dieT = 0;
+    for (const m of z.mats) { m.transparent = true; m.emissive.setRGB(0.3, 0.3, 0.3); }
+    dying.push(z);
+  }
+  function updateDying(dt) {
+    for (let i = dying.length - 1; i >= 0; i--) {
+      const z = dying[i]; z.dieT += dt;
+      const t = z.dieT, f = clamp(t / 0.45, 0, 1);
+      z.root.rotation.x = -f * f * Math.PI / 2;
+      z.arms.forEach(a => { a.sh.rotation.x = lerp(-1.4, -2.9, f); });
+      z.neck.rotation.x = -0.5 * f;
+      const fade = clamp((t - 0.6) / 0.5, 0, 1);
+      z.root.position.y = -0.12 * fade;
+      for (const m of z.mats) m.opacity = 1 - fade;
+      if (fade >= 1) {
+        if (z.root.parent) z.root.parent.remove(z.root);
+        for (const m of z.mats) m.dispose();
+        dying.splice(i, 1);
+      }
+    }
+  }
+  return { build, animate, kill, updateDying, clear: () => { dying.length = 0; } };
+})();
 class Enemy {
   constructor(type, x, z) {
     const d = ENEMY_DEFS[type];
@@ -1031,14 +1206,25 @@ class Enemy {
     this.x = x; this.z = z; this.vx = 0; this.vz = 0; this.kx = 0; this.kz = 0;
     this.aggro = !!d.boss; this.cd = rand(0.3, 1); this.windup = 0; this.fireCd = 2;
     this.wanderT = 0; this.wdx = 0; this.wdz = 0; this.flash = 0; this.t = Math.random() * 10; this.seen = false;
-    this.mat = new THREE.SpriteMaterial({ map: d.tex(), transparent: true, alphaTest: 0.35 });
-    this.sprite = new THREE.Sprite(this.mat);
+    if (d.model3d) {
+      this.z3 = Z3D.build(this);
+      levelGroup.add(this.z3.root);
+      this.sprite = new THREE.Object3D();   // stand-in (not rendered) so code reading sprite position/size keeps working
+    } else {
+      this.mat = new THREE.SpriteMaterial({ map: d.tex(), transparent: true, alphaTest: 0.35 });
+      this.sprite = new THREE.Sprite(this.mat);
+      levelGroup.add(this.sprite);
+    }
     this.sprite.scale.set(d.scale, d.scale, 1);
-    levelGroup.add(this.sprite);
     this.sync();
   }
-  sync() {
+  sync(dt = 0) {
     const d = this.d;
+    if (this.z3) {
+      this.sprite.position.set(this.x, d.scale / 2, this.z);
+      Z3D.animate(this.z3, this, dt);
+      return;
+    }
     let y = d.fly ? d.fly + Math.sin(this.t * 6) * 0.08 : d.scale / 2 + Math.abs(Math.sin(this.t * 7)) * 0.025;
     let s = d.scale;
     if (this.windup > 0) s *= 1 + 0.12 * (1 - this.windup / d.windup);
@@ -1060,7 +1246,8 @@ class Enemy {
   }
   die() {
     this.dead = true;
-    levelGroup.remove(this.sprite); this.mat.dispose();
+    if (this.z3) Z3D.kill(this.z3);
+    else { levelGroup.remove(this.sprite); this.mat.dispose(); }
     burst(this.x, this.d.scale * 0.5, this.z, this.d.color, 28, 3, 0.9);
     SFX.kill(); stats.kills++;
     if (this.d.boss) { onBossDefeated(this); return; }
@@ -1113,7 +1300,7 @@ class Enemy {
     // don't overlap the player
     const pdx = this.x - player.x, pdz = this.z - player.z, pd = Math.hypot(pdx, pdz), pmin = d.r + PLAYER_R;
     if (pd < pmin && pd > 0.001) moveWithCollision(this, pdx / pd * (pmin - pd), pdz / pd * (pmin - pd), d.r * 0.85);
-    this.sync();
+    this.sync(dt);
   }
 }
 class Item {
@@ -1768,6 +1955,7 @@ function update(dt) {
     for (const it of items) { it.t += worldDt; it.sync(); }
   }
   updateParticles(dt);
+  Z3D.updateDying(dt);
   revealTimer -= dt;
   if (revealTimer <= 0) { revealTimer = 0.15; reveal(); }
   // visuals
