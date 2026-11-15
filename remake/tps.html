@@ -131,6 +131,9 @@ body.touch.playing #touchUI{display:block}
 #joyBase{position:absolute;left:50%;bottom:calc(var(--padb) + var(--safe-b));width:128px;height:128px;margin-left:-64px;border-radius:50%;
   border:2px solid rgba(255,255,255,.3);background:rgba(255,255,255,.07);opacity:.6;transition:opacity .15s}
 #joyBase.on{opacity:1}
+#joyBase.cam{border-color:rgba(120,190,255,.85);background:rgba(90,160,255,.16)}
+#joyBase.cam #joyKnob{background:rgba(120,190,255,.5);border-color:rgba(170,215,255,.9)}
+#joyBase.cam::after{content:"🎥";position:absolute;left:50%;top:4px;transform:translateX(-50%);font-size:14px;pointer-events:none}
 #joyKnob{position:absolute;left:50%;top:50%;width:54px;height:54px;margin:-27px 0 0 -27px;border-radius:50%;
   background:rgba(255,255,255,.28);border:2px solid rgba(255,255,255,.45)}
 #joyHint{position:absolute;left:50%;transform:translateX(-50%);bottom:calc(var(--padb) + 134px + var(--safe-b));font-size:12px;color:rgba(255,255,255,.4);white-space:nowrap}
@@ -1660,7 +1663,7 @@ function tintSword() {
 const keys = new Set();
 const input = {
   mouseDX: 0, mouseDY: 0, touchDX: 0, touchDY: 0,
-  joyX: 0, joyY: 0, joyActive: false,
+  joyX: 0, joyY: 0, joyActive: false, camX: 0, camY: 0,
   attackKey: false, attackMouse: false, attackTouch: false, attackPad: false, attackLatch: false,
   padLX: 0, padLY: 0, padRX: 0, padRY: 0, padRun: false,
   get attack() { return this.attackKey || this.attackMouse || this.attackTouch || this.attackPad; },
@@ -1716,7 +1719,7 @@ document.addEventListener('contextmenu', e => e.preventDefault());
 
 /* ---- Touch: floating joystick on one side, look on the other ---- */
 const touchLayer = $('#touchLayer'), joyBase = $('#joyBase'), joyKnob = $('#joyKnob');
-const touch = { joyId: null, ox: 0, oy: 0, lookId: null, lx: 0, ly: 0, mouseDrag: null };
+const touch = { cam: false, lastTapUp: 0, recenterTimer: 0, joyId: null, ox: 0, oy: 0, lookId: null, lx: 0, ly: 0, mouseDrag: null };
 const JOY_R = 56;
 function setTouchMode(on) {
   document.body.classList.toggle('touch', on);
@@ -1744,6 +1747,11 @@ touchLayer.addEventListener('pointerdown', e => {
     touch.joyId = e.pointerId;
     // remember how the touch started: a short tap on the pad's centre re-centres the camera (see endTouch)
     touch.tap = { t: performance.now(), center: Math.hypot(e.clientX - touch.ox, e.clientY - touch.oy) < joyBase.offsetWidth * 0.22, travel: 0, x: e.clientX, y: e.clientY };
+    // double tap on the centre: this touch becomes the camera stick (right stick) until the finger lifts
+    touch.cam = touch.tap.center && touch.lastTapUp > 0 && touch.tap.t - touch.lastTapUp < DOUBLE_TAP_MS;
+    touch.lastTapUp = 0;
+    if (touch.cam) { clearTimeout(touch.recenterTimer); touch.tap = null; }
+    joyBase.classList.toggle('cam', touch.cam);
     joyBase.classList.add('on');
     input.joyActive = true;
     setJoy(e.clientX, e.clientY);
@@ -1771,6 +1779,7 @@ touchLayer.addEventListener('pointermove', e => {
 /* Camera re-centre: swing the camera smoothly round behind the hero's body (third person only).
    Height, distance and up/down angle are untouched — only the horizontal yaw is eased. */
 const camRecenter = { on: false, from: 0, to: 0, t: 0, dur: 0.28 };
+const DOUBLE_TAP_MS = 280;   // second centre tap within this time = camera mode (so a single tap re-centres only after it)
 function recenterCamera() {
   if (settings.view === 'fps' || state !== 'play' || !heroine.ready) return;
   const to = heroine.face + Math.PI;   // camera yaw whose forward vector matches the body's facing
@@ -1783,13 +1792,20 @@ function setJoy(x, y) {
   joyKnob.style.transform = `translate(${dx}px,${dy}px)`;
   let jx = dx / JOY_R, jy = -dy / JOY_R;
   if (Math.hypot(jx, jy) < 0.12) jx = jy = 0;
-  input.joyX = jx; input.joyY = jy;
+  if (touch.cam) { input.camX = jx; input.camY = jy; input.joyX = input.joyY = 0; }   // camera mode: the hero stays put
+  else { input.joyX = jx; input.joyY = jy; }
 }
 function endTouch(e) {
   if (touch.mouseDrag && e.pointerType === 'mouse') { touch.mouseDrag = null; input.attackMouse = false; return; }
   if (e.pointerId === touch.joyId) {
     const tp = touch.tap; touch.tap = null;
-    if (tp && e.type === 'pointerup' && tp.center && tp.travel < 12 && performance.now() - tp.t < 250) recenterCamera();
+    if (!touch.cam && tp && e.type === 'pointerup' && tp.center && tp.travel < 12 && performance.now() - tp.t < 250) {
+      // a single centre tap re-centres the camera, but only once it's clear no second tap (camera mode) follows
+      touch.lastTapUp = performance.now();
+      clearTimeout(touch.recenterTimer);
+      touch.recenterTimer = setTimeout(() => { touch.lastTapUp = 0; recenterCamera(); }, DOUBLE_TAP_MS);
+    }
+    touch.cam = false; input.camX = input.camY = 0; joyBase.classList.remove('cam');
     touch.joyId = null; input.joyActive = false; input.joyX = input.joyY = 0; joyBase.classList.remove('on');
     joyKnob.style.transform = 'translate(0,0)';
   }
@@ -1870,6 +1886,8 @@ function updatePlayer(dt, worldDt) {
   const curve = v => Math.sign(v) * v * v;
   dyaw += curve(input.padRX) * 3.0 * s * dt;
   dpitch += curve(input.padRY) * 2.0 * s * dt;
+  dyaw += curve(input.camX) * 3.0 * s * dt;      // move pad in camera mode (double tap): right-stick equivalent
+  dpitch -= curve(input.camY) * 2.0 * s * dt;
   if (keys.has('ArrowLeft')) dyaw -= 2.4 * dt * s;
   if (keys.has('ArrowRight')) dyaw += 2.4 * dt * s;
   player.yaw -= dyaw;
