@@ -120,6 +120,15 @@ body.touch #pickBtn small{display:none}
   text-shadow:0 2px 0 #000,0 0 18px rgba(232,184,90,.5);opacity:0;transition:opacity .5s}
 #banner small{display:block;font-size:16px;color:var(--text);margin-top:4px}
 #crosshair{position:absolute;left:50%;top:50%;width:4px;height:4px;margin:-2px 0 0 -2px;border-radius:50%;background:rgba(255,255,255,.7)}
+/* camera reset: bottom-right corner of the 3D view (above the control panel in portrait, above the attack button in landscape) */
+#btnCamReset{position:absolute;right:calc(22px + 96px + 14px + var(--safe-r));bottom:calc(var(--padb) + 24px + var(--safe-b));
+  width:56px;height:56px;border-radius:50%;border:2px solid rgba(255,255,255,.4);background:rgba(18,14,24,.7);color:#fff;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:0;line-height:1;pointer-events:auto;cursor:pointer;touch-action:manipulation}
+#btnCamReset .ci{font-size:26px;line-height:26px}
+#btnCamReset small{font-size:10px;color:var(--gold)}
+#btnCamReset:active{transform:scale(.92);background:rgba(232,184,90,.45)}
+body.left #btnCamReset{right:calc(22px + var(--safe-r));bottom:calc(var(--padb) + 4px + var(--safe-b))}   /* left-handed: the attack button moved to the left */
+body.fps #btnCamReset{display:none}
 #bigmap{position:absolute;inset:0;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.6);pointer-events:auto}
 #bigmap canvas{width:min(86vw,86vh);height:min(86vw,86vh)}
 #bigmap.on{display:flex}
@@ -216,6 +225,7 @@ body.menu #joyHint{display:none}
   body.menu #pick{display:none}            /* the item menu's 置く/投げる/使う use this spot while open */
   body.picking #joyHint{display:none}
   #bigmap{bottom:var(--ctrlH)}
+  #btnCamReset,body.left #btnCamReset{right:calc(10px + var(--safe-r));bottom:calc(var(--ctrlH) + 10px)}
   #bigmap canvas{width:min(86vw,calc((100vh - var(--ctrlH)) * .86));height:min(86vw,calc((100vh - var(--ctrlH)) * .86))}
 
   /* items row: top of the panel */
@@ -291,6 +301,7 @@ h2{margin:0 0 14px;font-weight:normal;color:var(--gold)}
   <div id="crosshair"></div>
   <div id="pick"><div id="pickName"></div><button id="pickBtn" type="button"></button></div>
   <div id="banner"></div>
+  <button id="btnCamReset" type="button" aria-label="カメラリセット"><span class="ci">↺</span><small>背後</small></button>
   <div id="itemsWrap"><div id="items"></div><div id="sortHint"><span class="si">⇄</span><b>整頓</b></div><div class="more" id="moreL">◀</div><div class="more" id="moreR">▶</div></div>
   <div id="equip"></div>
   <div id="bigmap"><canvas id="bigmapCanvas" width="640" height="640"></canvas></div>
@@ -769,6 +780,7 @@ function updateFpCamera(dt) {
 function setView(mode, announce) {
   settings.view = mode; saveSettings();
   $('#viewLabel').textContent = mode === 'fps' ? '一人称' : '三人称';
+  document.body.classList.toggle('fps', mode === 'fps');   // e.g. hides the camera-reset button
   resize();
   if (announce) addMsg(mode === 'fps' ? '一人称視点に切り替えた' : '三人称視点に切り替えた', '#9fd0ff');
 }
@@ -1782,6 +1794,15 @@ touchLayer.addEventListener('pointermove', e => {
    Height, distance and up/down angle are untouched — only the horizontal yaw is eased. */
 const camRecenter = { on: false, from: 0, to: 0, t: 0, dur: 0.28 };
 const DOUBLE_TAP_MS = 280;   // second centre tap within this time = camera mode (so a single tap re-centres only after it)
+// Camera reset button: snap (no easing) behind the hero model's current facing and level the view.
+// Height and distance stay as configured; uses the model's facing, not the movement direction.
+function resetCameraBehind() {
+  if (settings.view === 'fps' || state !== 'play') return;
+  const [fx, fz] = heroFacing();
+  camRecenter.on = false;
+  player.yaw = Math.atan2(-fx, -fz);   // camera forward (-sin yaw, -cos yaw) == model forward
+  player.pitch = 0;
+}
 function recenterCamera() {
   if (settings.view === 'fps' || state !== 'play' || !heroine.ready) return;
   const to = heroine.face + Math.PI;   // camera yaw whose forward vector matches the body's facing
@@ -1840,6 +1861,7 @@ const tap = (el, fn) => el.addEventListener('pointerdown', e => { e.preventDefau
 tap($('#pickBtn'), () => interact());
 tap($('#btnPause'), () => pause());
 tap($('#btnView'), () => toggleView());
+tap($('#btnCamReset'), () => resetCameraBehind());
 tap($('#mapWrap'), () => toggleBigMap());
 tap($('#bigmap'), () => toggleBigMap());
 
