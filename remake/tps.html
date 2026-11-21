@@ -1792,21 +1792,23 @@ touchLayer.addEventListener('pointermove', e => {
 });
 /* Camera re-centre: swing the camera smoothly round behind the hero's body (third person only).
    Height, distance and up/down angle are untouched — only the horizontal yaw is eased. */
-const camRecenter = { on: false, from: 0, to: 0, t: 0, dur: 0.28 };
+const camRecenter = { on: false, from: 0, to: 0, t: 0, dur: 0.28, quick: false, pFrom: 0, pTo: null };
 const DOUBLE_TAP_MS = 280;   // second centre tap within this time = camera mode (so a single tap re-centres only after it)
-// Camera reset button: snap (no easing) behind the hero model's current facing and level the view.
+// Camera reset button: a quick turn behind the hero model's current facing that also levels the view.
 // Height and distance stay as configured; uses the model's facing, not the movement direction.
 function resetCameraBehind() {
   if (settings.view === 'fps' || state !== 'play') return;
   const [fx, fz] = heroFacing();
-  camRecenter.on = false;
-  player.yaw = Math.atan2(-fx, -fz);   // camera forward (-sin yaw, -cos yaw) == model forward
-  player.pitch = 0;
+  const to = Math.atan2(-fx, -fz);   // camera forward (-sin yaw, -cos yaw) == model forward
+  const d = angDiff(player.yaw, to);
+  // quick turn: fast start, smooth landing; a bigger turn takes a little longer (0.24s .. 0.42s for 180°)
+  Object.assign(camRecenter, { on: true, from: player.yaw, to: player.yaw + d, t: 0, dur: 0.24 + 0.18 * Math.abs(d) / Math.PI,
+    quick: true, pFrom: player.pitch, pTo: 0 });
 }
 function recenterCamera() {
   if (settings.view === 'fps' || state !== 'play' || !heroine.ready) return;
   const to = heroine.face + Math.PI;   // camera yaw whose forward vector matches the body's facing
-  Object.assign(camRecenter, { on: true, from: player.yaw, to: player.yaw + angDiff(player.yaw, to), t: 0 });
+  Object.assign(camRecenter, { on: true, from: player.yaw, to: player.yaw + angDiff(player.yaw, to), t: 0, dur: 0.28, quick: false, pTo: null });
 }
 function setJoy(x, y) {
   let dx = x - touch.ox, dy = y - touch.oy;
@@ -1916,10 +1918,12 @@ function updatePlayer(dt, worldDt) {
   if (keys.has('ArrowRight')) dyaw += 2.4 * dt * s;
   player.yaw -= dyaw;
   if (camRecenter.on) {
-    if (dyaw !== 0) camRecenter.on = false;   // any manual look cancels the re-centre
+    if (dyaw !== 0 || (camRecenter.pTo !== null && dpitch !== 0)) camRecenter.on = false;   // any manual look cancels the re-centre
     else {
       camRecenter.t = Math.min(1, camRecenter.t + dt / camRecenter.dur);
-      player.yaw = lerp(camRecenter.from, camRecenter.to, easeInOut(camRecenter.t));
+      const k = camRecenter.quick ? easeOut(camRecenter.t) : easeInOut(camRecenter.t);
+      player.yaw = lerp(camRecenter.from, camRecenter.to, k);
+      if (camRecenter.pTo !== null) player.pitch = lerp(camRecenter.pFrom, camRecenter.pTo, k);   // level the view on the way
       if (camRecenter.t >= 1) camRecenter.on = false;
     }
   }
