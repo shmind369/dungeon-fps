@@ -972,7 +972,8 @@ function disposeLevel() {
   scene.remove(levelGroup);
   levelGroup.traverse(o => {
     if (o.geometry && !o.isSprite && !o.geometry.userData.shared) o.geometry.dispose();
-    if (o.material && o.material !== wallMat && o.material !== floorMat && o.material !== ceilMat) o.material.dispose();
+    // a mesh can carry one material or a per-face list (the 3D zombie's head/torso)
+    for (const m of [].concat(o.material || [])) if (m !== wallMat && m !== floorMat && m !== ceilMat) m.dispose();
   });
   levelGroup = null;
   Z3D.clear();
@@ -1641,9 +1642,10 @@ function descend() {
   SFX.stairs(); state = 'transition';
   $('#fade').classList.add('on');
   setTimeout(() => {
-    floor++; loadFloor();
-    $('#fade').classList.remove('on');
-    state = 'play';
+    floor++;
+    // always lift the fade and resume, even if building the floor throws, so the screen can't stay black and frozen
+    try { loadFloor(); } catch (err) { console.error('loadFloor', err); }
+    finally { $('#fade').classList.remove('on'); state = 'play'; }
   }, 420);
 }
 // weapon / armor tiers follow whichever inventory entries carry the equipped flag (none = bare hands / no armor)
