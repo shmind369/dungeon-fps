@@ -1942,6 +1942,8 @@ touchLayer.addEventListener('pointerdown', e => {
     touch.cam = touch.tap.center && touch.lastTapUp > 0 && touch.tap.t - touch.lastTapUp < DOUBLE_TAP_MS;
     touch.lastTapUp = 0;
     if (touch.cam) { clearTimeout(touch.recenterTimer); touch.tap = null; }
+    touch.lastDir = null;
+    if (camRecenter.on && camRecenter.follow) camRecenter.on = false;
     joyBase.classList.toggle('cam', touch.cam);
     joyBase.classList.add('on');
     input.joyActive = true;
@@ -1980,12 +1982,23 @@ function resetCameraBehind() {
   const d = angDiff(player.yaw, to);
   // quick turn: fast start, smooth landing; a bigger turn takes a little longer (0.24s .. 0.42s for 180°)
   Object.assign(camRecenter, { on: true, from: player.yaw, to: player.yaw + d, t: 0, dur: 0.24 + 0.18 * Math.abs(d) / Math.PI,
-    quick: true, pFrom: player.pitch, pTo: 0 });
+    quick: true, pFrom: player.pitch, pTo: 0, follow: false });
 }
 function recenterCamera() {
   if (settings.view === 'fps' || state !== 'play' || !heroine.ready) return;
   const to = heroine.face + Math.PI;   // camera yaw whose forward vector matches the body's facing
-  Object.assign(camRecenter, { on: true, from: player.yaw, to: player.yaw + angDiff(player.yaw, to), t: 0, dur: 0.28, quick: false, pTo: null });
+  Object.assign(camRecenter, { on: true, from: player.yaw, to: player.yaw + angDiff(player.yaw, to), t: 0, dur: 0.28, quick: false, pTo: null, follow: false });
+}
+// Camera follow on release: turn (0.3 s, horizontal only) to face the direction the pad was last pushed.
+// The pad moves the hero relative to the camera, so that direction is worked out from the current camera yaw.
+const FOLLOW_MIN = 0.35;   // pad deflection below this (near the centre) neither updates the direction nor triggers a turn
+function followCamera(jx, jy) {
+  if (settings.view === 'fps' || state !== 'play') return;
+  const [fx, fz] = forward(), [rx, rz] = rightVec();
+  const dx = fx * jy + rx * jx, dz = fz * jy + rz * jx;
+  const to = Math.atan2(-dx, -dz), d = angDiff(player.yaw, to);
+  if (Math.abs(d) < 0.03) return;   // already facing that way
+  Object.assign(camRecenter, { on: true, from: player.yaw, to: player.yaw + d, t: 0, dur: 0.3, quick: false, pTo: null, follow: true });
 }
 function setJoy(x, y) {
   let dx = x - touch.ox, dy = y - touch.oy;
@@ -1995,7 +2008,10 @@ function setJoy(x, y) {
   let jx = dx / JOY_R, jy = -dy / JOY_R;
   if (Math.hypot(jx, jy) < 0.12) jx = jy = 0;
   if (touch.cam) { input.camX = jx; input.camY = jy; input.joyX = input.joyY = 0; }   // camera mode: the hero stays put
-  else { input.joyX = jx; input.joyY = jy; }
+  else {
+    input.joyX = jx; input.joyY = jy;
+    if (Math.hypot(jx, jy) >= FOLLOW_MIN) touch.lastDir = [jx, jy];   // remembered: the input is zero once the finger lifts
+  }
 }
 function endTouch(e) {
   if (touch.mouseDrag && e.pointerType === 'mouse') { touch.mouseDrag = null; input.attackMouse = false; return; }
@@ -2007,6 +2023,9 @@ function endTouch(e) {
       clearTimeout(touch.recenterTimer);
       touch.recenterTimer = setTimeout(() => { touch.lastTapUp = 0; recenterCamera(); }, DOUBLE_TAP_MS);
     }
+    // let go while still pushing the stick (not near the centre): swing the camera round to that movement direction
+    if (!touch.cam && e.type === 'pointerup' && touch.lastDir && Math.hypot(input.joyX, input.joyY) >= FOLLOW_MIN) followCamera(...touch.lastDir);
+    touch.lastDir = null;
     touch.cam = false; input.camX = input.camY = 0; joyBase.classList.remove('cam');
     touch.joyId = null; input.joyActive = false; input.joyX = input.joyY = 0; joyBase.classList.remove('on');
     joyKnob.style.transform = 'translate(0,0)';
