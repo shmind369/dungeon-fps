@@ -296,6 +296,15 @@ h2{margin:0 0 14px;font-weight:normal;color:var(--gold)}
 #btnReload{width:70px;height:70px;font-size:26px;line-height:1;right:calc(34px + var(--safe-r));bottom:calc(var(--padb) + 4px + 96px + 12px + var(--safe-b))}
 #btnReload.down{background:rgba(201,103,58,.6);transform:scale(.95)}
 body.left #btnReload{right:auto;left:calc(34px + var(--safe-l))}
+#joyBase.aim{border-color:rgba(255,110,90,.9);background:rgba(255,90,70,.13);opacity:1}
+#joyBase.aim #joyKnob{background:rgba(255,130,110,.5);border-color:rgba(255,170,150,.95)}
+#joyBase.z-reload{border-color:#e8b85a;background:rgba(232,184,90,.22)}
+#joyBase.z-cancel{border-color:#ff5a4a;background:rgba(255,70,50,.3)}
+.aimLbl{display:none;position:absolute;left:50%;transform:translateX(-50%);font-size:9px;line-height:1;letter-spacing:1px;color:rgba(255,255,255,.7);white-space:nowrap;pointer-events:none;text-shadow:0 1px 2px #000}
+.aimLbl.up{top:8px}.aimLbl.down{bottom:8px}
+#joyBase.aim .aimLbl{display:block}
+#joyBase.z-reload .aimLbl.up{color:#ffd070;font-size:10px}
+#joyBase.z-cancel .aimLbl.down{color:#ff9a8a;font-size:10px}
 @media (orientation:portrait){
   #btnReload{right:auto;left:calc(50% - var(--pad) / 2 - 16px - 70px);bottom:calc(var(--padBottom) + (var(--pad) - 70px) / 2)}
   body.left #btnReload{left:auto;right:calc(50% - var(--pad) / 2 - 16px - 70px)}
@@ -329,7 +338,7 @@ body.left #btnReload{right:auto;left:calc(34px + var(--safe-l))}
 </div>
 
 <div id="touchUI">
-  <div id="joyBase"><div id="joyKnob"></div></div>
+  <div id="joyBase"><div id="joyKnob"></div><span class="aimLbl up">↑ RELOAD</span><span class="aimLbl down">↓ 解除</span></div>
   <div id="joyHint">移動パッド</div>
   <button class="tbtn" id="btnAttack" aria-label="発射"><svg viewBox="0 0 40 40"><circle cx="20" cy="20" r="11"/><path d="M20 3v10M20 27v10M3 20h10M27 20h10"/></svg><small>FIRE</small></button>
   <button class="tbtn" id="btnReload" aria-label="リロード"><span>↻</span><small>RELOAD</small></button>
@@ -359,16 +368,19 @@ body.left #btnReload{right:auto;left:calc(34px + var(--safe-l))}
 <div class="screen" id="scrHelp"><div class="card">
   <h2>操作説明</h2>
   <div class="help">
-    <h3>📱 スマホ・タブレット（ダンジョンゲームと同じ操作）</h3>
+    <h3>📱 スマホ・タブレット</h3>
     画面<b>下中央のパッド</b> → 移動（端まで倒すとダッシュ）<br>
     パッド以外の場所をなぞる → カメラ（照準）移動<br>
     <b>FIREボタン</b> → 発射（押している間は連射。押したまま指をずらすと照準も動く）<br>
     <b>RELOADボタン</b> → リロード（弾が切れると自動でリロード）<br>
     下の<b>武器ボタン</b>をタップ → ピストル／ライフル／ショットガンを切り替え<br>
-    パッド中央を<b>ダブルタップして押し続ける</b> → その間だけカメラ操作モード（キャラは動かない）<br>
-    パッド中央を1回タップ → カメラがキャラの背後へゆっくり回る<br>
+    <h3>🎯 エイムモード（パッドだけで狙って撃つ）</h3>
+    パッドの<b>真ん中を1回タップ</b> → エイムモード（パッドが赤くなる）<br>
+    エイム中は<b>パッドを動かす → 照準が動く</b>（キャラは動かない）<br>
+    <b>パッドの上で指を離す → 発射</b><br>
+    パッドの<b>外の上</b>まで動かして離す → リロード ／ パッドの<b>外の下</b>まで動かして離す → エイム解除<br>
+    （FIREボタンでも撃てます。エイム解除すると移動パッドに戻ります）<br>
     右の<b>↺背後</b>ボタン → カメラをすばやく背後へ（クイックターン）<br>
-    パッドを倒したまま指を離すと、その方向へカメラが自動で回ります（設定でオフにできます）<br>
     <h3>⌨️ PC</h3>
     <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> 移動 ／ マウス 照準 ／ <kbd>Shift</kbd> ダッシュ<br>
     <kbd>左クリック</kbd> または <kbd>Space</kbd> 発射 ／ <kbd>R</kbd> リロード<br>
@@ -390,7 +402,6 @@ body.left #btnReload{right:auto;left:calc(34px + var(--safe-l))}
   <div class="setrow"><span>上下の視点移動</span><div class="toggle" id="setPitch"></div></div>
   <div class="setrow"><span>上下反転</span><div class="toggle" id="setInvert"></div></div>
   <div class="setrow"><span>エイムアシスト</span><div class="toggle" id="setAssist"></div></div>
-  <div class="setrow"><span>パッドを離すとカメラ追従</span><div class="toggle" id="setFollow"></div></div>
   <div class="setrow"><span>左利きモード（タッチ）</span><div class="toggle" id="setLeft"></div></div>
   <div class="setrow"><span>効果音</span><div class="toggle" id="setSfx"></div></div>
   <div class="setrow"><span>振動（対応端末）</span><div class="toggle" id="setVibe"></div></div>
@@ -442,7 +453,7 @@ const CAM = Object.assign({ pitchMin: -0.7, pitchMax: 0.45 }, CAM_LAND);
 /* =========================================================
    Settings (per-browser)
    ========================================================= */
-const DEFAULT_SETTINGS = { sens: 1, pitch: true, invertY: false, leftHanded: false, sfx: true, vibrate: true, quality: 'auto', assist: true, padFollow: true };
+const DEFAULT_SETTINGS = { sens: 1, pitch: true, invertY: false, leftHanded: false, sfx: true, vibrate: true, quality: 'auto', assist: true };
 const settings = (() => {
   try { return Object.assign({}, DEFAULT_SETTINGS, JSON.parse(localStorage.getItem('shoot_settings') || '{}')); }
   catch (e) { return Object.assign({}, DEFAULT_SETTINGS); }
@@ -1536,15 +1547,45 @@ document.addEventListener('mousedown', e => {
 document.addEventListener('mouseup', e => { if (e.button === 0) input.attackMouse = false; });
 document.addEventListener('contextmenu', e => e.preventDefault());
 
-/* ---- Touch: floating joystick on one side, look on the other ---- */
+/* ---- Touch: movement pad (with an aim mode), look-drag everywhere else ----
+   Pad, not aiming : move the hero (camera-relative). Lifting the finger does nothing to the camera.
+   Tap the pad's centre : aim mode on (the pad turns red and stays that way).
+   Pad, aiming      : the pad turns the camera / crosshair (the hero stays put).
+                      let go on the pad = fire, let go outside it above = reload, below = leave aim mode. */
 const touchLayer = $('#touchLayer'), joyBase = $('#joyBase'), joyKnob = $('#joyKnob');
-const touch = { cam: false, lastTapUp: 0, recenterTimer: 0, joyId: null, ox: 0, oy: 0, lookId: null, lx: 0, ly: 0, mouseDrag: null };
+const touch = { joyId: null, ox: 0, oy: 0, lookId: null, lx: 0, ly: 0, mouseDrag: null, aim: false, tap: null, zone: 'fire' };
 const JOY_R = 56;
+let aimMode = false;
+function setAimMode(on) {
+  on = !!on;
+  if (on === aimMode) return;
+  aimMode = on;
+  document.body.classList.toggle('aiming', on);
+  joyBase.classList.toggle('aim', on);
+  input.joyX = input.joyY = 0;
+  if (state === 'play') SFX.swap();
+}
 function setTouchMode(on) {
   document.body.classList.toggle('touch', on);
 }
 function padCenter() { const r = joyBase.getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2]; }
 function inMoveZone(x, y) { const [cx, cy] = padCenter(); return Math.hypot(x - cx, y - cy) < 105; }
+// where would the finger's release land? 'fire' = on the pad, 'reload' = above it, 'cancel' = below it, 'none' = out to the side
+function aimZoneAt(x, y) {
+  const dx = x - touch.ox, dy = y - touch.oy, R = joyBase.offsetWidth / 2;
+  if (Math.hypot(dx, dy) <= R * 1.12) return 'fire';
+  if (dy < 0 && -dy > Math.abs(dx)) return 'reload';
+  if (dy > 0 && dy > Math.abs(dx)) return 'cancel';
+  return 'none';
+}
+function updateAimZone(x, y) {
+  const z = aimZoneAt(x, y);
+  if (z === touch.zone) return z;
+  touch.zone = z;
+  joyBase.classList.toggle('z-reload', z === 'reload');
+  joyBase.classList.toggle('z-cancel', z === 'cancel');
+  return z;
+}
 touchLayer.addEventListener('pointerdown', e => {
   audioUnlock();
   if (e.pointerType === 'mouse') {
@@ -1564,21 +1605,15 @@ touchLayer.addEventListener('pointerdown', e => {
   if (inMoveZone(e.clientX, e.clientY) && touch.joyId === null) {
     [touch.ox, touch.oy] = padCenter();
     touch.joyId = e.pointerId;
-    // remember how the touch started: a short tap on the pad's centre re-centres the camera (see endTouch)
-    touch.tap = { t: performance.now(), center: Math.hypot(e.clientX - touch.ox, e.clientY - touch.oy) < joyBase.offsetWidth * 0.22, travel: 0, x: e.clientX, y: e.clientY };
-    // double tap on the centre: this touch becomes the camera stick (right stick) until the finger lifts
-    touch.cam = touch.tap.center && touch.lastTapUp > 0 && touch.tap.t - touch.lastTapUp < DOUBLE_TAP_MS;
-    touch.lastTapUp = 0;
-    if (touch.cam) { clearTimeout(touch.recenterTimer); touch.tap = null; }
-    touch.lastDir = null;
-    if (camRecenter.on && camRecenter.follow) camRecenter.on = false;
-    joyBase.classList.toggle('cam', touch.cam);
+    touch.aim = aimMode;      // while in aim mode this finger is the aim stick
+    // remember how the touch started: a short tap on the pad's centre switches aim mode on (see endTouch)
+    touch.tap = { t: performance.now(), center: Math.hypot(e.clientX - touch.ox, e.clientY - touch.oy) < joyBase.offsetWidth * 0.3, travel: 0, x: e.clientX, y: e.clientY };
+    touch.zone = 'fire';
     joyBase.classList.add('on');
-    input.joyActive = true;
+    input.joyActive = !touch.aim;
     setJoy(e.clientX, e.clientY);
-    $('#joyHint').style.display = 'none';
   } else {
-    dismissMenu();   // a touch on empty space closes the item menu (and still starts looking around)
+    dismissMenu();
     if (touch.lookId === null) { touch.lookId = e.pointerId; touch.lx = e.clientX; touch.ly = e.clientY; }
   }
   try { touchLayer.setPointerCapture(e.pointerId); } catch (_) {}
@@ -1597,36 +1632,17 @@ touchLayer.addEventListener('pointermove', e => {
     touch.lx = e.clientX; touch.ly = e.clientY;
   }
 });
-/* Camera re-centre: swing the camera smoothly round behind the hero's body (third person only).
-   Height, distance and up/down angle are untouched — only the horizontal yaw is eased. */
+/* Camera reset button: a quick turn behind the hero model's current facing that also levels the view.
+   Height and distance stay as configured; uses the model's facing, not the movement direction. */
 const camRecenter = { on: false, from: 0, to: 0, t: 0, dur: 0.28, quick: false, pFrom: 0, pTo: null };
-const DOUBLE_TAP_MS = 280;   // second centre tap within this time = camera mode (so a single tap re-centres only after it)
-// Camera reset button: a quick turn behind the hero model's current facing that also levels the view.
-// Height and distance stay as configured; uses the model's facing, not the movement direction.
 function resetCameraBehind() {
-  if (settings.view === 'fps' || state !== 'play') return;
+  if (state !== 'play') return;
   const [fx, fz] = heroFacing();
   const to = Math.atan2(-fx, -fz);   // camera forward (-sin yaw, -cos yaw) == model forward
   const d = angDiff(player.yaw, to);
   // quick turn: fast start, smooth landing; a bigger turn takes a little longer (0.24s .. 0.42s for 180°)
   Object.assign(camRecenter, { on: true, from: player.yaw, to: player.yaw + d, t: 0, dur: 0.24 + 0.18 * Math.abs(d) / Math.PI,
-    quick: true, pFrom: player.pitch, pTo: 0, follow: false });
-}
-function recenterCamera() {
-  if (settings.view === 'fps' || state !== 'play' || !heroine.ready) return;
-  const to = heroine.face + Math.PI;   // camera yaw whose forward vector matches the body's facing
-  Object.assign(camRecenter, { on: true, from: player.yaw, to: player.yaw + angDiff(player.yaw, to), t: 0, dur: 0.28, quick: false, pTo: null, follow: false });
-}
-// Camera follow on release: turn (0.3 s, horizontal only) to face the direction the pad was last pushed.
-// The pad moves the hero relative to the camera, so that direction is worked out from the current camera yaw.
-const FOLLOW_MIN = 0.35;   // pad deflection below this (near the centre) neither updates the direction nor triggers a turn
-function followCamera(jx, jy) {
-  if (settings.view === 'fps' || state !== 'play') return;
-  const [fx, fz] = forward(), [rx, rz] = rightVec();
-  const dx = fx * jy + rx * jx, dz = fz * jy + rz * jx;
-  const to = Math.atan2(-dx, -dz), d = angDiff(player.yaw, to);
-  if (Math.abs(d) < 0.03) return;   // already facing that way
-  Object.assign(camRecenter, { on: true, from: player.yaw, to: player.yaw + d, t: 0, dur: 0.3, quick: false, pTo: null, follow: true });
+    quick: true, pFrom: player.pitch, pTo: 0 });
 }
 function setJoy(x, y) {
   let dx = x - touch.ox, dy = y - touch.oy;
@@ -1635,31 +1651,37 @@ function setJoy(x, y) {
   joyKnob.style.transform = `translate(${dx}px,${dy}px)`;
   let jx = dx / JOY_R, jy = -dy / JOY_R;
   if (Math.hypot(jx, jy) < 0.12) jx = jy = 0;
-  if (touch.cam) { input.camX = jx; input.camY = jy; input.joyX = input.joyY = 0; }   // camera mode: the hero stays put
-  else {
-    input.joyX = jx; input.joyY = jy;
-    if (Math.hypot(jx, jy) >= FOLLOW_MIN) touch.lastDir = [jx, jy];   // remembered: the input is zero once the finger lifts
+  if (touch.aim) {   // aim stick: the hero stays put; out on a command zone (reload / leave) the view holds still
+    const z = updateAimZone(x, y);
+    if (z === 'fire') { input.camX = jx; input.camY = jy; } else input.camX = input.camY = 0;
+    input.joyX = input.joyY = 0;
   }
+  else { input.joyX = jx; input.joyY = jy; }
 }
 function endTouch(e) {
   if (touch.mouseDrag && e.pointerType === 'mouse') { touch.mouseDrag = null; input.attackMouse = false; return; }
   if (e.pointerId === touch.joyId) {
     const tp = touch.tap; touch.tap = null;
-    if (!touch.cam && tp && e.type === 'pointerup' && tp.center && tp.travel < 12 && performance.now() - tp.t < 250) {
-      // a single centre tap re-centres the camera, but only once it's clear no second tap (camera mode) follows
-      touch.lastTapUp = performance.now();
-      clearTimeout(touch.recenterTimer);
-      touch.recenterTimer = setTimeout(() => { touch.lastTapUp = 0; recenterCamera(); }, DOUBLE_TAP_MS);
+    const lifted = e.type === 'pointerup' && state === 'play';
+    if (touch.aim) {
+      if (lifted) {
+        const z = aimZoneAt(e.clientX, e.clientY);
+        if (z === 'fire') input.attackLatch = true;          // let go on the pad: fire
+        else if (z === 'reload') startReload(false);         // let go above it: reload
+        else if (z === 'cancel') setAimMode(false);          // let go below it: leave aim mode
+      }
+    } else if (lifted && tp && tp.center && tp.travel < 12 && performance.now() - tp.t < 250) {
+      setAimMode(true);                                      // a short tap on the centre: aim mode on
+      if (!hasSeenAimHint()) addMsg('エイムモード：パッドで照準 → 離すと発射（外で離す：上=リロード／下=解除）', '#ffb0a0');
     }
-    // let go while still pushing the stick (not near the centre): swing the camera round to that movement direction
-    if (settings.padFollow && !touch.cam && e.type === 'pointerup' && touch.lastDir && Math.hypot(input.joyX, input.joyY) >= FOLLOW_MIN) followCamera(...touch.lastDir);
-    touch.lastDir = null;
-    touch.cam = false; input.camX = input.camY = 0; joyBase.classList.remove('cam');
+    touch.aim = false; touch.zone = 'fire'; joyBase.classList.remove('z-reload', 'z-cancel');
+    input.camX = input.camY = 0;
     touch.joyId = null; input.joyActive = false; input.joyX = input.joyY = 0; joyBase.classList.remove('on');
     joyKnob.style.transform = 'translate(0,0)';
   }
   if (e.pointerId === touch.lookId) touch.lookId = null;
 }
+function hasSeenAimHint() { try { const v = localStorage.getItem('shoot_aimhint'); localStorage.setItem('shoot_aimhint', '1'); return !!v; } catch (e) { return false; } }
 touchLayer.addEventListener('pointerup', endTouch);
 touchLayer.addEventListener('pointercancel', endTouch);
 touchLayer.addEventListener('lostpointercapture', endTouch);
@@ -1728,8 +1750,8 @@ function updatePlayer(dt) {
   const curve = v => Math.sign(v) * v * v;
   dyaw += curve(input.padRX) * 3.0 * s * dt;
   dpitch += curve(input.padRY) * 2.0 * s * dt;
-  dyaw += curve(input.camX) * 3.0 * s * dt;      // move pad in camera mode (double tap): right-stick equivalent
-  dpitch -= curve(input.camY) * 2.0 * s * dt;
+  dyaw += curve(input.camX) * 2.3 * s * dt;      // pad in aim mode: right-stick equivalent
+  dpitch -= curve(input.camY) * 1.6 * s * dt;
   if (keys.has('ArrowLeft')) dyaw -= 2.4 * dt * s;
   if (keys.has('ArrowRight')) dyaw += 2.4 * dt * s;
   player.yaw -= dyaw;
@@ -1854,7 +1876,7 @@ function animateHeroine(dt, idleOnly) {
   h.run = damp(h.run || 0, clamp((sp - WALK_SPEED * 0.8) / (RUN_SPEED - WALK_SPEED * 0.8), 0, 1), 8, dt);
   const mv = h.mv, run = h.run, k = clamp(sp / RUN_SPEED, 0, 1);
   // aiming: the gun comes up while firing and for a moment after
-  const aimOn = !idleOnly && state === 'play' && player.reload <= 0 && (input.attack || player.aimHold > 0);
+  const aimOn = !idleOnly && state === 'play' && player.reload <= 0 && (input.attack || player.aimHold > 0 || aimMode);
   h.aimK = damp(h.aimK || 0, aimOn ? 1 : 0, aimOn ? 18 : 6, dt);
   const aimK = h.aimK, aiming = aimK > 0.3;
   const aimYaw = Math.atan2(-Math.sin(player.yaw), -Math.cos(player.yaw));
@@ -2047,6 +2069,7 @@ function drawCrosshair(c) {
     c.strokeStyle = 'rgba(0,0,0,.6)'; c.lineWidth = 5; c.stroke(); c.strokeStyle = col; c.lineWidth = 2.4; c.stroke();
   }
   c.beginPath(); c.arc(cx, cy, 1.8, 0, 7); c.fillStyle = col; c.fill();
+  if (aimMode) { c.beginPath(); c.arc(cx, cy, gap + len + 6, 0, 7); c.strokeStyle = 'rgba(255,120,100,.75)'; c.lineWidth = 1.6; c.stroke(); }   // aim mode ring
   if (player.reload > 0) {   // reload progress ring
     const k = 1 - player.reload / player.reloadTotal, R = gap + len + 10;
     c.lineWidth = 4; c.strokeStyle = 'rgba(0,0,0,.5)'; c.beginPath(); c.arc(cx, cy, R, 0, Math.PI * 2); c.stroke();
@@ -2229,6 +2252,7 @@ function back() { showScreen(screenStack.pop() || 'scrTitle'); }
 
 function startGame() {
   audioUnlock();
+  setAimMode(false);
   buildLevel();                                   // fresh arena: no leftover enemies, new lamp positions
   enemies = []; pickups = []; dmgTexts = []; particles.length = 0;
   for (const t of tracers) { t.life = 0; t.mesh.visible = false; }
@@ -2261,6 +2285,7 @@ function resume() {
   if (!document.body.classList.contains('touch')) requestLock();
 }
 function quitToTitle() {
+  setAimMode(false);
   state = 'title';
   document.body.classList.remove('playing');
   if (isLocked()) document.exitPointerLock();
@@ -2268,6 +2293,7 @@ function quitToTitle() {
   showScreen('scrTitle'); renderRecord();
 }
 function endRun(cause) {
+  setAimMode(false);
   state = 'dead';
   if (isLocked()) document.exitPointerLock();
   input.attackKey = input.attackMouse = input.attackTouch = false;
@@ -2310,7 +2336,6 @@ function syncSettingsUI() {
   $('#setPitch').classList.toggle('on', settings.pitch);
   $('#setInvert').classList.toggle('on', settings.invertY);
   $('#setAssist').classList.toggle('on', settings.assist);
-  $('#setFollow').classList.toggle('on', settings.padFollow);
   $('#setLeft').classList.toggle('on', settings.leftHanded);
   $('#setSfx').classList.toggle('on', settings.sfx);
   $('#setVibe').classList.toggle('on', settings.vibrate);
@@ -2318,7 +2343,7 @@ function syncSettingsUI() {
   document.body.classList.toggle('left', settings.leftHanded);
 }
 $('#setSens').addEventListener('input', e => { settings.sens = +e.target.value; saveSettings(); syncSettingsUI(); });
-[['#setPitch', 'pitch'], ['#setInvert', 'invertY'], ['#setAssist', 'assist'], ['#setFollow', 'padFollow'], ['#setLeft', 'leftHanded'], ['#setSfx', 'sfx'], ['#setVibe', 'vibrate']].forEach(([sel, key]) => {
+[['#setPitch', 'pitch'], ['#setInvert', 'invertY'], ['#setAssist', 'assist'], ['#setLeft', 'leftHanded'], ['#setSfx', 'sfx'], ['#setVibe', 'vibrate']].forEach(([sel, key]) => {
   $(sel).addEventListener('click', () => { settings[key] = !settings[key]; saveSettings(); syncSettingsUI(); });
 });
 $('#setQuality').addEventListener('change', e => { settings.quality = e.target.value; saveSettings(); resize(); });
