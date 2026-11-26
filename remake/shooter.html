@@ -511,7 +511,16 @@ function noise(dur, vol = 0.15, freq = 1200, q = 1, delay = 0, freq2 = null) {
 const SFX = {
   pistol: () => { noise(0.13, 0.3, 1800, 0.7, 0, 380); tone(190, 55, 0.1, 'square', 0.1); },
   rifle: () => { noise(0.1, 0.26, 2300, 0.8, 0, 500); tone(150, 55, 0.08, 'sawtooth', 0.09); },
-  shotgun: () => { noise(0.34, 0.42, 900, 0.6, 0, 140); tone(95, 32, 0.28, 'sawtooth', 0.2); noise(0.12, 0.2, 3000, 0.8, 0, 600); },
+  // ドゴォン！: a sharp crack, a punching body, a low boom that blooms, and a rumbling echo that rolls away
+  shotgun: () => {
+    noise(0.09, 0.62, 3000, 0.7, 0, 800);          // ド  the crack
+    tone(260, 70, 0.20, 'triangle', 0.46);          // ド  the punch (starts in the range phone speakers can play)
+    tone(150, 46, 0.45, 'triangle', 0.36, 0.03);    // ゴ  the boom (triangle: its harmonics carry on small speakers)
+    tone(75, 30, 0.8, 'sine', 0.13, 0.04);          // ゴ  sub swell (felt more than heard)
+    noise(1.25, 0.34, 420, 0.5, 0.03, 110);         // ォ  rumbling air
+    noise(0.95, 0.16, 800, 0.6, 0.13, 200);         // ン  echo off the walls
+    tone(110, 40, 0.8, 'triangle', 0.13, 0.15);     // ン  late low swell
+  },
   reload: () => { tone(1100, 500, 0.05, 'square', 0.05); noise(0.05, 0.1, 2500, 2); },
   reloadDone: () => { tone(500, 1000, 0.06, 'square', 0.06); tone(300, null, 0.05, 'square', 0.06, 0.07); },
   empty: () => tone(160, null, 0.05, 'square', 0.05),
