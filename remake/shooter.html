@@ -293,9 +293,10 @@ h2{margin:0 0 14px;font-weight:normal;color:var(--gold)}
 .tbtn{flex-direction:column;gap:1px}
 .tbtn small{display:block;font-size:10px;line-height:1;color:var(--gold);letter-spacing:1px}
 #btnAttack svg{width:44px;height:44px;stroke:#fff;fill:none;stroke-width:2.4;stroke-linecap:round}
-#btnReload{width:70px;height:70px;font-size:26px;line-height:1;right:calc(34px + var(--safe-r));bottom:calc(var(--padb) + 4px + 96px + 12px + var(--safe-b))}
+/* reload: right above the camera-reset (↺背後) button, same size and the same column */
+#btnReload{width:56px;height:56px;font-size:22px;line-height:1;gap:0;right:calc(22px + 96px + 14px + var(--safe-r));bottom:calc(var(--padb) + 24px + 56px + 10px + var(--safe-b))}
 #btnReload.down{background:rgba(201,103,58,.6);transform:scale(.95)}
-body.left #btnReload{right:auto;left:calc(34px + var(--safe-l))}
+body.left #btnReload{right:calc(22px + var(--safe-r));bottom:calc(var(--padb) + 4px + 56px + 10px + var(--safe-b))}
 #joyBase.aim{border-color:rgba(255,110,90,.9);background:rgba(255,90,70,.13);opacity:1}
 #joyBase.aim #joyKnob{background:rgba(255,130,110,.5);border-color:rgba(255,170,150,.95)}
 #joyBase.z-reload{border-color:#e8b85a;background:rgba(232,184,90,.22)}
@@ -306,12 +307,15 @@ body.left #btnReload{right:auto;left:calc(34px + var(--safe-l))}
 #joyBase.z-reload .aimLbl.up{color:#ffd070;font-size:10px}
 #joyBase.z-cancel .aimLbl.down{color:#ff9a8a;font-size:10px}
 @media (orientation:landscape){   /* the pad sits in a bottom corner, not over the middle of the screen where you are aiming */
+  :root{--map:148px}   /* a slightly smaller minimap keeps clear of the pad below it */
   #joyBase{left:calc(34px + var(--safe-l));margin-left:0}
   body.left #joyBase{left:auto;right:calc(34px + var(--safe-r))}
+  /* left-handed: the pad is in the right corner, so ↺背後 and RELOAD sit next to the fire button on the left */
+  body.left #btnCamReset{right:auto;left:calc(22px + 96px + 14px + var(--safe-l));bottom:calc(var(--padb) + 24px + var(--safe-b))}
+  body.left #btnReload{right:auto;left:calc(22px + 96px + 14px + 56px + 10px + var(--safe-l));bottom:calc(var(--padb) + 24px + var(--safe-b))}   /* beside it (above would run into the minimap) */
 }
 @media (orientation:portrait){
-  #btnReload{right:auto;left:calc(50% - var(--pad) / 2 - 16px - 70px);bottom:calc(var(--padBottom) + (var(--pad) - 70px) / 2)}
-  body.left #btnReload{left:auto;right:calc(50% - var(--pad) / 2 - 16px - 70px)}
+  #btnReload,body.left #btnReload{right:calc(10px + var(--safe-r));bottom:calc(var(--ctrlH) + 10px + 56px + 10px)}
 }
 </style>
 </head>
@@ -1627,7 +1631,7 @@ touchLayer.addEventListener('pointerdown', e => {
     touch.joyId = e.pointerId;
     touch.aim = aimMode;      // while in aim mode this finger is the aim stick
     // remember how the touch started: a short tap on the pad's centre switches aim mode on (see endTouch)
-    touch.tap = { t: performance.now(), center: Math.hypot(e.clientX - touch.ox, e.clientY - touch.oy) < joyBase.offsetWidth * 0.3, travel: 0, x: e.clientX, y: e.clientY };
+    touch.tap = { t: e.timeStamp, center: Math.hypot(e.clientX - touch.ox, e.clientY - touch.oy) < joyBase.offsetWidth * 0.3, travel: 0, x: e.clientX, y: e.clientY };
     touch.zone = 'fire';
     joyBase.classList.add('on');
     input.joyActive = !touch.aim;
@@ -1690,7 +1694,7 @@ function endTouch(e) {
         else if (z === 'reload') startReload(false);         // let go above it: reload
         else if (z === 'cancel') setAimMode(false);          // let go below it: leave aim mode
       }
-    } else if (lifted && tp && tp.center && tp.travel < 12 && performance.now() - tp.t < 250) {
+    } else if (lifted && tp && tp.center && tp.travel < 12 && e.timeStamp - tp.t < 250) {   // (event time, so a slow frame can't turn a quick tap into a long press)
       setAimMode(true);                                      // a short tap on the centre: aim mode on
       if (!hasSeenAimHint()) addMsg('エイムモード：パッドで照準 → 離すと発射（外で離す：上=リロード／下=解除）', '#ffb0a0');
     }
