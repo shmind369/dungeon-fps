@@ -184,7 +184,6 @@ body.menu #joyHint{display:none}
   :root{--map:138px; --padb:84px}
   #statLine{gap:7px}
   #msgs{top:calc(var(--map) + 36px + var(--safe-t))}
-  #stats{flex-basis:auto;flex:1}
 }
 
 /* ---------- Portrait: split screen ----------
@@ -292,31 +291,36 @@ body.left #btnReload{right:auto;left:calc(22px + 104px + 14px + var(--safe-l))}
 /* a quick tap on the pad's centre = quick turn: the ring flashes */
 #joyBase.qt{border-color:var(--gold);background:rgba(232,184,90,.22);opacity:1}
 
-/* ---- score board: big and high-contrast, with the combo beside it ---- */
-#scoreBoard{position:absolute;left:calc(8px + var(--safe-l));top:calc(var(--map) + 34px + var(--safe-t));display:flex;align-items:stretch;gap:10px;pointer-events:none}
-#scoreBox,#comboBox{background:rgba(10,8,14,.66);border-radius:10px;padding:4px 12px 6px}
-#scoreBox{border:1px solid rgba(232,184,90,.6);min-width:132px}
-#scoreBox small{display:block;font-size:11px;letter-spacing:3px;line-height:1.2;color:var(--gold)}
-#scoreNum{display:block;font-size:34px;line-height:1.05;color:#fff;letter-spacing:1px;text-shadow:0 2px 0 #000,0 0 12px rgba(232,184,90,.6);font-variant-numeric:tabular-nums}
+/* ---- score / combo: a small, low-profile panel at the top so it does not block the view ---- */
+#stats{flex:0 0 auto;min-width:0;gap:1px;padding:3px 8px 4px;background:rgba(10,8,14,.38);border:1px solid rgba(255,255,255,.12);border-radius:8px;pointer-events:none}
+#stats .srow{display:flex;align-items:baseline;gap:6px;line-height:1.1}
+#stats small{font-size:9px;letter-spacing:1.5px;color:var(--gold)}
+#scoreNum{font-size:19px;color:#fff;text-shadow:0 1px 0 #000;font-variant-numeric:tabular-nums}
 #scoreNum.pop{animation:scorePop .3s ease-out}
-@keyframes scorePop{0%{transform:scale(1.3);color:#ffe9a8}100%{transform:scale(1);color:#fff}}
-#comboBox{border:1px solid rgba(255,140,90,.65);min-width:104px;padding-top:3px;visibility:hidden}
+@keyframes scorePop{0%{transform:scale(1.2);color:#ffe9a8}100%{transform:scale(1);color:#fff}}
+#comboBox{visibility:hidden;min-width:96px}
 #comboBox.on{visibility:visible}
-#comboTxt{transition:none}
-#comboBox .cm{display:flex;align-items:baseline;gap:6px;line-height:1}
-#comboNum{font-size:34px;color:#ff9a5a;text-shadow:0 2px 0 #000,0 0 12px rgba(255,120,60,.65);font-variant-numeric:tabular-nums}
+#comboTxt{display:flex;align-items:baseline;gap:5px;line-height:1.1;transition:none}
+#comboNum{font-size:15px;color:#ff9a5a;text-shadow:0 1px 0 #000;font-variant-numeric:tabular-nums}
 #comboNum.pop{animation:scorePop .25s ease-out}
-#comboBox small{font-size:11px;letter-spacing:2px;color:#ffd0b0}
-#comboMult{display:block;font-size:16px;color:var(--gold);margin-top:1px;text-shadow:0 1px 0 #000}
-.ct{height:5px;border-radius:3px;background:rgba(0,0,0,.65);margin-top:3px;overflow:hidden}
+#comboTxt small{color:#ffd0b0}
+#comboMult{font-size:12px;color:var(--gold);margin-left:auto}
+.ct{height:3px;border-radius:2px;background:rgba(0,0,0,.6);margin-top:2px;overflow:hidden}
 .ct i{display:block;height:100%;transform-origin:left;background:linear-gradient(#ffd070,#ff8a3a)}
 #comboBox.warn .ct i{background:#ff4a3a}
-#comboBox.warn{border-color:rgba(255,80,60,.9)}
+#comboBox.warn #comboNum{color:#ff6a50}
+#statLine{font-size:10px;gap:8px}
+/* HP + ammo live in the weapon row at the bottom */
+.slot.hp{flex:1.2 1 0;cursor:default;background:rgba(14,12,20,.92)}
+.slot.hp .ic{font-size:19px;line-height:28px;height:28px;color:#ff8a7a;white-space:nowrap}
+.slot.hp.low .ic{color:#ff4a3a;animation:needPulse .7s ease-in-out infinite}
+.hbar{width:86%;height:5px;border-radius:3px;background:#1b1520;overflow:hidden}
+#ammoFill{background:linear-gradient(#f1bd63,#c9873a)!important}
+.hbar i{display:block;height:100%;transform-origin:left;background:linear-gradient(#ee6a5e,var(--hp));transition:transform .15s}
 
 /* ---- minimap smaller; the room goes to the operation area (bigger pad and FIRE button) ---- */
 @media (orientation:landscape){   /* the pad sits in a bottom corner, not over the middle of the screen where you are aiming */
   :root{--map:108px}
-  #scoreBoard{left:calc(var(--safe-l) + 8px + var(--map) + 280px);top:calc(8px + var(--safe-t))}   /* in the top bar, to the right of the HP panel */
   #btnAttack{width:104px;height:104px}
   #joyBase{left:calc(34px + var(--safe-l));margin-left:0}
   body.left #joyBase{left:auto;right:calc(34px + var(--safe-r))}
@@ -325,7 +329,7 @@ body.left #btnReload{right:auto;left:calc(22px + 104px + 14px + var(--safe-l))}
   :root{--map:96px;--pad:132px}
   #btnAttack{--atk:min(104px,calc(50vw - var(--pad) / 2 - 22px))}
   #btnReload,body.left #btnReload{left:auto;right:calc(10px + var(--safe-r));bottom:calc(var(--ctrlH) + 10px)}
-  #msgs{top:calc(var(--map) + 118px + var(--safe-t))}
+  #msgs{top:calc(var(--map) + 36px + var(--safe-t))}
 }
 @media (orientation:portrait) and (max-height:720px){ :root{--pad:124px} }
 @media (orientation:portrait) and (max-height:600px){ :root{--pad:110px} }
@@ -342,16 +346,11 @@ body.left #btnReload{right:auto;left:calc(22px + 104px + 14px + var(--safe-l))}
   <div id="topbar">
     <div id="mapWrap"><div id="floorLabel">WAVE 1</div><canvas id="minimap" width="340" height="340"></canvas></div>
     <div id="stats">
-      <div class="bar" id="hpBar"><i></i><span></span></div>
-      <div class="bar" id="foodBar"><i></i><span></span></div>
-      <div class="bar" id="expBar"><i></i></div>
+      <div class="srow"><small>SCORE</small><b id="scoreNum">0</b></div>
+      <div id="comboBox"><div id="comboTxt"><b id="comboNum">0</b><small>COMBO</small><span id="comboMult">×1.0</span></div><div class="ct"><i></i></div></div>
       <div id="statLine"></div>
     </div>
     <div id="topRight"><button class="iconBtn" id="btnPause" aria-label="ポーズ">❚❚</button></div>
-  </div>
-  <div id="scoreBoard">
-    <div id="scoreBox"><small>SCORE</small><b id="scoreNum">0</b></div>
-    <div id="comboBox"><div id="comboTxt"><div class="cm"><b id="comboNum">0</b><small>COMBO</small></div><span id="comboMult">×1.0</span></div><div class="ct"><i></i></div></div>
   </div>
   <div id="compass"><canvas id="compassCv" width="116" height="116"></canvas><div id="compassHour">北</div></div>
   <div id="msgs"></div>
@@ -2202,9 +2201,11 @@ function drawMap(cv) {
    HUD
    ========================================================= */
 function updateHud() {
-  const hpK = player.hp / player.maxHp;
-  $('#hpBar>i').style.transform = `scaleX(${clamp(hpK, 0, 1)})`;
-  $('#hpBar>span').textContent = `HP ${Math.max(0, Math.round(player.hp))} / ${player.maxHp}`;
+  const hpK = clamp(player.hp / player.maxHp, 0, 1), hn = $('#hpNum');
+  if (!hn) return;
+  hn.textContent = Math.max(0, Math.round(player.hp));
+  $('#hpFill').style.transform = `scaleX(${hpK})`;
+  $('.slot.hp').classList.toggle('low', hpK <= 0.3);
 }
 let ammoKey = '';
 function refreshAmmo() {   // the ammo readouts: top bar + the slot beside the weapon buttons
@@ -2213,10 +2214,9 @@ function refreshAmmo() {   // the ammo readouts: top bar + the slot beside the w
   if (key === ammoKey) return;
   ammoKey = key;
   const fill = reloading ? 1 - player.reload / player.reloadTotal : a / w.mag;
-  $('#foodBar>i').style.transform = `scaleX(${clamp(fill, 0, 1)})`;
-  $('#foodBar>span').textContent = reloading ? `${w.name}  リロード中…` : a === 0 ? `${w.name}  弾切れ！ RELOAD` : `${w.name}  ${a} / ${w.mag}`;
   $('#btnReload').classList.toggle('need', a === 0 && !reloading);   // empty: the RELOAD button glows
   const num = $('#ammoNum'), box = $('.slot.ammo');
+  const af = $('#ammoFill'); if (af) af.style.transform = `scaleX(${clamp(fill, 0, 1)})`;
   if (num) { num.textContent = reloading ? '…' : `${a}/${w.mag}`; $('#ammoSub').textContent = reloading ? 'RELOAD' : a === 0 ? 'EMPTY!' : a <= Math.ceil(w.mag * 0.25) ? 'LOW' : 'AMMO'; box.classList.toggle('low', !reloading && a <= Math.ceil(w.mag * 0.25)); }
 }
 const GUN_ICONS = {
@@ -2232,7 +2232,9 @@ function refreshWeapons() {
     s.addEventListener('pointerdown', e => { e.preventDefault(); e.stopPropagation(); audioUnlock(); selectWeapon(i); });
     box.appendChild(s);
   });
-  const a = document.createElement('div'); a.className = 'slot ammo'; a.innerHTML = '<div class="ic" id="ammoNum">--</div><div class="nm" id="ammoSub"></div>'; box.appendChild(a);
+  const a = document.createElement('div'); a.className = 'slot ammo'; a.innerHTML = '<div class="ic" id="ammoNum">--</div><div class="hbar"><i id="ammoFill"></i></div><div class="nm" id="ammoSub"></div>'; box.appendChild(a);
+  const h = document.createElement('div'); h.className = 'slot hp'; h.innerHTML = '<div class="ic">♥ <span id="hpNum">--</span></div><div class="hbar"><i id="hpFill"></i></div><div class="nm">HP</div>'; box.insertBefore(h, a);
+  updateHud();
   ammoKey = ''; refreshAmmo();
 }
 let hudWave = '';
@@ -2241,7 +2243,6 @@ function updateWaveHud() {
   if (k === hudWave) return;
   hudWave = k;
   $('#floorLabel').textContent = `WAVE ${wave.n}`;
-  $('#expBar>i').style.transform = `scaleX(${wave.total ? clamp(wave.killed / wave.total, 0, 1) : 0})`;
   $('#statLine').innerHTML = `<span>撃破 <b>${stats.kills}</b></span><span>残り <b>${Math.max(0, wave.total - wave.killed)}</b></span>`;
 }
 // big score + combo (the combo text blinks faster and faster as its seconds run out)
