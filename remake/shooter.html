@@ -399,6 +399,8 @@ body.left #btnReload{right:auto;left:calc(22px + 104px + 14px + var(--safe-l))}
     下の<b>武器ボタン</b>をタップ → ピストル／ライフル／ショットガンを切り替え<br>
     <h3>🎥 カメラ</h3>
     自機が画面の左に寄る<b>肩越し視点</b>です（前方の景色や敵の邪魔をしません）。照準は小さな点だけで、撃っている間と撃った直後だけ細い線が開きます。<br>
+    <h3>🦵 足を撃つ</h3>
+    ゾンビの<b>足元</b>を撃つと、ひざをついて<b>1〜2秒</b>動けなくなります（その間は攻撃もしません）。立ち上がった直後の少しの間は、もう一度ひざをつかせられません。<br>
     <h3>🔥 コンボ</h3>
     敵を倒すとコンボが始まります。倒してから<b>10秒以内</b>に次の敵を倒すとコンボが続き、倒せないとコンボは終了（リセット）します。<br>
     <b>10コンボごとにスコア倍率が+0.1</b>（1〜9：×1.0 ／ 10〜19：×1.1 ／ 20〜29：×1.2 …）。倒した敵のスコアに倍率がかかります。<br>
@@ -1109,10 +1111,12 @@ const Z3D = (() => {
       armX = lerp(lerp(-2.75, -0.5, a), -1.4, b); spineX = lerp(lerp(-0.12, 0.62, a), 0.32, b); elX = lerp(-0.05, -0.3, b);
     }
     if (z.hit > 0) { const k = z.hit / HIT; spineX -= 0.5 * k; headX -= 0.45 * k; armX += 0.5 * k; }
+    const kn = e.kneel || 0;
+    if (kn > 0.001) { spineX = lerp(spineX, 0.6, kn); headX = lerp(headX, 0.2, kn); armX = lerp(armX, -0.55, kn); elX = lerp(elX, -0.2, kn); }
     const mv = z.mv;
     z.root.position.set(e.x, 0, e.z);
     z.root.rotation.y = z.face;
-    z.hips.position.y = HIP_Y + Math.abs(Math.cos(z.phase)) * 0.02 * mv;
+    z.hips.position.y = lerp(HIP_Y + Math.abs(Math.cos(z.phase)) * 0.02 * mv, 0.3, kn);
     z.hips.rotation.y = Math.sin(z.phase) * 0.12 * mv;
     z.spine.rotation.set(spineX, 0, Math.sin(z.phase) * 0.08 * mv + Math.sin(t * 0.9) * 0.05);
     z.neck.rotation.set(headX, 0, Math.sin(t * 1.3) * 0.16 + (z.tw > 0 ? z.twA : 0));
@@ -1124,6 +1128,10 @@ const Z3D = (() => {
       const ph = z.phase + i * Math.PI, amp = i ? 0.42 : 0.26;   // one leg drags a little
       l.thigh.rotation.x = Math.sin(ph) * amp * mv;
       l.knee.rotation.x = 0.08 + Math.max(0, -Math.cos(ph)) * 0.55 * mv;
+      if (kn > 0.001) {                                       // one knee on the floor, the other foot planted in front
+        l.thigh.rotation.x = lerp(l.thigh.rotation.x, i ? -1.25 : -0.12, kn);
+        l.knee.rotation.x = lerp(l.knee.rotation.x, i ? 1.3 : 1.55, kn);
+      }
     });
     // tint: red on hit, pulsing orange while winding up (same cues the sprite used)
     let tint = 0;
@@ -1255,6 +1263,7 @@ function rayCyl(ox, oy, oz, dx, dy, dz, cx, cz, r, y0, y1) {
   const y = oy + dy * t;
   return y >= y0 && y <= y1 ? t : null;
 }
+const KNEEL_DROP = 0.42, LEG_ZONE = 0.42;   // how far a kneeling zombie sinks (x scale), and how high up the legs count (x scale)
 class Enemy {
   constructor(type, x, z) {
     const d = ENEMY_DEFS[type];
@@ -1265,6 +1274,7 @@ class Enemy {
     this.x = x; this.z = z; this.vx = 0; this.vz = 0; this.kx = 0; this.kz = 0;
     this.aggro = true; this.cd = rand(0.3, 1); this.windup = 0; this.flash = 0; this.t = Math.random() * 10;
     this.pace = rand(0.9, 1.12);
+    this.down = 0; this.kneel = 0; this.legCd = 0;   // knocked to its knees by a leg shot: timer, pose amount (0..1), cooldown before it can be dropped again
     this.z3 = Z3D.build(this);
     if (d.tint) for (const mt of this.z3.mats) mt.color.setRGB(d.tint[0], d.tint[1], d.tint[2]);
     levelGroup.add(this.z3.root);
@@ -1278,20 +1288,24 @@ class Enemy {
   }
   // a bullet ray against the head (sphere) and the body (cylinder); returns { t, head } or null
   rayHit(ox, oy, oz, dx, dy, dz, maxT) {
-    const s = this.d.scale;
-    const th = raySphere(ox, oy, oz, dx, dy, dz, this.x, 0.97 * s, this.z, 0.17 * s);
-    const tb = rayCyl(ox, oy, oz, dx, dy, dz, this.x, this.z, 0.24 * s, 0, 0.88 * s);
-    if (th !== null && th < maxT && (tb === null || th <= tb + 0.05)) return { t: th, head: true };
-    if (tb !== null && tb < maxT) return { t: tb, head: false };
+    const s = this.d.scale, drop = KNEEL_DROP * s * this.kneel;   // a kneeling zombie is shorter
+    const th = raySphere(ox, oy, oz, dx, dy, dz, this.x, 0.97 * s - drop, this.z, 0.17 * s);
+    const tb = rayCyl(ox, oy, oz, dx, dy, dz, this.x, this.z, 0.24 * s, 0, 0.88 * s - drop);
+    if (th !== null && th < maxT && (tb === null || th <= tb + 0.05)) return { t: th, head: true, leg: false };
+    if (tb !== null && tb < maxT) return { t: tb, head: false, leg: oy + dy * tb < LEG_ZONE * s };
     return null;
   }
-  damage(n, kx, kz, head) {
+  damage(n, kx, kz, head, leg) {
     this.hp -= n; this.flash = 0.12;
     this.kx += kx * 0.9; this.kz += kz * 0.9;
     if (this.d.scale < 1.2) this.windup = Math.max(0, this.windup - 0.12);   // a hit flinches it out of a swing
     const y = this.d.scale * (head ? 1.05 : 0.7);
     dmgTexts.push({ x: this.x, y: y + 0.15, z: this.z, text: String(n), t: 0, crit: head, color: head ? '#ffd24a' : '#fff' });
     burst(this.x, y, this.z, 0x7a1e18, head ? 14 : 8, 2.0, 0.45);
+    if (leg && !head && this.hp > 0 && this.down <= 0 && this.legCd <= 0) {   // shot in the legs: down on its knees for 1-2 s (a brute gets up sooner)
+      this.down = rand(1, 2) * (this.type === 'brute' ? 0.6 : 1); this.windup = 0; this.cd = Math.max(this.cd, 0.4);
+      dmgTexts.push({ x: this.x, y: this.d.scale * 0.5, z: this.z, text: 'ひざ！', t: 0, crit: false, color: '#ffb060' });
+    }
     if (this.hp <= 0) this.die(head);
   }
   die(head) {
@@ -1308,11 +1322,15 @@ class Enemy {
   }
   update(dt) {
     const d = this.d;
-    this.t += dt; this.flash -= dt;
+    this.t += dt; this.flash -= dt; this.legCd -= dt;
+    this.kneel += ((this.down > 0.3 ? 1 : 0) - this.kneel) * Math.min(1, dt * 9);   // down fast, up over its last 0.3 s
     const dx = player.x - this.x, dz = player.z - this.z, dist = Math.hypot(dx, dz) || 0.001;
     const canSee = dist < 12 && los(this.x, this.z, player.x, player.z);
     let mx = 0, mz = 0;
-    if (this.windup > 0) {
+    if (this.down > 0) {                                   // kneeling: no walking, no attacking
+      this.down -= dt; this.windup = 0;
+      if (this.down <= 0) this.legCd = 0.8;               // briefly can't be dropped again right after it stands
+    } else if (this.windup > 0) {
       this.windup -= dt;
       if (this.windup <= 0) {
         if (dist < d.range + PLAYER_R + 0.15 && canSee) hurtPlayer(this.atk, this);
@@ -1522,7 +1540,7 @@ function traceRay(ox, oy, oz, dx, dy, dz, maxT) {
   for (const e of enemies) {
     if (e.dead) continue;
     const h = e.rayHit(ox, oy, oz, dx, dy, dz, best.t);
-    if (h && h.t < best.t) best = { t: h.t, kind: 'enemy', e, head: h.head };
+    if (h && h.t < best.t) best = { t: h.t, kind: 'enemy', e, head: h.head, leg: h.leg };
   }
   return best;
 }
@@ -1573,7 +1591,7 @@ function shoot() {
     addTracer(_M, end);
     if (hit.kind === 'enemy') {
       let dmg = w.dmg * (hit.head ? w.headMul : 1) * (w.falloff ? 1 - w.falloff * hit.t / w.range : 1);
-      hit.e.damage(Math.max(1, Math.round(dmg)), dir.x, dir.z, hit.head);
+      hit.e.damage(Math.max(1, Math.round(dmg)), dir.x, dir.z, hit.head, hit.leg);
       hits++; if (hit.head) head = true;
     } else if (hit.kind !== 'none') {
       burst(end.x, end.y, end.z, 0xffc070, 4, 1.4, 0.25, 4);
