@@ -409,7 +409,7 @@ body.left #btnMelee{right:auto;left:calc(22px + 104px + 11px + var(--safe-l))}
     <h3>🎥 カメラ</h3>
     自機が画面の左に寄る<b>肩越し視点</b>です（前方の景色や敵の邪魔をしません）。照準は小さな点だけで、撃っている間と撃った直後だけ細い線が開きます。<br>
     <h3>🦵 足を撃つ</h3>
-    ゾンビの<b>足元</b>を撃つと、ひざをついて<b>1〜2秒</b>動けなくなります（その間は攻撃もしません）。立ち上がった直後の少しの間は、もう一度ひざをつかせられません。<br>
+    ゾンビの<b>足元</b>を撃つと、ひざをついて<b>1.5〜3秒</b>動けなくなります（その間は攻撃もしません）。立ち上がった直後の少しの間は、もう一度ひざをつかせられません。<br>
     ひざをついた敵に近づくと<b>MELEE（体術）ボタン</b>が現れます。押すと蹴りで大ダメージ。ゾンビ・ランナーは一撃で倒せます（PC：<kbd>F</kbd> ／ パッド：<kbd>B</kbd>）。<br>
     <h3>🔥 コンボ</h3>
     敵を倒すとコンボが始まります。倒してから<b>10秒以内</b>に次の敵を倒すとコンボが続き、倒せないとコンボは終了（リセット）します。<br>
@@ -1314,8 +1314,8 @@ class Enemy {
     const y = this.d.scale * (head ? 1.05 : 0.7);
     dmgTexts.push({ x: this.x, y: y + 0.15, z: this.z, text: String(n), t: 0, crit: head, color: head ? '#ffd24a' : '#fff' });
     burst(this.x, y, this.z, 0x7a1e18, head ? 14 : 8, 2.0, 0.45);
-    if (leg && !head && this.hp > 0 && this.down <= 0 && this.legCd <= 0) {   // shot in the legs: down on its knees for 1-2 s (a brute gets up sooner)
-      this.down = rand(1, 2) * (this.type === 'brute' ? 0.6 : 1); this.windup = 0; this.cd = Math.max(this.cd, 0.4);
+    if (leg && !head && this.hp > 0 && this.down <= 0 && this.legCd <= 0) {   // shot in the legs: down on its knees for 1.5-3 s (a brute gets up sooner)
+      this.down = rand(1.5, 3) * (this.type === 'brute' ? 0.6 : 1); this.windup = 0; this.cd = Math.max(this.cd, 0.4);
       dmgTexts.push({ x: this.x, y: this.d.scale * 0.5, z: this.z, text: 'ひざ！', t: 0, crit: false, color: '#ffb060' });
     }
     if (this.hp <= 0) this.die(head);
