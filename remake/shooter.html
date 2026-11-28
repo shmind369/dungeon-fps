@@ -288,6 +288,13 @@ h2{margin:0 0 14px;font-weight:normal;color:var(--gold)}
 #btnReload.need{border-color:#ffd070;background:rgba(232,184,90,.38);animation:needPulse .7s ease-in-out infinite}   /* magazine empty: it glows */
 @keyframes needPulse{0%,100%{transform:scale(1);box-shadow:0 0 0 0 rgba(232,184,90,.65)}50%{transform:scale(1.08);box-shadow:0 0 0 10px rgba(232,184,90,0)}}
 body.left #btnReload{right:auto;left:calc(22px + 104px + 14px + var(--safe-l))}
+/* ---- MELEE: shown only while a kneeling zombie is within reach ---- */
+#btnMelee{width:70px;height:70px;font-size:26px;line-height:1;gap:0;display:none;right:calc(22px + 104px + 11px + var(--safe-r));bottom:calc(var(--padb) + 24px + 64px + 10px + var(--safe-b));
+  border-color:#ff9a5a;background:rgba(255,120,60,.4);animation:meleePulse .6s ease-in-out infinite}
+#btnMelee.on{display:flex}
+#btnMelee.down{background:rgba(201,103,58,.75);transform:scale(.93);animation:none}
+@keyframes meleePulse{0%,100%{transform:scale(1);box-shadow:0 0 0 0 rgba(255,140,80,.7)}50%{transform:scale(1.08);box-shadow:0 0 0 11px rgba(255,140,80,0)}}
+body.left #btnMelee{right:auto;left:calc(22px + 104px + 11px + var(--safe-l))}
 /* a quick tap on the pad's centre = quick turn: the ring flashes */
 #joyBase.qt{border-color:var(--gold);background:rgba(232,184,90,.22);opacity:1}
 
@@ -329,6 +336,7 @@ body.left #btnReload{right:auto;left:calc(22px + 104px + 14px + var(--safe-l))}
   :root{--map:96px;--pad:132px}
   #btnAttack{--atk:min(104px,calc(50vw - var(--pad) / 2 - 22px))}
   #btnReload,body.left #btnReload{left:auto;right:calc(10px + var(--safe-r));bottom:calc(var(--ctrlH) + 10px)}
+  #btnMelee,body.left #btnMelee{left:auto;right:calc(7px + var(--safe-r));bottom:calc(var(--ctrlH) + 10px + 64px + 12px)}
   #msgs{top:calc(var(--map) + 36px + var(--safe-t))}
 }
 @media (orientation:portrait) and (max-height:720px){ :root{--pad:124px} }
@@ -364,6 +372,7 @@ body.left #btnReload{right:auto;left:calc(22px + 104px + 14px + var(--safe-l))}
   <div id="joyHint">移動パッド</div>
   <button class="tbtn" id="btnAttack" aria-label="発射"><svg viewBox="0 0 40 40"><circle cx="20" cy="20" r="11"/><path d="M20 3v10M20 27v10M3 20h10M27 20h10"/></svg><small>FIRE</small></button>
   <button class="tbtn" id="btnReload" aria-label="リロード"><span>↻</span><small>RELOAD</small></button>
+  <button class="tbtn" id="btnMelee" aria-label="体術"><span>👊</span><small>MELEE</small></button>
 </div>
 
 <div class="screen on" id="scrTitle"><div class="card">
@@ -401,6 +410,7 @@ body.left #btnReload{right:auto;left:calc(22px + 104px + 14px + var(--safe-l))}
     自機が画面の左に寄る<b>肩越し視点</b>です（前方の景色や敵の邪魔をしません）。照準は小さな点だけで、撃っている間と撃った直後だけ細い線が開きます。<br>
     <h3>🦵 足を撃つ</h3>
     ゾンビの<b>足元</b>を撃つと、ひざをついて<b>1〜2秒</b>動けなくなります（その間は攻撃もしません）。立ち上がった直後の少しの間は、もう一度ひざをつかせられません。<br>
+    ひざをついた敵に近づくと<b>MELEE（体術）ボタン</b>が現れます。押すと蹴りで大ダメージ。ゾンビ・ランナーは一撃で倒せます（PC：<kbd>F</kbd> ／ パッド：<kbd>B</kbd>）。<br>
     <h3>🔥 コンボ</h3>
     敵を倒すとコンボが始まります。倒してから<b>10秒以内</b>に次の敵を倒すとコンボが続き、倒せないとコンボは終了（リセット）します。<br>
     <b>10コンボごとにスコア倍率が+0.1</b>（1〜9：×1.0 ／ 10〜19：×1.1 ／ 20〜29：×1.2 …）。倒した敵のスコアに倍率がかかります。<br>
@@ -521,6 +531,7 @@ function noise(dur, vol = 0.15, freq = 1200, q = 1, delay = 0, freq2 = null) {
   s.connect(f).connect(g).connect(actx.destination); s.start(t); s.stop(t + dur + 0.02);
 }
 const SFX = {
+  melee: () => { noise(0.07, 0.35, 900, 0.8, 0, 300); tone(170, 60, 0.12, 'triangle', 0.3, 0.07); noise(0.12, 0.4, 500, 0.7, 0.07, 150); },
   pistol: () => { noise(0.13, 0.3, 1800, 0.7, 0, 380); tone(190, 55, 0.1, 'square', 0.1); },
   rifle: () => { noise(0.1, 0.26, 2300, 0.8, 0, 500); tone(150, 55, 0.08, 'sawtooth', 0.09); },
   // ドゴォン！: a sharp crack, a punching body, a low boom that blooms, and a rumbling echo that rolls away
@@ -859,6 +870,7 @@ const player = {
   x: 0, z: 0, yaw: 0, pitch: 0, vx: 0, vz: 0, bob: 0,
   hp: 100, maxHp: 100, weapon: 0, ammo: WEAPONS.map(w => w.mag),
   fireCd: 0, reload: 0, reloadTotal: 1, bloom: 0, aimHold: 0, swapT: 0, shotBuf: 0,
+  melee: 0, meleeCd: 0, meleeHit: false, meleeTgt: null,   // melee kick: swing timer, cooldown, did the hit land yet, the kneeling target
 };
 const wave = { n: 0, toSpawn: 0, total: 0, killed: 0, spawnT: 0, breakT: 0, phase: 'idle' };
 
@@ -1658,6 +1670,7 @@ addEventListener('keydown', e => {
   if (state === 'play') {
     if (e.code === 'Space') { input.attackKey = true; input.attackLatch = true; e.preventDefault(); }
     if (e.code === 'KeyR') startReload(false);
+    if (e.code === 'KeyF') startMelee();
     if (e.code === 'KeyQ') cycleWeapon(-1);
     if (e.code === 'KeyE') cycleWeapon(1);
     if (/^Digit[1-3]$/.test(e.code)) selectWeapon(+e.code.slice(5) - 1);
@@ -1814,6 +1827,9 @@ btnAttack.addEventListener('lostpointercapture', atkUp);
 const tap = (el, fn) => el.addEventListener('pointerdown', e => { e.preventDefault(); e.stopPropagation(); audioUnlock(); fn(e); });
 tap($('#btnPause'), () => pause());
 tap($('#btnReload'), () => startReload(false));
+tap($('#btnMelee'), () => startMelee());
+$('#btnMelee').addEventListener('pointerdown', e => $('#btnMelee').classList.add('down'));
+for (const ev of ['pointerup', 'pointercancel']) $('#btnMelee').addEventListener(ev, () => $('#btnMelee').classList.remove('down'));
 
 /* ---- Gamepad ---- */
 const padPrev = [];
@@ -1832,6 +1848,7 @@ function pollPad() {
     input.padRun = b(10) || Math.hypot(input.padLX, input.padLY) > 0.97;
     if (state === 'play') {
       if (pressed(2)) startReload(false);
+      if (pressed(1)) startMelee();
       if (pressed(4) || pressed(14)) cycleWeapon(-1);
       if (pressed(5) || pressed(15)) cycleWeapon(1);
       if (pressed(9)) pause();
@@ -1884,7 +1901,7 @@ function updatePlayer(dt) {
   const mag = Math.hypot(mx, my);
   if (mag > 1) { mx /= mag; my /= mag; }
   const running = keys.has('ShiftLeft') || keys.has('ShiftRight') || input.padRun || (input.joyActive && Math.hypot(input.joyX, input.joyY) > 0.95);
-  const speed = (running ? RUN_SPEED : WALK_SPEED) * (player.reload > 0 ? 0.85 : 1);
+  const speed = (running ? RUN_SPEED : WALK_SPEED) * (player.reload > 0 ? 0.85 : 1) * (player.melee > 0 ? 0.2 : 1);
   const [fx2, fz2] = forward(), [rx, rz] = rightVec();
   const tvx = (fx2 * my + rx * mx) * speed, tvz = (fz2 * my + rz * mx) * speed;
   const acc = Math.min(1, dt * (mag > 0.05 ? 14 : 10));
@@ -1918,13 +1935,53 @@ function updatePlayer(dt) {
     else { SFX.empty(); player.fireCd = 0.3; emptyHint(); }   // empty: just a click. No auto reload.
   }
 }
+/* ---- melee: a kick on a zombie that is down on its knees ---- */
+const MELEE_REACH = 1.3, MELEE_DMG = 60, MELEE_TIME = 0.5, MELEE_HIT_AT = 0.22;
+function meleeTarget() {
+  let best = null, bd = MELEE_REACH;
+  for (const e of enemies) {
+    if (e.dead || e.down <= 0.15 || e.kneel < 0.6) continue;
+    const d = Math.hypot(e.x - player.x, e.z - player.z) - e.d.r;
+    if (d < bd && los(player.x, player.z, e.x, e.z)) { bd = d; best = e; }
+  }
+  return best;
+}
+function startMelee() {
+  if (state !== 'play' || player.melee > 0 || player.meleeCd > 0 || player.reload > 0) return;
+  const t = meleeTarget(); if (!t) return;
+  player.melee = MELEE_TIME; player.meleeHit = false; player.meleeTgt = t; player.meleeCd = MELEE_TIME + 0.15;
+  player.aimHold = 0; player.fireCd = Math.max(player.fireCd, MELEE_TIME); player.shotBuf = 0;
+}
+function updateMelee(dt) {
+  player.meleeCd = Math.max(0, player.meleeCd - dt);
+  if (player.melee > 0) {
+    player.melee = Math.max(0, player.melee - dt);
+    const e = player.meleeTgt, el = MELEE_TIME - player.melee;
+    if (e && !e.dead) {
+      const dx = e.x - player.x, dz = e.z - player.z, d = Math.hypot(dx, dz) || 1e-3;
+      player.meleeAng = Math.atan2(dx, dz);
+      if (d > e.d.r + PLAYER_R + 0.28 && el < 0.3) moveWithCollision(player, dx / d * 2.4 * dt, dz / d * 2.4 * dt, PLAYER_R);   // step in
+      if (!player.meleeHit && el >= MELEE_HIT_AT) {
+        player.meleeHit = true;
+        e.damage(MELEE_DMG, dx / d * 3.2, dz / d * 3.2, false, false);
+        e.down = Math.max(e.down, 0.5);
+        SFX.melee(); vibrate(35); shake = Math.max(shake, 0.18);
+        burst(e.x, e.d.scale * 0.45, e.z, 0xffd080, 8, 2.4, 0.3);
+        dmgTexts.push({ x: e.x, y: e.d.scale * 0.9, z: e.z, text: '体術！', t: 0, crit: true, color: '#ffb060' });
+      }
+    } else if (!player.meleeHit) { player.melee = 0; }   // the target is gone before the kick lands
+  }
+  const can = state === 'play' && player.melee <= 0 && player.meleeCd <= 0 && player.reload <= 0 && !!meleeTarget();
+  $('#btnMelee').classList.toggle('on', can);
+}
 let emptyHintT = -10;
 function emptyHint() { if (stats.time - emptyHintT > 2.5) { emptyHintT = stats.time; addMsg('弾切れ！ RELOADボタンでリロード', '#ffd070'); } }
 
 function update(dt) {
   stats.time += dt;
   updatePlayer(dt);
-  if (state !== 'play') return;
+  if (state !== 'play') { $('#btnMelee').classList.remove('on'); return; }
+  updateMelee(dt);
   updateFlow();
   for (const e of enemies) if (!e.dead) e.update(dt);
   enemies = enemies.filter(e => !e.dead);
@@ -1999,8 +2056,9 @@ function animateHeroine(dt, idleOnly) {
   const aimYaw = Math.atan2(-Math.sin(player.yaw), -Math.cos(player.yaw));
   const prevFace = h.face;
   let target = null;
-  if (!idleOnly) { if (aiming) target = aimYaw; else if (sp > 0.35) target = Math.atan2(player.vx, player.vz); }
-  if (target !== null) h.face += angDiff(h.face, target) * Math.min(1, dt * (aiming ? 16 : 11));
+  if (!idleOnly && player.melee > 0) target = player.meleeAng;
+  else if (!idleOnly) { if (aiming) target = aimYaw; else if (sp > 0.35) target = Math.atan2(player.vx, player.vz); }
+  if (target !== null) h.face += angDiff(h.face, target) * Math.min(1, dt * (player.melee > 0 ? 20 : aiming ? 16 : 11));
   // while aiming the legs run backwards when you back away
   let dir = 1;
   if (aiming && sp > 0.1) dir = (player.vx * Math.sin(h.face) + player.vz * Math.cos(h.face)) >= -0.05 * sp ? 1 : -1;
@@ -2031,6 +2089,18 @@ function animateHeroine(dt, idleOnly) {
   h.head.rotation.set(-0.05 * mv - 0.03 * run - player.pitch * 0.55 * aimK, 0, -h.body.rotation.z * 0.6);
   h.body.rotation.z += Math.sin(t * 0.8) * 0.018 * (1 - mv);
   h.hips.position.x += Math.sin(t * 0.8) * 0.01 * (1 - mv);
+
+  // ---------- melee: a front kick (wind up the knee, snap the leg out, recover) ----------
+  if (!idleOnly && player.melee > 0) {
+    const m = 1 - player.melee / MELEE_TIME;                       // 0..1
+    const up = m < 0.3 ? easeOut(m / 0.3) : m < 0.55 ? 1 : 1 - easeOut((m - 0.55) / 0.45);
+    const snap = m < 0.2 ? 0 : m < 0.5 ? easeOut((m - 0.2) / 0.3) : 1 - easeOut((m - 0.5) / 0.5);
+    L.thigh.rotation.x = -1.55 * up;                               // left leg kicks (the right hand holds the gun)
+    L.knee.rotation.x = 1.3 * up * (1 - 0.92 * snap);
+    Rr.thigh.rotation.x = 0.1 * up; Rr.knee.rotation.x = 0.15 * up;
+    h.body.rotation.x += -0.22 * up; h.hips.rotation.y = 0;
+    h.tilt.position.y = 0;
+  }
 
   // ---------- arms: gun held low across the body, raised to the shoulder when firing ----------
   const [RA, LA] = h.arms;     // arms[0] = right arm
@@ -2406,7 +2476,7 @@ function startGame() {
   enemies = []; pickups = []; dmgTexts = []; particles.length = 0;
   for (const t of tracers) { t.life = 0; t.mesh.visible = false; }
   Object.assign(player, { x: dun.start.cx + 0.5, z: dun.start.cy + 0.5, yaw: 0, pitch: 0.1, vx: 0, vz: 0, bob: 0, hp: 100, maxHp: 100, weapon: 0,
-    ammo: WEAPONS.map(w => w.mag), fireCd: 0, reload: 0, bloom: 0, aimHold: 0, swapT: 0, shotBuf: 0 });
+    ammo: WEAPONS.map(w => w.mag), fireCd: 0, reload: 0, bloom: 0, aimHold: 0, swapT: 0, shotBuf: 0, melee: 0, meleeCd: 0, meleeHit: false, meleeTgt: null });
   Object.assign(heroine, { face: Math.PI, hurtT: 0, deathT: 0, aimK: 0, phase: 0, recoil: 0 });
   Object.assign(wave, { n: 0, toSpawn: 0, total: 0, killed: 0, spawnT: 0, breakT: 0, phase: 'idle' });
   stats = { kills: 0, time: 0, score: 0, heads: 0 };
