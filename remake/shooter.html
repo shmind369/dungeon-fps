@@ -410,7 +410,7 @@ body.left #btnMelee{right:auto;left:calc(22px + 104px + 11px + var(--safe-l))}
     自機が画面の左に寄る<b>肩越し視点</b>です（前方の景色や敵の邪魔をしません）。照準は小さな点だけで、撃っている間と撃った直後だけ細い線が開きます。<br>
     <h3>🦵 足を撃つ</h3>
     ゾンビの<b>足元</b>を撃つと、ひざをついて<b>1.5〜3秒</b>動けなくなります（その間は攻撃もしません）。立ち上がった直後の少しの間は、もう一度ひざをつかせられません。<br>
-    ひざをついた敵に近づくと<b>MELEE（体術）ボタン</b>が現れます。押すと蹴りで大ダメージ。ゾンビ・ランナーは一撃で倒せます（PC：<kbd>F</kbd> ／ パッド：<kbd>B</kbd>）。<br>
+    ひざをついた敵に近づくと<b>MELEE（体術）ボタン</b>が現れます。押すと<b>回し蹴り（ミドルキック）</b>。ひざをついた敵は大ダメージ（ゾンビ・ランナーは一撃）、周りにいる他の敵も巻き込んで<b>吹き飛ばし</b>、少しダメージを与えます（PC：<kbd>F</kbd> ／ パッド：<kbd>B</kbd>）。<br>
     <h3>🔥 コンボ</h3>
     敵を倒すとコンボが始まります。倒してから<b>10秒以内</b>に次の敵を倒すとコンボが続き、倒せないとコンボは終了（リセット）します。<br>
     <b>10コンボごとにスコア倍率が+0.1</b>（1〜9：×1.0 ／ 10〜19：×1.1 ／ 20〜29：×1.2 …）。倒した敵のスコアに倍率がかかります。<br>
@@ -1936,7 +1936,8 @@ function updatePlayer(dt) {
   }
 }
 /* ---- melee: a kick on a zombie that is down on its knees ---- */
-const MELEE_REACH = 1.3, MELEE_DMG = 60, MELEE_TIME = 0.5, MELEE_HIT_AT = 0.22;
+const MELEE_REACH = 1.3, MELEE_DMG = 60, MELEE_TIME = 0.6, MELEE_HIT_AT = 0.27;
+const SWEEP_R = 1.5, SWEEP_DMG = 18, SWEEP_KB = 12;   // the roundhouse's sweep: radius (from the hero), damage and knock-back for everything else nearby
 function meleeTarget() {
   let best = null, bd = MELEE_REACH;
   for (const e of enemies) {
@@ -1963,11 +1964,24 @@ function updateMelee(dt) {
       if (d > e.d.r + PLAYER_R + 0.28 && el < 0.3) moveWithCollision(player, dx / d * 2.4 * dt, dz / d * 2.4 * dt, PLAYER_R);   // step in
       if (!player.meleeHit && el >= MELEE_HIT_AT) {
         player.meleeHit = true;
-        e.damage(MELEE_DMG, dx / d * 3.2, dz / d * 3.2, false, false);
-        e.down = Math.max(e.down, 0.5);
-        SFX.melee(); vibrate(35); shake = Math.max(shake, 0.18);
+        // roundhouse: the kneeling target takes the full kick; every other enemy in the sweep is hurt a little and thrown back
+        for (const o of enemies.slice()) {
+          if (o.dead) continue;
+          const ox = o.x - player.x, oz = o.z - player.z, od = Math.hypot(ox, oz) || 1e-3;
+          if (o === e) { o.damage(MELEE_DMG, ox / od * 5, oz / od * 5, false, false); o.down = Math.max(o.down, 0.5); continue; }
+          if (od - o.d.r > SWEEP_R) continue;
+          if (Math.abs(angDiff(player.meleeAng, Math.atan2(ox, oz))) > 1.9) continue;   // everything except what is right behind the hero
+          const kneeling = o.down > 0.15 && o.kneel > 0.6;
+          o.damage(kneeling ? MELEE_DMG : SWEEP_DMG, ox / od * SWEEP_KB, oz / od * SWEEP_KB, false, false);
+          if (!o.dead) {
+            o.windup = 0; o.cd = Math.max(o.cd, 0.9);                          // thrown off balance: no attack for a moment
+            dmgTexts.push({ x: o.x, y: o.d.scale * 0.8, z: o.z, text: '吹き飛ばし！', t: 0, crit: false, color: '#ffd070' });
+            burst(o.x, o.d.scale * 0.45, o.z, 0xffd080, 6, 2.2, 0.3);
+          }
+        }
+        SFX.melee(); vibrate(45); shake = Math.max(shake, 0.26);
         burst(e.x, e.d.scale * 0.45, e.z, 0xffd080, 8, 2.4, 0.3);
-        dmgTexts.push({ x: e.x, y: e.d.scale * 0.9, z: e.z, text: '体術！', t: 0, crit: true, color: '#ffb060' });
+        dmgTexts.push({ x: e.x, y: e.d.scale * 0.9, z: e.z, text: '回し蹴り！', t: 0, crit: true, color: '#ffb060' });
       }
     } else if (!player.meleeHit) { player.melee = 0; }   // the target is gone before the kick lands
   }
@@ -2090,17 +2104,19 @@ function animateHeroine(dt, idleOnly) {
   h.body.rotation.z += Math.sin(t * 0.8) * 0.018 * (1 - mv);
   h.hips.position.x += Math.sin(t * 0.8) * 0.01 * (1 - mv);
 
-  // ---------- melee: a front kick (wind up the knee, snap the leg out, recover) ----------
+  // ---------- melee: roundhouse (middle) kick: coil, whip the body round while the leg comes up sideways and swings through, recover ----------
   if (!idleOnly && player.melee > 0) {
-    const m = 1 - player.melee / MELEE_TIME;                       // 0..1
-    const up = m < 0.3 ? easeOut(m / 0.3) : m < 0.55 ? 1 : 1 - easeOut((m - 0.55) / 0.45);
-    const snap = m < 0.2 ? 0 : m < 0.5 ? easeOut((m - 0.2) / 0.3) : 1 - easeOut((m - 0.5) / 0.5);
-    L.thigh.rotation.x = -1.55 * up;                               // left leg kicks (the right hand holds the gun)
-    L.knee.rotation.x = 1.3 * up * (1 - 0.92 * snap);
-    Rr.thigh.rotation.x = 0.1 * up; Rr.knee.rotation.x = 0.15 * up;
-    h.body.rotation.x += -0.22 * up; h.hips.rotation.y = 0;
+    const m = 1 - player.melee / MELEE_TIME;                        // 0..1
+    const up = m < 0.28 ? easeOut(m / 0.28) : m < 0.62 ? 1 : 1 - easeOut((m - 0.62) / 0.38);   // leg raised
+    const sw = m < 0.18 ? 0 : m < 0.5 ? easeOut((m - 0.18) / 0.32) : 1 - easeOut((m - 0.5) / 0.5) * 1.0;    // 0 coiled -> 1 swept through
+    const spin = -0.6 * up * (1 - sw) + 0.7 * sw * up;           // body turns away, then whips through
+    h.hips.rotation.y = spin;
+    L.thigh.rotation.x = -1.2 * up; L.thigh.rotation.z = 0.7 * up * (1 - 0.5 * sw);   // knee up and out to the side
+    L.knee.rotation.x = 1.5 * up * (1 - 0.85 * sw);                                      // snaps straight on the sweep
+    Rr.thigh.rotation.x = 0.08 * up; Rr.knee.rotation.x = 0.12 * up;
+    h.body.rotation.x += -0.18 * up; h.body.rotation.z += -0.25 * up * sw;                // lean away from the kick
     h.tilt.position.y = 0;
-  }
+  } else { L.thigh.rotation.z = 0; }
 
   // ---------- arms: gun held low across the body, raised to the shoulder when firing ----------
   const [RA, LA] = h.arms;     // arms[0] = right arm
